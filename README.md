@@ -1,4 +1,4 @@
-### 🤩WOW🤩
+
 
 ## BOJ(Baekjoon Online Judge) 
 [![Solved.ac Profile](http://mazassumnida.wtf/api/v2/generate_badge?boj=wltjq4300)](https://solved.ac/wltjq4300/)
