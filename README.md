@@ -1,6 +1,8 @@
 
+## 🔎 Visitors
+<a href="https://github.com/easyseop"><img src="https://hits.seeyoufarm.com/api/count/incr/badge.svg?url=https%3A%2F%2Fgithub.com%2Feasyseop%2F&count_bg=%2310110F&title_bg=%23555555&icon=github.svg&icon_color=%23E7E7E7&title=Github&edge_flat=false"/></a>
 
-## BOJ(Baekjoon Online Judge) 
+## Baekjoon Online Judge
 [![Solved.ac Profile](http://mazassumnida.wtf/api/v2/generate_badge?boj=wltjq4300)](https://solved.ac/wltjq4300/)
 
 
@@ -14,7 +16,7 @@
 
 
 
-<a href="https://github.com/easyseop"><img src="https://hits.seeyoufarm.com/api/count/incr/badge.svg?url=https%3A%2F%2Fgithub.com%2Fseondal&count_bg=%23000000&title_bg=%23000000&icon=github.svg&icon_color=%23E7E7E7&title=GitHub&edge_flat=false)"/></a>
+
 
 
 ## My Github Stats 
