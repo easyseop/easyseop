@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block title %}{% if person %}매물 수정{% else %}새 매물{% endif %} · meetcute{% endblock %}
+{% block content %}
+<div class="max-w-2xl mx-auto space-y-4">
+  <h1 class="text-2xl font-bold">
+    {% if person %}매물 수정 · {{ person.public_id }}{% else %}새 매물 등록{% endif %}
+  </h1>
+
+  <form method="post"
+        action="{% if person %}/persons/{{ person.id }}{% else %}/persons{% endif %}"
+        enctype="multipart/form-data"
+        class="bg-white border border-neutral-200 rounded-xl p-6 space-y-4">
+
+    {% if not person %}
+    <div>
+      <label class="block text-sm font-medium mb-1">성별 <span class="text-pink-600">*</span></label>
+      <div class="flex gap-2">
+        {% for g in Gender %}
+        <label class="flex-1">
+          <input type="radio" name="gender" value="{{ g.value }}" required class="peer sr-only" />
+          <div class="text-center py-2 border border-neutral-300 rounded-lg cursor-pointer peer-checked:bg-pink-600 peer-checked:text-white peer-checked:border-pink-600">
+            {{ g.value }}
+          </div>
+        </label>
+        {% endfor %}
+      </div>
+      <div class="text-xs text-neutral-500 mt-1">등록 후 변경 불가 (public_id 발급 기준)</div>
+    </div>
+    {% endif %}
+
+    <div class="grid grid-cols-2 gap-3">
+      <div>
+        <label class="block text-sm font-medium mb-1">나이 <span class="text-pink-600">*</span></label>
+        <input type="number" name="age" min="18" max="99" required value="{{ person.age if person else '' }}"
+               class="w-full px-3 py-2 border border-neutral-300 rounded-lg" />
+      </div>
+      <div>
+        <label class="block text-sm font-medium mb-1">키(cm) <span class="text-pink-600">*</span></label>
+        <input type="number" name="height_cm" min="120" max="220" required value="{{ person.height_cm if person else '' }}"
+               class="w-full px-3 py-2 border border-neutral-300 rounded-lg" />
+      </div>
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium mb-1">거주지 <span class="text-pink-600">*</span></label>
+      <input type="text" name="location" required value="{{ person.location if person else '' }}"
+             placeholder="예: 서울 마포구"
+             class="w-full px-3 py-2 border border-neutral-300 rounded-lg" />
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium mb-1">직장 <span class="text-pink-600">*</span></label>
+      <input type="text" name="workplace" required value="{{ person.workplace if person else '' }}"
+             placeholder="예: ○○회사 마케팅팀"
+             class="w-full px-3 py-2 border border-neutral-300 rounded-lg" />
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium mb-1">별칭 (메모용, 본인만 봄)</label>
+      <input type="text" name="alias" value="{{ person.alias if person else '' }}"
+             placeholder="예: 동아리 후배"
+             class="w-full px-3 py-2 border border-neutral-300 rounded-lg" />
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium mb-1">이상형</label>
+      <textarea name="ideal_type" rows="3"
+                class="w-full px-3 py-2 border border-neutral-300 rounded-lg">{{ person.ideal_type if person else '' }}</textarea>
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium mb-1">주선자 메모</label>
+      <textarea name="notes" rows="3"
+                class="w-full px-3 py-2 border border-neutral-300 rounded-lg">{{ person.notes if person else '' }}</textarea>
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium mb-1">사진 추가 (최대 5장, jpg/png/webp/heic)</label>
+      <input type="file" name="photos" multiple accept="image/*"
+             class="w-full text-sm" />
+    </div>
+
+    {% if person and person.photos %}
+    <div>
+      <div class="text-sm font-medium mb-2">기존 사진</div>
+      <div class="grid grid-cols-3 gap-2">
+        {% for ph in person.photos | sort(attribute='order') %}
+        <div class="relative group">
+          <img src="/uploads/{{ ph.filename }}" class="aspect-square w-full object-cover rounded-lg" />
+          <form method="post" action="/persons/{{ person.id }}/photos/{{ ph.id }}/delete"
+                class="absolute top-1 right-1 opacity-0 group-hover:opacity-100">
+            <button class="bg-red-600 text-white text-xs px-2 py-1 rounded">×</button>
+          </form>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="flex gap-2 pt-2">
+      <button class="flex-1 bg-pink-600 text-white py-2 rounded-lg font-medium hover:bg-pink-700">
+        {% if person %}저장{% else %}등록{% endif %}
+      </button>
+      <a href="{% if person %}/persons/{{ person.id }}{% else %}/persons{% endif %}"
+         class="px-4 py-2 border border-neutral-300 rounded-lg">취소</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

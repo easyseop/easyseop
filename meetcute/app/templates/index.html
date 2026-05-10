@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}대시보드 · meetcute{% endblock %}
+{% block content %}
+<div class="space-y-6">
+  <h1 class="text-2xl font-bold">대시보드</h1>
+
+  <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+    <div class="bg-white rounded-xl border border-neutral-200 p-4">
+      <div class="text-xs text-neutral-500">전체 매물</div>
+      <div class="text-2xl font-bold mt-1">{{ stats.total }}</div>
+    </div>
+    <div class="bg-white rounded-xl border border-neutral-200 p-4">
+      <div class="text-xs text-neutral-500">남성</div>
+      <div class="text-2xl font-bold mt-1">{{ stats.male }}</div>
+    </div>
+    <div class="bg-white rounded-xl border border-neutral-200 p-4">
+      <div class="text-xs text-neutral-500">여성</div>
+      <div class="text-2xl font-bold mt-1">{{ stats.female }}</div>
+    </div>
+    <div class="bg-white rounded-xl border border-neutral-200 p-4">
+      <div class="text-xs text-neutral-500">기타</div>
+      <div class="text-2xl font-bold mt-1">{{ stats.other }}</div>
+    </div>
+  </div>
+
+  <div class="bg-white rounded-xl border border-neutral-200 p-6 text-sm text-neutral-600">
+    <p class="mb-2">👋 Phase 1: 매물 CRUD + 사진 업로드</p>
+    <p>다음 단계: 만남 기록(Encounter) · 매칭 상태 · 호환성 체크 · 인증</p>
+  </div>
+</div>
+{% endblock %}

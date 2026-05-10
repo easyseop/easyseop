@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}매물 목록 · meetcute{% endblock %}
+{% block content %}
+<div class="space-y-4">
+  <div class="flex items-center justify-between">
+    <h1 class="text-2xl font-bold">매물 목록</h1>
+    <a href="/persons/new" class="px-4 py-2 bg-pink-600 text-white rounded-lg text-sm hover:bg-pink-700">+ 새 매물</a>
+  </div>
+
+  <form method="get" class="flex flex-wrap gap-2 items-center bg-white border border-neutral-200 rounded-xl p-3">
+    <input type="text" name="q" value="{{ q }}" placeholder="ID/별칭/지역/직장 검색"
+           class="flex-1 min-w-[200px] px-3 py-1.5 border border-neutral-300 rounded-lg text-sm" />
+    <select name="gender" class="px-3 py-1.5 border border-neutral-300 rounded-lg text-sm">
+      <option value="">전체 성별</option>
+      <option value="M" {% if gender and gender.value == 'M' %}selected{% endif %}>M</option>
+      <option value="F" {% if gender and gender.value == 'F' %}selected{% endif %}>F</option>
+      <option value="OTHER" {% if gender and gender.value == 'OTHER' %}selected{% endif %}>OTHER</option>
+    </select>
+    <button class="px-4 py-1.5 bg-neutral-800 text-white rounded-lg text-sm">검색</button>
+  </form>
+
+  {% if persons %}
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+    {% for p in persons %}
+    <a href="/persons/{{ p.id }}" class="bg-white border border-neutral-200 rounded-xl overflow-hidden hover:shadow-md transition">
+      <div class="aspect-square bg-neutral-100 relative">
+        {% set thumb = p.photos | sort(attribute='order') | first %}
+        {% if thumb %}
+          <img src="/uploads/{{ thumb.filename }}" class="w-full h-full object-cover" />
+        {% else %}
+          <div class="flex items-center justify-center h-full text-4xl text-neutral-300">📷</div>
+        {% endif %}
+        <span class="absolute top-2 left-2 bg-white/90 backdrop-blur px-2 py-0.5 rounded-full text-xs font-semibold">
+          {{ p.public_id }}
+        </span>
+      </div>
+      <div class="p-3 text-sm">
+        <div class="flex items-center gap-2">
+          <span class="font-semibold">{{ p.age }}세</span>
+          <span class="text-neutral-500">· {{ p.location }}</span>
+        </div>
+        <div class="text-neutral-500 text-xs mt-0.5 truncate">{{ p.workplace }} · {{ p.height_cm }}cm</div>
+        {% if p.alias %}<div class="text-xs text-neutral-400 mt-1">({{ p.alias }})</div>{% endif %}
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="bg-white rounded-xl border border-dashed border-neutral-300 p-12 text-center text-neutral-400">
+    매물이 없습니다. <a href="/persons/new" class="text-pink-600 underline">새 매물 등록</a>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
