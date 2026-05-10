@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}유저 관리 · meetcute{% endblock %}
+{% block content %}
+<div class="space-y-4">
+  <div class="flex items-center justify-between">
+    <h1 class="text-2xl font-bold">유저 관리</h1>
+    <span class="text-xs text-neutral-500">관리자만 접근 가능</span>
+  </div>
+
+  <div class="bg-pink-50 border border-pink-200 rounded-xl p-4 text-sm">
+    💡 새 유저는 <a href="/auth/register" class="underline font-semibold">/auth/register</a> 로 본인이 직접 가입합니다.<br>
+    가입 직후에는 권한이 없으므로, 여기서 <strong>관리자로 승격</strong>해줘야 매물 기능을 쓸 수 있어요.
+  </div>
+
+  <div class="bg-white border border-neutral-200 rounded-xl overflow-hidden">
+    <table class="w-full text-sm">
+      <thead class="bg-neutral-50 text-neutral-500 text-xs">
+        <tr>
+          <th class="text-left py-2 px-3">이메일</th>
+          <th class="text-left py-2 px-3">권한</th>
+          <th class="text-left py-2 px-3">가입일</th>
+          <th class="py-2 px-3 w-32"></th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-neutral-100">
+        {% for u in users %}
+        <tr class="hover:bg-neutral-50">
+          <td class="py-2 px-3">
+            {{ u.email }}
+            {% if u.id == current_user.id %}
+            <span class="text-xs text-neutral-400 ml-1">(나)</span>
+            {% endif %}
+          </td>
+          <td class="py-2 px-3">
+            {% if u.is_admin %}
+            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-pink-100 text-pink-700">
+              👑 관리자
+            </span>
+            {% else %}
+            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-neutral-100 text-neutral-500">
+              일반 유저
+            </span>
+            {% endif %}
+          </td>
+          <td class="py-2 px-3 text-neutral-500">{{ u.created_at.strftime('%Y-%m-%d') }}</td>
+          <td class="py-2 px-3 text-right space-x-1">
+            <form method="post" action="/users/{{ u.id }}/toggle-admin" class="inline"
+                  onsubmit="return confirm('{% if u.is_admin %}관리자 강등?{% else %}관리자로 승격?{% endif %}')">
+              <button class="text-xs px-2 py-1 border border-neutral-300 rounded hover:bg-neutral-100">
+                {% if u.is_admin %}강등{% else %}관리자로{% endif %}
+              </button>
+            </form>
+            {% if u.id != current_user.id %}
+            <form method="post" action="/users/{{ u.id }}/delete" class="inline"
+                  onsubmit="return confirm('정말 삭제? 되돌릴 수 없습니다.')">
+              <button class="text-xs px-2 py-1 border border-red-300 text-red-600 rounded hover:bg-red-50">삭제</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

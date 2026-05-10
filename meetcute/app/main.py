@@ -1,39 +1,67 @@
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, Request
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
-from sqlmodel import Session, select, func
+from sqlmodel import Session, select
+from starlette.middleware.sessions import SessionMiddleware
 
-from .config import UPLOAD_DIR
+from .auth import require_admin
+from .config import SECRET_IS_DEFAULT, SECRET_KEY, UPLOAD_DIR
 from .database import get_session, init_db
-from .models import Encounter, EncounterOutcome, Gender, Person
-from .routers import compatibility, encounters, manual, persons
+from .models import Encounter, EncounterOutcome, Gender, Person, User
+from .routers import auth, compatibility, encounters, manual, persons, users
 from .services.status import (
     PersonStatus,
-    statuses_for_persons,
     status_badge_class,
     status_label,
+    statuses_for_persons,
 )
 from .templating import templates
+
+logger = logging.getLogger("meetcute")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+    if SECRET_IS_DEFAULT:
+        logger.warning(
+            "MEETCUTE_SECRET 환경변수가 설정되지 않았습니다 (개발용 기본키 사용 중). "
+            "운영 시 반드시 강한 임의값으로 지정하세요."
+        )
     yield
 
 
 app = FastAPI(title="meetcute", lifespan=lifespan)
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=SECRET_KEY,
+    same_site="lax",
+    https_only=False,  # 운영 시 HTTPS 사용하면 True 권장
+    max_age=60 * 60 * 24 * 14,  # 2주
+)
 app.mount("/uploads", StaticFiles(directory=str(UPLOAD_DIR)), name="uploads")
-app.include_router(persons.router)
-app.include_router(encounters.router)
-app.include_router(compatibility.router)
+
+# 인증 / 매뉴얼은 누구나 접근 가능
+app.include_router(auth.router)
 app.include_router(manual.router)
+
+# 나머지는 관리자 전용
+admin_dep = [Depends(require_admin)]
+app.include_router(persons.router, dependencies=admin_dep)
+app.include_router(encounters.router, dependencies=admin_dep)
+app.include_router(compatibility.router, dependencies=admin_dep)
+app.include_router(users.router)  # 라우터 내부에서 require_admin 직접 의존
 
 
 @app.get("/", response_class=HTMLResponse)
-def index(request: Request, session: Session = Depends(get_session)):
+def index(
+    request: Request,
+    current_user: User = Depends(require_admin),
+    session: Session = Depends(get_session),
+):
     all_persons = session.exec(select(Person)).all()
     statuses = statuses_for_persons(session, all_persons)
 
@@ -45,7 +73,6 @@ def index(request: Request, session: Session = Depends(get_session)):
         if s:
             by_status[s] += 1
 
-    # 진행 중인 매칭: active outcome encounters, 최신순
     active_encs = session.exec(
         select(Encounter)
         .where(
@@ -57,12 +84,15 @@ def index(request: Request, session: Session = Depends(get_session)):
     ).all()
 
     recent_encs = session.exec(
-        select(Encounter).order_by(Encounter.met_on.desc(), Encounter.id.desc()).limit(8)
+        select(Encounter)
+        .order_by(Encounter.met_on.desc(), Encounter.id.desc())
+        .limit(8)
     ).all()
 
     person_map = {p.id: p for p in all_persons}
 
-    from .routers.encounters import OUTCOME_LABEL, OUTCOME_BADGE
+    from .routers.encounters import OUTCOME_BADGE, OUTCOME_LABEL
+
     return templates.TemplateResponse(
         request,
         "index.html",
@@ -79,6 +109,7 @@ def index(request: Request, session: Session = Depends(get_session)):
             "active_encs": active_encs,
             "recent_encs": recent_encs,
             "person_map": person_map,
+            "current_user": current_user,
             "status_label": status_label,
             "status_badge_class": status_badge_class,
             "OUTCOME_LABEL": OUTCOME_LABEL,

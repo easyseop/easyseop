@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}승인 대기 · meetcute{% endblock %}
+{% block content %}
+<div class="max-w-md mx-auto mt-12 text-center space-y-4">
+  <div class="text-5xl">⏳</div>
+  <h1 class="text-2xl font-bold">관리자 승인 대기 중</h1>
+  <p class="text-sm text-neutral-600">
+    <code class="bg-neutral-100 px-1.5 py-0.5 rounded">{{ current_user.email }}</code> 계정으로 로그인되어 있지만<br>
+    아직 관리자 권한이 없어 매물 관리 기능을 사용할 수 없습니다.
+  </p>
+  <p class="text-sm text-neutral-500">
+    기존 관리자에게 승인을 요청하세요.<br>
+    승인되면 새로고침 후 정상 사용 가능합니다.
+  </p>
+  <form method="post" action="/auth/logout">
+    <button class="text-sm text-neutral-500 hover:text-pink-600 underline">로그아웃</button>
+  </form>
+</div>
+{% endblock %}

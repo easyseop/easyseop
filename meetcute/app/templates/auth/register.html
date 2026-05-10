@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}가입 · meetcute{% endblock %}
+{% block content %}
+<div class="max-w-sm mx-auto mt-12">
+  <div class="text-center mb-6">
+    <h1 class="text-2xl font-bold">💘 meetcute</h1>
+    <p class="text-sm text-neutral-500 mt-1">가입</p>
+  </div>
+
+  {% if is_first %}
+  <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-4 mb-4 text-sm">
+    🎉 첫 번째 가입자입니다. 자동으로 <strong>관리자</strong> 권한이 부여됩니다.
+  </div>
+  {% else %}
+  <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4 text-sm">
+    ⏳ 가입 후 관리자의 승인이 있어야 매물 관리 기능을 사용할 수 있습니다.
+  </div>
+  {% endif %}
+
+  {% if error %}
+  <div class="bg-red-50 border border-red-200 text-red-700 rounded-lg p-3 mb-4 text-sm">{{ error }}</div>
+  {% endif %}
+
+  <form method="post" action="/auth/register" class="bg-white border border-neutral-200 rounded-xl p-6 space-y-3">
+    <div>
+      <label class="block text-sm font-medium mb-1">이메일</label>
+      <input type="email" name="email" required autofocus
+             class="w-full px-3 py-2 border border-neutral-300 rounded-lg" />
+    </div>
+    <div>
+      <label class="block text-sm font-medium mb-1">비밀번호 (8자 이상)</label>
+      <input type="password" name="password" required minlength="8"
+             class="w-full px-3 py-2 border border-neutral-300 rounded-lg" />
+    </div>
+    <div>
+      <label class="block text-sm font-medium mb-1">비밀번호 확인</label>
+      <input type="password" name="password_confirm" required minlength="8"
+             class="w-full px-3 py-2 border border-neutral-300 rounded-lg" />
+    </div>
+    <button class="w-full bg-pink-600 text-white py-2 rounded-lg font-medium hover:bg-pink-700">가입</button>
+  </form>
+
+  <div class="text-center text-sm text-neutral-500 mt-4">
+    이미 계정이 있나요? <a href="/auth/login" class="text-pink-600 hover:underline">로그인</a>
+  </div>
+</div>
+{% endblock %}

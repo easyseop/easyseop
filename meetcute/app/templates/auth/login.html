@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}로그인 · meetcute{% endblock %}
+{% block content %}
+<div class="max-w-sm mx-auto mt-12">
+  <div class="text-center mb-6">
+    <h1 class="text-2xl font-bold">💘 meetcute</h1>
+    <p class="text-sm text-neutral-500 mt-1">로그인</p>
+  </div>
+
+  {% if no_users %}
+  <div class="bg-pink-50 border border-pink-200 rounded-xl p-4 mb-4 text-sm">
+    아직 가입한 계정이 없어요. <a href="/auth/register" class="font-semibold text-pink-600 underline">첫 관리자로 가입</a>하세요.
+  </div>
+  {% endif %}
+
+  {% if error %}
+  <div class="bg-red-50 border border-red-200 text-red-700 rounded-lg p-3 mb-4 text-sm">{{ error }}</div>
+  {% endif %}
+
+  <form method="post" action="/auth/login" class="bg-white border border-neutral-200 rounded-xl p-6 space-y-3">
+    <div>
+      <label class="block text-sm font-medium mb-1">이메일</label>
+      <input type="email" name="email" required autofocus
+             class="w-full px-3 py-2 border border-neutral-300 rounded-lg" />
+    </div>
+    <div>
+      <label class="block text-sm font-medium mb-1">비밀번호</label>
+      <input type="password" name="password" required
+             class="w-full px-3 py-2 border border-neutral-300 rounded-lg" />
+    </div>
+    <button class="w-full bg-pink-600 text-white py-2 rounded-lg font-medium hover:bg-pink-700">로그인</button>
+  </form>
+
+  <div class="text-center text-sm text-neutral-500 mt-4">
+    계정이 없나요? <a href="/auth/register" class="text-pink-600 hover:underline">가입하기</a>
+  </div>
+</div>
+{% endblock %}

@@ -51,12 +51,20 @@ DB file: `meetcute/data/meetcute.db` (SQLite, auto-created, gitignored).
 Photos: `meetcute/uploads/{person_id}/...` (gitignored).
 
 ### Architecture
-- **Models** (`app/models.py`): `Person` (with auto-issued `public_id` like `M-001`/`F-001`/`X-001`), `Photo`, `Encounter`. `Encounter` is the source of truth for relationship history.
+- **Models** (`app/models.py`): `User`, `Person` (with auto-issued `public_id` like `M-001`/`F-001`/`X-001`), `Photo`, `Encounter`. `Encounter` is the source of truth for relationship history.
 - **Status is derived, never stored.** `app/services/status.py` computes `AVAILABLE / IN_PROGRESS / MATCHED` from a person's encounters. Use `statuses_for_persons` (batched) for lists, `status_for_person` for a single record.
-- **Routers** in `app/routers/`: `persons`, `encounters`, `compatibility`, `manual`. Each owns its templates under `app/templates/<feature>/`.
+- **Routers** in `app/routers/`: `auth`, `persons`, `encounters`, `compatibility`, `users`, `manual`. Each owns its templates under `app/templates/<feature>/`.
 - **Templates** use the new Starlette signature: `templates.TemplateResponse(request, "x.html", {...})` — request goes first, NOT inside the dict.
 - **Hard delete with snapshot.** `Person` deletion wipes the row + photo files but loops through related `Encounter` rows, NULLs the FK, and writes `"<public_id> (deleted)"` into the `*_snapshot` field so history stays readable. See `routers/persons.py:delete_person`.
 - **Public IDs are never reused.** `next_public_id` walks existing IDs and returns max+1 per gender prefix.
+
+### Auth & sessions
+- Starlette `SessionMiddleware` (signed cookie, 2-week max age). Secret comes from `MEETCUTE_SECRET` env; with the dev fallback it logs a warning on startup.
+- `app/auth.py` exposes `require_login` and `require_admin` deps; both raise `HTTPException(303, headers={"Location": ...})` to redirect unauthenticated/unauthorized users (to `/auth/login` and `/auth/pending` respectively).
+- Auth + manual routers are public. All matchmaking routers are mounted with `dependencies=[Depends(require_admin)]` in `main.py`. The `users` router applies `require_admin` itself per-endpoint so it can read `current_user`.
+- **Bootstrap**: the very first registration auto-promotes to admin (`user_count(session) == 0`). Subsequent registrations land on `/auth/pending` until an admin promotes them via `/users`.
+- The dashboard nav reads `request.session` directly (`user_id`, `user_email`, `is_admin`) so templates can render conditional links without a per-request context dep.
+- Last-admin guards: `/users/{id}/toggle-admin` and `/users/{id}/delete` refuse to remove the only remaining admin. Don't loosen these without adding another bootstrap path.
 
 ### Conventions when changing meetcute
 - **Always update `meetcute/MANUAL.md` in the same change** when you add/remove/rename user-facing features (routes, fields, status semantics, deletion behavior, etc.). The manual is rendered live at `/manual` from this single source — drift makes it lie to the user.
