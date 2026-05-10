@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}새 만남 · meetcute{% endblock %}
+{% block content %}
+<div class="max-w-2xl mx-auto space-y-4">
+  <h1 class="text-2xl font-bold">새 만남 기록</h1>
+
+  <form method="post" action="/encounters" class="bg-white border border-neutral-200 rounded-xl p-6 space-y-4">
+    <div class="grid grid-cols-2 gap-3">
+      <div>
+        <label class="block text-sm font-medium mb-1">매물 A <span class="text-pink-600">*</span></label>
+        <select name="person_a_id" required class="w-full px-3 py-2 border border-neutral-300 rounded-lg">
+          <option value="">선택</option>
+          {% for p in all_persons %}
+          <option value="{{ p.id }}" {% if preset_a == p.id %}selected{% endif %}>
+            {{ p.public_id }} · {{ p.age }}세 · {{ p.location }}{% if p.alias %} ({{ p.alias }}){% endif %}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="block text-sm font-medium mb-1">매물 B <span class="text-pink-600">*</span></label>
+        <select name="person_b_id" required class="w-full px-3 py-2 border border-neutral-300 rounded-lg">
+          <option value="">선택</option>
+          {% for p in all_persons %}
+          <option value="{{ p.id }}" {% if preset_b == p.id %}selected{% endif %}>
+            {{ p.public_id }} · {{ p.age }}세 · {{ p.location }}{% if p.alias %} ({{ p.alias }}){% endif %}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-2 gap-3">
+      <div>
+        <label class="block text-sm font-medium mb-1">만남 날짜 <span class="text-pink-600">*</span></label>
+        <input type="date" name="met_on" required value="{{ today }}"
+               class="w-full px-3 py-2 border border-neutral-300 rounded-lg" />
+      </div>
+      <div>
+        <label class="block text-sm font-medium mb-1">결과</label>
+        <select name="outcome" class="w-full px-3 py-2 border border-neutral-300 rounded-lg">
+          {% for o in EncounterOutcome %}
+          <option value="{{ o.value }}" {% if o == EncounterOutcome.PENDING %}selected{% endif %}>
+            {{ OUTCOME_LABEL[o] }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium mb-1">메모</label>
+      <textarea name="notes" rows="4" placeholder="어떻게 진행됐는지, 다음 단계 등"
+                class="w-full px-3 py-2 border border-neutral-300 rounded-lg"></textarea>
+    </div>
+
+    <div class="flex gap-2 pt-2">
+      <button class="flex-1 bg-pink-600 text-white py-2 rounded-lg font-medium hover:bg-pink-700">기록</button>
+      <a href="/encounters" class="px-4 py-2 border border-neutral-300 rounded-lg">취소</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

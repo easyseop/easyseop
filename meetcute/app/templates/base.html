@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>{% block title %}meetcute{% endblock %}</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
   <script src="https://unpkg.com/htmx.org@2.0.3"></script>
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
@@ -16,6 +16,9 @@
       <a href="/" class="font-bold text-lg tracking-tight">💘 meetcute</a>
       <div class="flex items-center gap-4 text-sm">
         <a href="/persons" class="hover:text-pink-600">매물</a>
+        <a href="/encounters" class="hover:text-pink-600">만남</a>
+        <a href="/compatibility" class="hover:text-pink-600">호환성</a>
+        <a href="/manual" class="hover:text-pink-600 text-neutral-500">매뉴얼</a>
         <a href="/persons/new" class="px-3 py-1.5 bg-pink-600 text-white rounded-full hover:bg-pink-700">+ 새 매물</a>
       </div>
     </div>

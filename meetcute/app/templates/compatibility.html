@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block title %}호환성 체크 · meetcute{% endblock %}
+
+{% macro picker(name, selected) %}
+  <select name="{{ name }}" class="w-full px-3 py-2 border border-neutral-300 rounded-lg">
+    <option value="">선택</option>
+    {% for p in all_persons %}
+    <option value="{{ p.id }}" {% if selected and selected.id == p.id %}selected{% endif %}>
+      {{ p.public_id }} · {{ p.gender.value }} · {{ p.age }}세 · {{ p.location }}
+    </option>
+    {% endfor %}
+  </select>
+{% endmacro %}
+
+{% macro person_panel(p, status) %}
+<div class="bg-white border border-neutral-200 rounded-xl p-5">
+  {% if p %}
+    <div class="flex items-center gap-2 flex-wrap">
+      <a href="/persons/{{ p.id }}" class="font-mono text-xl font-bold hover:text-pink-600">{{ p.public_id }}</a>
+      {% if status %}
+      <span class="px-2 py-0.5 rounded-full text-xs font-medium border {{ status_badge_class(status) }}">
+        {{ status_label(status) }}
+      </span>
+      {% endif %}
+    </div>
+    <div class="mt-2 text-sm space-y-1">
+      <div><span class="text-neutral-500 w-16 inline-block">성별/나이</span> {{ p.gender.value }} · {{ p.age }}세</div>
+      <div><span class="text-neutral-500 w-16 inline-block">키</span> {{ p.height_cm }}cm</div>
+      <div><span class="text-neutral-500 w-16 inline-block">지역</span> {{ p.location }}</div>
+      <div><span class="text-neutral-500 w-16 inline-block">직장</span> {{ p.workplace }}</div>
+      {% if p.ideal_type %}
+      <div class="pt-2">
+        <div class="text-neutral-500 text-xs mb-1">이상형</div>
+        <div class="text-xs whitespace-pre-wrap bg-neutral-50 rounded p-2">{{ p.ideal_type }}</div>
+      </div>
+      {% endif %}
+    </div>
+  {% else %}
+    <div class="text-neutral-300 text-center py-12">매물 선택</div>
+  {% endif %}
+</div>
+{% endmacro %}
+
+{% block content %}
+<div class="space-y-4">
+  <h1 class="text-2xl font-bold">호환성 체크</h1>
+  <p class="text-sm text-neutral-500">두 매물을 골라 이전 만남 기록과 기본 정합성을 확인합니다.</p>
+
+  <form method="get" class="grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr_auto] gap-2 items-center bg-white border border-neutral-200 rounded-xl p-3">
+    {{ picker("a", person_a) }}
+    <div class="text-center text-pink-400 text-xl">×</div>
+    {{ picker("b", person_b) }}
+    <button class="px-4 py-2 bg-pink-600 text-white rounded-lg text-sm">비교</button>
+  </form>
+
+  <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+    {{ person_panel(person_a, a_status) }}
+    {{ person_panel(person_b, b_status) }}
+  </div>
+
+  {% if person_a and person_b %}
+  <div class="bg-white border border-neutral-200 rounded-xl p-5 space-y-3">
+    <h2 class="font-semibold">분석</h2>
+    <ul class="space-y-1.5 text-sm">
+      {% for n in notes %}
+      <li class="flex items-start gap-2">
+        {% if n.level == 'warn' %}
+          <span class="text-amber-500">⚠️</span>
+        {% elif n.level == 'ok' %}
+          <span class="text-emerald-500">✅</span>
+        {% else %}
+          <span class="text-neutral-400">·</span>
+        {% endif %}
+        <span>{{ n.text }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+
+    {% if shared %}
+    <div class="pt-2 border-t border-neutral-100">
+      <div class="text-xs text-neutral-500 mb-2">공유 만남 기록</div>
+      <ul class="space-y-1 text-sm">
+        {% for e in shared %}
+        <li>
+          <a href="/encounters/{{ e.id }}" class="hover:text-pink-600">
+            {{ e.met_on.strftime('%Y-%m-%d') }} — {{ e.outcome.value }}
+          </a>
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+
+    <div class="pt-2 flex gap-2">
+      <a href="/encounters/new?a={{ person_a.id }}&b={{ person_b.id }}"
+         class="flex-1 text-center bg-pink-600 text-white py-2 rounded-lg text-sm hover:bg-pink-700">
+        이 둘로 만남 기록 만들기
+      </a>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

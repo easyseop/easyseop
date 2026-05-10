@@ -10,7 +10,14 @@ from sqlmodel import Session, select
 
 from ..config import UPLOAD_DIR
 from ..database import get_session, next_public_id
-from ..models import Gender, Person, Photo
+from ..models import Encounter, Gender, Person, Photo
+from ..services.status import (
+    encounters_for_person,
+    derive_status,
+    status_badge_class,
+    status_label,
+    statuses_for_persons,
+)
 from ..templating import templates
 
 router = APIRouter(prefix="/persons", tags=["persons"])
@@ -51,10 +58,18 @@ def list_persons(
             | (Person.workplace.like(like))
         )
     persons = session.exec(stmt).all()
+    statuses = statuses_for_persons(session, persons)
     return templates.TemplateResponse(
         request,
         "persons/list.html",
-        {"persons": persons, "gender": gender, "q": q or ""},
+        {
+            "persons": persons,
+            "statuses": statuses,
+            "status_label": status_label,
+            "status_badge_class": status_badge_class,
+            "gender": gender,
+            "q": q or "",
+        },
     )
 
 
@@ -114,10 +129,33 @@ def person_detail(
     if not person:
         raise HTTPException(404, "Person not found")
     photos = sorted(person.photos, key=lambda p: p.order)
+    encs = encounters_for_person(session, person.id)
+    status = derive_status(encs)
+    # 상대방 매물 정보 매핑 (삭제된 경우 None)
+    other_ids = {
+        (e.person_b_id if e.person_a_id == person.id else e.person_a_id)
+        for e in encs
+    }
+    other_ids.discard(None)
+    others = {}
+    if other_ids:
+        rows = session.exec(select(Person).where(Person.id.in_(list(other_ids)))).all()
+        others = {p.id: p for p in rows}
+    from .encounters import OUTCOME_LABEL, OUTCOME_BADGE  # 순환 import 회피
     return templates.TemplateResponse(
         request,
         "persons/detail.html",
-        {"person": person, "photos": photos},
+        {
+            "person": person,
+            "photos": photos,
+            "encounters": encs,
+            "others": others,
+            "status": status,
+            "status_label": status_label,
+            "status_badge_class": status_badge_class,
+            "OUTCOME_LABEL": OUTCOME_LABEL,
+            "OUTCOME_BADGE": OUTCOME_BADGE,
+        },
     )
 
 
@@ -175,13 +213,29 @@ async def update_person(
 
 @router.post("/{person_id}/delete")
 def delete_person(person_id: int, session: Session = Depends(get_session)):
-    """하드 삭제: Person + Photo + 디스크 파일 모두 제거.
-    Encounter는 보존 — 이 함수는 호출 측에서 별도로 스냅샷 처리한다고 가정.
-    (Phase 2에서 Encounter 라우터 추가 시 onDelete 훅으로 묶음)
+    """하드 삭제: Person + Photo + 디스크 파일 제거.
+    Encounter는 보존하되, 이 사람이 등장한 행은 FK를 NULL로 끊고
+    public_id 스냅샷 + (deleted) 표시를 박아 이력 가독성을 유지한다.
     """
     person = session.get(Person, person_id)
     if not person:
         raise HTTPException(404, "Person not found")
+
+    snapshot = f"{person.public_id} (deleted)"
+    related = session.exec(
+        select(Encounter).where(
+            (Encounter.person_a_id == person.id)
+            | (Encounter.person_b_id == person.id)
+        )
+    ).all()
+    for e in related:
+        if e.person_a_id == person.id:
+            e.person_a_id = None
+            e.person_a_snapshot = snapshot
+        if e.person_b_id == person.id:
+            e.person_b_id = None
+            e.person_b_snapshot = snapshot
+        session.add(e)
 
     person_dir = UPLOAD_DIR / str(person.id)
     session.delete(person)

@@ -4,7 +4,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository purpose
 
-This is the special GitHub profile repository for the user `easyseop` — `README.md` is rendered on the user's GitHub profile page (`github.com/easyseop`). There is no application code, build system, or test suite here; the repo exists to serve profile content and regenerate a 3D contribution graph on a schedule.
+This repo started as the user's GitHub profile (`github.com/easyseop`) and now also hosts an in-development project, **`meetcute/`** — a private matchmaking admin tool. Two unrelated concerns share the tree:
+
+1. **Profile content** (root `README.md` + `profile-3d-contrib/*.svg`) — the user's public profile.
+2. **`meetcute/`** — a FastAPI app for personal use. See `meetcute/README.md` and `meetcute/MANUAL.md`.
+
+The two should be treated independently. Don't pull profile-related files into the meetcute project or vice versa.
 
 ## Architecture
 
@@ -29,3 +34,36 @@ The flat commit log full of `generated` commits is this workflow, not human acti
 - If `README.md` references a new SVG variant, confirm the filename exists in `profile-3d-contrib/` — the action produces a fixed set (`profile-green[-animate].svg`, `profile-season[-animate].svg`, `profile-south-season[-animate].svg`, `profile-night-view.svg`, `profile-night-green.svg`, `profile-night-rainbow.svg`, `profile-gitblock.svg`).
 - To pin or upgrade the generator, change the `yoshi389111/github-profile-3d-contrib@<version>` ref in the workflow.
 - To preview README changes, push to a branch and view the rendered file on GitHub; there is no local toolchain.
+
+## meetcute (private matchmaking admin)
+
+A Python web app under `meetcute/`. Stack: **FastAPI + SQLModel + SQLite + Jinja2 + HTMX + Tailwind (CDN)**. Single-user, hand-rolled — no auth yet.
+
+### Run
+```bash
+cd meetcute
+pip install -e .   # or: uv sync
+uvicorn app.main:app --reload
+# http://127.0.0.1:8000
+```
+
+DB file: `meetcute/data/meetcute.db` (SQLite, auto-created, gitignored).
+Photos: `meetcute/uploads/{person_id}/...` (gitignored).
+
+### Architecture
+- **Models** (`app/models.py`): `Person` (with auto-issued `public_id` like `M-001`/`F-001`/`X-001`), `Photo`, `Encounter`. `Encounter` is the source of truth for relationship history.
+- **Status is derived, never stored.** `app/services/status.py` computes `AVAILABLE / IN_PROGRESS / MATCHED` from a person's encounters. Use `statuses_for_persons` (batched) for lists, `status_for_person` for a single record.
+- **Routers** in `app/routers/`: `persons`, `encounters`, `compatibility`, `manual`. Each owns its templates under `app/templates/<feature>/`.
+- **Templates** use the new Starlette signature: `templates.TemplateResponse(request, "x.html", {...})` — request goes first, NOT inside the dict.
+- **Hard delete with snapshot.** `Person` deletion wipes the row + photo files but loops through related `Encounter` rows, NULLs the FK, and writes `"<public_id> (deleted)"` into the `*_snapshot` field so history stays readable. See `routers/persons.py:delete_person`.
+- **Public IDs are never reused.** `next_public_id` walks existing IDs and returns max+1 per gender prefix.
+
+### Conventions when changing meetcute
+- **Always update `meetcute/MANUAL.md` in the same change** when you add/remove/rename user-facing features (routes, fields, status semantics, deletion behavior, etc.). The manual is rendered live at `/manual` from this single source — drift makes it lie to the user.
+- The Phase roadmap lives in BOTH `meetcute/README.md` and `meetcute/MANUAL.md` §10. Keep them aligned.
+- Don't store real names. The product policy is `public_id` only; `alias` is admin-only memo.
+- Don't add per-person status as a stored column. Adding `Person.status` will diverge from encounter truth — extend `services/status.py` instead.
+- `Encounter` rows are append-only in spirit: only delete when fixing data-entry mistakes. Result transitions go via `outcome` updates.
+- The dashboard (`/`) and several routers import `OUTCOME_LABEL`/`OUTCOME_BADGE` from `routers/encounters.py`. If you add a new `EncounterOutcome` value, update both maps and the badge color.
+- Tailwind is loaded from CDN with the `typography` plugin (`base.html`). Don't double-load; reuse `prose` classes in markdown-rendered pages.
+- No tests exist yet. Smoke-test by hitting endpoints with `curl` after changes (the project is small enough that this catches regressions cheaply).

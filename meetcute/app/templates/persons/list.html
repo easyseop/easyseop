@@ -33,6 +33,12 @@
         <span class="absolute top-2 left-2 bg-white/90 backdrop-blur px-2 py-0.5 rounded-full text-xs font-semibold">
           {{ p.public_id }}
         </span>
+        {% set s = statuses.get(p.id) %}
+        {% if s %}
+        <span class="absolute top-2 right-2 px-2 py-0.5 rounded-full text-xs font-medium border {{ status_badge_class(s) }}">
+          {{ status_label(s) }}
+        </span>
+        {% endif %}
       </div>
       <div class="p-3 text-sm">
         <div class="flex items-center gap-2">

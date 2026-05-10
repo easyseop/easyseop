@@ -44,10 +44,12 @@ uvicorn app.main:app --reload
 | Phase | 내용 | 상태 |
 |---|---|---|
 | 1 | Person CRUD + 사진 업로드 + 대시보드 카운트 | ✅ |
-| 2 | Encounter CRUD + 매물 상세에 만남 이력 타임라인 | ⬜ |
-| 3 | 매칭 상태(파생) + 호환성 체크(두 매물 비교) | ⬜ |
-| 4 | 필터/정렬 강화 + 통계 대시보드 | ⬜ |
-| 5 | 인증 + 배포 | ⬜ |
+| 2 | Encounter CRUD · 상태 파생 · 만남 이력 타임라인 · 호환성 체크 · 대시보드 강화 · `/manual` | ✅ |
+| 3 | 사진 자동 회전(EXIF) · 썸네일 · 드래그 정렬 · 정렬 필터 강화 | ⬜ |
+| 4 | 통계 (성공률, 평균 만남 횟수, 활동 그래프) | ⬜ |
+| 5 | 인증 + 외부 배포 | ⬜ |
+
+> 📖 사용 매뉴얼은 `MANUAL.md` (또는 앱 실행 후 `/manual`).
 
 ## 스택
 FastAPI · SQLModel · SQLite · Jinja2 · HTMX · Tailwind (CDN)

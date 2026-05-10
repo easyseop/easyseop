@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}만남 기록 · meetcute{% endblock %}
+
+{% macro person_chip(pid, snapshot) %}
+  {% set p = persons.get(pid) %}
+  {% if p %}
+    <a href="/persons/{{ p.id }}" class="font-mono font-semibold hover:text-pink-600">{{ p.public_id }}</a>
+    <span class="text-neutral-400">· {{ p.age }}세 · {{ p.location }}</span>
+  {% else %}
+    <span class="font-mono text-neutral-400 line-through">{{ snapshot or '?' }}</span>
+  {% endif %}
+{% endmacro %}
+
+{% block content %}
+<div class="space-y-4">
+  <div class="flex items-center justify-between">
+    <h1 class="text-2xl font-bold">만남 기록</h1>
+    <a href="/encounters/new" class="px-4 py-2 bg-pink-600 text-white rounded-lg text-sm hover:bg-pink-700">+ 새 만남</a>
+  </div>
+
+  <form method="get" class="flex flex-wrap gap-2 items-center bg-white border border-neutral-200 rounded-xl p-3">
+    <select name="outcome" class="px-3 py-1.5 border border-neutral-300 rounded-lg text-sm">
+      <option value="">전체 결과</option>
+      {% for o in EncounterOutcome %}
+      <option value="{{ o.value }}" {% if outcome and outcome == o %}selected{% endif %}>{{ OUTCOME_LABEL[o] }}</option>
+      {% endfor %}
+    </select>
+    <button class="px-4 py-1.5 bg-neutral-800 text-white rounded-lg text-sm">필터</button>
+    {% if outcome or person_id %}
+    <a href="/encounters" class="text-xs text-neutral-500 underline ml-auto">초기화</a>
+    {% endif %}
+  </form>
+
+  {% if encounters %}
+  <div class="bg-white border border-neutral-200 rounded-xl overflow-hidden">
+    <table class="w-full text-sm">
+      <thead class="bg-neutral-50 text-neutral-500 text-xs">
+        <tr>
+          <th class="text-left py-2 px-3">날짜</th>
+          <th class="text-left py-2 px-3">A</th>
+          <th class="text-left py-2 px-3">B</th>
+          <th class="text-left py-2 px-3">결과</th>
+          <th class="py-2 px-3 w-16"></th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-neutral-100">
+        {% for e in encounters %}
+        <tr class="hover:bg-neutral-50">
+          <td class="py-2 px-3 whitespace-nowrap">{{ e.met_on.strftime('%Y-%m-%d') }}</td>
+          <td class="py-2 px-3">{{ person_chip(e.person_a_id, e.person_a_snapshot) }}</td>
+          <td class="py-2 px-3">{{ person_chip(e.person_b_id, e.person_b_snapshot) }}</td>
+          <td class="py-2 px-3">
+            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium {{ OUTCOME_BADGE[e.outcome] }}">
+              {{ OUTCOME_LABEL[e.outcome] }}
+            </span>
+          </td>
+          <td class="py-2 px-3 text-right">
+            <a href="/encounters/{{ e.id }}" class="text-xs text-pink-600 hover:underline">편집</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="bg-white rounded-xl border border-dashed border-neutral-300 p-12 text-center text-neutral-400">
+    아직 만남 기록이 없습니다. <a href="/encounters/new" class="text-pink-600 underline">첫 만남 기록 추가</a>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

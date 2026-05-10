@@ -5,9 +5,12 @@
   <div class="flex items-center justify-between">
     <div>
       <div class="text-sm text-neutral-500">매물</div>
-      <h1 class="text-2xl font-bold flex items-center gap-2">
+      <h1 class="text-2xl font-bold flex items-center gap-2 flex-wrap">
         {{ person.public_id }}
         <span class="text-sm font-normal text-neutral-500">{{ person.gender.value }} · {{ person.age }}세</span>
+        <span class="px-2 py-0.5 rounded-full text-xs font-medium border {{ status_badge_class(status) }}">
+          {{ status_label(status) }}
+        </span>
       </h1>
       {% if person.alias %}<div class="text-sm text-neutral-500 mt-1">별칭: {{ person.alias }}</div>{% endif %}
     </div>
@@ -53,8 +56,45 @@
     {% endif %}
   </div>
 
-  <div class="bg-white border border-dashed border-neutral-200 rounded-xl p-5 text-sm text-neutral-400 text-center">
-    🔜 만남 기록 (Phase 2)
+  <div class="bg-white border border-neutral-200 rounded-xl p-5">
+    <div class="flex items-center justify-between mb-3">
+      <h2 class="font-semibold">만남 이력 ({{ encounters | length }})</h2>
+      <div class="flex gap-2">
+        <a href="/encounters/new?a={{ person.id }}" class="text-xs px-3 py-1.5 bg-pink-600 text-white rounded-lg hover:bg-pink-700">+ 새 만남</a>
+        <a href="/compatibility?a={{ person.id }}" class="text-xs px-3 py-1.5 border border-neutral-300 rounded-lg hover:bg-neutral-100">호환성 체크</a>
+      </div>
+    </div>
+    {% if encounters %}
+    <ol class="relative border-l border-neutral-200 ml-2 space-y-3">
+      {% for e in encounters %}
+      {% set other_id = e.person_b_id if e.person_a_id == person.id else e.person_a_id %}
+      {% set other_snap = e.person_b_snapshot if e.person_a_id == person.id else e.person_a_snapshot %}
+      {% set other = others.get(other_id) %}
+      <li class="ml-4">
+        <div class="absolute -left-1.5 w-3 h-3 rounded-full bg-pink-400 mt-1.5"></div>
+        <div class="text-xs text-neutral-500">{{ e.met_on.strftime('%Y-%m-%d') }}</div>
+        <div class="flex items-center gap-2 mt-0.5 text-sm">
+          <span class="text-neutral-400">→</span>
+          {% if other %}
+          <a href="/persons/{{ other.id }}" class="font-mono font-semibold hover:text-pink-600">{{ other.public_id }}</a>
+          <span class="text-neutral-500 text-xs">{{ other.age }}세 · {{ other.location }}</span>
+          {% else %}
+          <span class="font-mono text-neutral-400 line-through">{{ other_snap or '?' }}</span>
+          {% endif %}
+          <span class="px-2 py-0.5 rounded-full text-xs font-medium {{ OUTCOME_BADGE[e.outcome] }}">
+            {{ OUTCOME_LABEL[e.outcome] }}
+          </span>
+          <a href="/encounters/{{ e.id }}" class="text-xs text-pink-600 hover:underline ml-auto">편집</a>
+        </div>
+        {% if e.notes %}
+        <div class="text-xs text-neutral-500 mt-1 whitespace-pre-wrap bg-neutral-50 rounded-lg p-2">{{ e.notes }}</div>
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ol>
+    {% else %}
+    <div class="text-sm text-neutral-400 text-center py-6">아직 만남 기록 없음</div>
+    {% endif %}
   </div>
 </div>
 {% endblock %}
