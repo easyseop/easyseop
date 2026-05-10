@@ -71,3 +71,17 @@ class Encounter(SQLModel, table=True):
     notes: str = ""
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class PersonRevision(SQLModel, table=True):
+    """매물 정보 수정 시 변경 직전 상태를 스냅샷으로 보관.
+
+    snapshot_json: 수정 직전의 텍스트 필드 dict를 JSON 문자열로 저장.
+    포함 필드: age, location, workplace, height_cm, ideal_type, notes, alias.
+    """
+    id: Optional[int] = Field(default=None, primary_key=True)
+    person_id: int = Field(foreign_key="person.id", index=True)
+    snapshot_json: str
+    changed_by_user_id: Optional[int] = Field(default=None, foreign_key="user.id")
+    changed_by_email: str = ""  # 유저 삭제돼도 누가 바꿨는지 남기기 위해
+    changed_at: datetime = Field(default_factory=datetime.utcnow)

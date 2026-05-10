@@ -51,11 +51,12 @@ DB file: `meetcute/data/meetcute.db` (SQLite, auto-created, gitignored).
 Photos: `meetcute/uploads/{person_id}/...` (gitignored).
 
 ### Architecture
-- **Models** (`app/models.py`): `User`, `Person` (with auto-issued `public_id` like `M-001`/`F-001`/`X-001`), `Photo`, `Encounter`. `Encounter` is the source of truth for relationship history.
-- **Status is derived, never stored.** `app/services/status.py` computes `AVAILABLE / IN_PROGRESS / MATCHED` from a person's encounters. Use `statuses_for_persons` (batched) for lists, `status_for_person` for a single record.
+- **Models** (`app/models.py`): `User`, `Person` (with auto-issued `public_id` like `M-001`/`F-001`/`X-001`), `Photo`, `Encounter`, `PersonRevision`. `Encounter` is the source of truth for relationship history; `PersonRevision` is the source of truth for profile-edit history.
+- **Derived data, never stored.** Status (`AVAILABLE / IN_PROGRESS / MATCHED`) lives in `app/services/status.py`. Per-person activity stats (counts, last_activity, days_dormant) live in `app/services/activity.py`. Both expose batched helpers (`statuses_for_persons`, `activity_for_persons`) — prefer those in list views to avoid N+1.
+- **Profile edit history.** `app/services/revisions.py` snapshots tracked fields (`age`, `location`, `workplace`, `height_cm`, `ideal_type`, `notes`, `alias`) BEFORE applying an edit. `update_person` only records a revision when text fields actually change (photo-only edits don't snapshot). `diff_against` (vs current Person) and `diff_between` (vs newer revision) produce the field-level diffs the detail page renders.
 - **Routers** in `app/routers/`: `auth`, `persons`, `encounters`, `compatibility`, `users`, `manual`. Each owns its templates under `app/templates/<feature>/`.
 - **Templates** use the new Starlette signature: `templates.TemplateResponse(request, "x.html", {...})` — request goes first, NOT inside the dict.
-- **Hard delete with snapshot.** `Person` deletion wipes the row + photo files but loops through related `Encounter` rows, NULLs the FK, and writes `"<public_id> (deleted)"` into the `*_snapshot` field so history stays readable. See `routers/persons.py:delete_person`.
+- **Hard delete with snapshot.** `Person` deletion wipes the row + photo files + `PersonRevision` rows but loops through related `Encounter` rows, NULLs the FK, and writes `"<public_id> (deleted)"` into the `*_snapshot` field so encounter history stays readable. Revisions are deleted because they're considered _that person's_ history; Encounters survive because they belong to both parties. See `routers/persons.py:delete_person`.
 - **Public IDs are never reused.** `next_public_id` walks existing IDs and returns max+1 per gender prefix.
 
 ### Auth & sessions

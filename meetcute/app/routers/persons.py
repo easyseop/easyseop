@@ -8,9 +8,21 @@ from fastapi import APIRouter, Depends, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlmodel import Session, select
 
+from ..auth import get_current_user
 from ..config import UPLOAD_DIR
 from ..database import get_session, next_public_id
-from ..models import Encounter, Gender, Person, Photo
+from ..models import Encounter, Gender, Person, Photo, User
+from ..services.activity import (
+    ActivityStats,
+    activity_for_person,
+    activity_for_persons,
+)
+from ..services.revisions import (
+    diff_against,
+    diff_between,
+    record_revision,
+    revisions_for_person,
+)
 from ..services.status import (
     encounters_for_person,
     derive_status,
@@ -44,9 +56,11 @@ def list_persons(
     request: Request,
     gender: Optional[Gender] = None,
     q: Optional[str] = None,
+    activity: Optional[str] = None,  # 'never' | 'dormant' | 'active' | None
+    sort: Optional[str] = None,      # 'recent_activity' | 'dormant' | 'created' (default)
     session: Session = Depends(get_session),
 ):
-    stmt = select(Person).order_by(Person.created_at.desc())
+    stmt = select(Person)
     if gender:
         stmt = stmt.where(Person.gender == gender)
     if q:
@@ -59,16 +73,49 @@ def list_persons(
         )
     persons = session.exec(stmt).all()
     statuses = statuses_for_persons(session, persons)
+    stats = activity_for_persons(session, persons)
+
+    if activity == "never":
+        persons = [p for p in persons if stats[p.id].never_met]
+    elif activity == "active":
+        persons = [p for p in persons if stats[p.id].active > 0]
+    elif activity == "dormant":
+        # 30일 이상 미활동 + 매칭/진행 없음
+        persons = [
+            p for p in persons
+            if (stats[p.id].never_met or (stats[p.id].days_dormant or 0) >= 30)
+            and stats[p.id].active == 0 and stats[p.id].matched == 0
+        ]
+
+    if sort == "recent_activity":
+        persons.sort(
+            key=lambda p: stats[p.id].last_activity or __import__("datetime").date.min,
+            reverse=True,
+        )
+    elif sort == "dormant":
+        # 미활동 오래된 것이 위로 (never_met = 가장 위)
+        def k(p):
+            s = stats[p.id]
+            if s.never_met:
+                return (0, p.created_at)
+            return (1, s.last_activity)
+        persons.sort(key=k)
+    else:
+        persons.sort(key=lambda p: p.created_at, reverse=True)
+
     return templates.TemplateResponse(
         request,
         "persons/list.html",
         {
             "persons": persons,
             "statuses": statuses,
+            "stats": stats,
             "status_label": status_label,
             "status_badge_class": status_badge_class,
             "gender": gender,
             "q": q or "",
+            "activity": activity or "",
+            "sort": sort or "",
         },
     )
 
@@ -131,6 +178,19 @@ def person_detail(
     photos = sorted(person.photos, key=lambda p: p.order)
     encs = encounters_for_person(session, person.id)
     status = derive_status(encs)
+    activity = activity_for_person(session, person.id)
+    revisions = revisions_for_person(session, person.id)
+
+    # Revision diff 계산: 최신 revision은 현재 person과 비교,
+    # 이전 것들은 그 다음 revision과 비교 (revisions는 desc 정렬)
+    revision_diffs: list[tuple] = []
+    for i, rev in enumerate(revisions):
+        if i == 0:
+            diff = diff_against(rev.snapshot_json, person)
+        else:
+            diff = diff_between(rev.snapshot_json, revisions[i - 1].snapshot_json)
+        revision_diffs.append((rev, diff))
+
     # 상대방 매물 정보 매핑 (삭제된 경우 None)
     other_ids = {
         (e.person_b_id if e.person_a_id == person.id else e.person_a_id)
@@ -151,6 +211,8 @@ def person_detail(
             "encounters": encs,
             "others": others,
             "status": status,
+            "activity": activity,
+            "revision_diffs": revision_diffs,
             "status_label": status_label,
             "status_badge_class": status_badge_class,
             "OUTCOME_LABEL": OUTCOME_LABEL,
@@ -175,6 +237,7 @@ def edit_person_form(
 
 @router.post("/{person_id}")
 async def update_person(
+    request: Request,
     person_id: int,
     age: int = Form(...),
     location: str = Form(...),
@@ -189,6 +252,21 @@ async def update_person(
     person = session.get(Person, person_id)
     if not person:
         raise HTTPException(404, "Person not found")
+
+    # 변경이 있을 때만 revision 기록 (사진만 추가하는 경우는 스킵)
+    text_changed = (
+        person.age != age
+        or person.location != location
+        or person.workplace != workplace
+        or person.height_cm != height_cm
+        or person.ideal_type != ideal_type
+        or person.notes != notes
+        or person.alias != alias
+    )
+    if text_changed:
+        actor = get_current_user(request, session)
+        record_revision(session, person, actor)
+
     person.age = age
     person.location = location
     person.workplace = workplace
@@ -213,10 +291,12 @@ async def update_person(
 
 @router.post("/{person_id}/delete")
 def delete_person(person_id: int, session: Session = Depends(get_session)):
-    """하드 삭제: Person + Photo + 디스크 파일 제거.
+    """하드 삭제: Person + Photo + 디스크 파일 + PersonRevision 모두 제거.
     Encounter는 보존하되, 이 사람이 등장한 행은 FK를 NULL로 끊고
     public_id 스냅샷 + (deleted) 표시를 박아 이력 가독성을 유지한다.
     """
+    from ..models import PersonRevision
+
     person = session.get(Person, person_id)
     if not person:
         raise HTTPException(404, "Person not found")
@@ -236,6 +316,13 @@ def delete_person(person_id: int, session: Session = Depends(get_session)):
             e.person_b_id = None
             e.person_b_snapshot = snapshot
         session.add(e)
+
+    # PersonRevision은 그 사람의 이력이므로 함께 삭제 (FK 무결성 + 정책: 매물 삭제 시 완전 제거)
+    revs = session.exec(
+        select(PersonRevision).where(PersonRevision.person_id == person.id)
+    ).all()
+    for r in revs:
+        session.delete(r)
 
     person_dir = UPLOAD_DIR / str(person.id)
     session.delete(person)

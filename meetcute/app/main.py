@@ -12,6 +12,7 @@ from .config import SECRET_IS_DEFAULT, SECRET_KEY, UPLOAD_DIR
 from .database import get_session, init_db
 from .models import Encounter, EncounterOutcome, Gender, Person, User
 from .routers import auth, compatibility, encounters, manual, persons, users
+from .services.activity import activity_for_persons
 from .services.status import (
     PersonStatus,
     status_badge_class,
@@ -64,6 +65,7 @@ def index(
 ):
     all_persons = session.exec(select(Person)).all()
     statuses = statuses_for_persons(session, all_persons)
+    activities = activity_for_persons(session, all_persons)
 
     by_gender = {g: 0 for g in Gender}
     by_status = {s: 0 for s in PersonStatus}
@@ -72,6 +74,33 @@ def index(
         s = statuses.get(p.id)
         if s:
             by_status[s] += 1
+
+    # "오래 잠자는 매물": AVAILABLE 이면서 30일+ 미활동(또는 한 번도 만남 X). 최대 6명.
+    dormant_threshold = 30
+    dormant_candidates = []
+    for p in all_persons:
+        s = statuses.get(p.id)
+        if s != PersonStatus.AVAILABLE:
+            continue
+        a = activities.get(p.id)
+        if a is None:
+            continue
+        if a.never_met or (a.days_dormant or 0) >= dormant_threshold:
+            dormant_candidates.append((p, a))
+    # 미활동 일수 큰 순 (never_met은 created_at 오래된 순)
+    from datetime import datetime as _dt
+
+    def _dormant_key(item):
+        p, a = item
+        if a.never_met:
+            return (
+                10**9,
+                (_dt.utcnow() - p.created_at).days,
+            )
+        return (a.days_dormant or 0, 0)
+
+    dormant_candidates.sort(key=_dormant_key, reverse=True)
+    dormant_persons = dormant_candidates[:6]
 
     active_encs = session.exec(
         select(Encounter)
@@ -109,6 +138,8 @@ def index(
             "active_encs": active_encs,
             "recent_encs": recent_encs,
             "person_map": person_map,
+            "dormant_persons": dormant_persons,
+            "dormant_threshold": dormant_threshold,
             "current_user": current_user,
             "status_label": status_label,
             "status_badge_class": status_badge_class,
