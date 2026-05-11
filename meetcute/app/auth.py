@@ -5,15 +5,29 @@
   - require_login: 로그인 필수 페이지용 (관리자 아니어도 됨; pending 페이지 등)
   - require_admin: 관리자 전용. 로그인은 됐지만 비관리자면 /auth/pending 으로.
   - 첫 가입자(=DB의 첫 User)는 자동으로 is_admin=True (부트스트랩).
+  - AUTH_ENABLED=False 이면 모든 보호 의존성이 합성 'local' 관리자를 돌려주고
+    인증 검사를 건너뜀. 토글은 config.AUTH_ENABLED 한 줄.
 """
+from datetime import datetime
 from typing import Optional
 
 import bcrypt
 from fastapi import Depends, HTTPException, Request
 from sqlmodel import Session, func, select
 
+from .config import AUTH_ENABLED
 from .database import get_session
 from .models import User
+
+
+# 인증이 꺼졌을 때 모든 라우터가 받게 되는 가짜 관리자. DB에 저장되지 않음.
+LOCAL_ADMIN = User(
+    id=0,
+    email="(local)",
+    password_hash="",
+    is_admin=True,
+    created_at=datetime.utcnow(),
+)
 
 
 def hash_password(password: str) -> str:
@@ -34,6 +48,8 @@ def user_count(session: Session) -> int:
 def get_current_user(
     request: Request, session: Session = Depends(get_session)
 ) -> Optional[User]:
+    if not AUTH_ENABLED:
+        return LOCAL_ADMIN
     uid = request.session.get("user_id")
     if not uid:
         return None
@@ -47,6 +63,8 @@ def get_current_user(
 def require_login(
     request: Request, session: Session = Depends(get_session)
 ) -> User:
+    if not AUTH_ENABLED:
+        return LOCAL_ADMIN
     user = get_current_user(request, session)
     if user is None:
         raise HTTPException(
@@ -58,6 +76,8 @@ def require_login(
 
 
 def require_admin(user: User = Depends(require_login)) -> User:
+    if not AUTH_ENABLED:
+        return LOCAL_ADMIN
     if not user.is_admin:
         raise HTTPException(
             status_code=303,

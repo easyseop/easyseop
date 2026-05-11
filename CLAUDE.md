@@ -60,6 +60,7 @@ Photos: `meetcute/uploads/{person_id}/...` (gitignored).
 - **Public IDs are never reused.** `next_public_id` walks existing IDs and returns max+1 per gender prefix.
 
 ### Auth & sessions
+- **Auth is OFF by default.** Set `MEETCUTE_AUTH=on` to enable. In off mode, every protected dep returns the synthetic `LOCAL_ADMIN` user (id=0, email `(local)`), and all `/auth/*` GETs/POSTs short-circuit-redirect to `/`. The off-mode banner is rendered in `base.html` (driven by the `AUTH_ENABLED` Jinja global registered in `templating.py`).
 - Starlette `SessionMiddleware` (signed cookie, 2-week max age). Secret comes from `MEETCUTE_SECRET` env; with the dev fallback it logs a warning on startup.
 - `app/auth.py` exposes `require_login` and `require_admin` deps; both raise `HTTPException(303, headers={"Location": ...})` to redirect unauthenticated/unauthorized users (to `/auth/login` and `/auth/pending` respectively).
 - Auth + manual routers are public. All matchmaking routers are mounted with `dependencies=[Depends(require_admin)]` in `main.py`. The `users` router applies `require_admin` itself per-endpoint so it can read `current_user`.

@@ -14,21 +14,32 @@
   {% set sess = request.session %}
   {% set logged_in = sess.get('user_id') %}
   {% set is_admin = sess.get('is_admin') %}
+  {% set effective_admin = (not AUTH_ENABLED) or is_admin %}
+
+  {% if not AUTH_ENABLED %}
+  <div class="bg-amber-50 border-b border-amber-200 text-amber-800 text-xs text-center py-1">
+    🔓 로컬 모드 — 인증 꺼짐. 다시 켜려면 <code class="bg-amber-100 px-1 rounded">MEETCUTE_AUTH=on</code> 으로 서버 띄우기
+  </div>
+  {% endif %}
 
   <nav class="bg-white border-b border-neutral-200">
     <div class="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
       <a href="/" class="font-bold text-lg tracking-tight">💘 meetcute</a>
       <div class="flex items-center gap-4 text-sm">
-        {% if is_admin %}
+        {% if effective_admin %}
           <a href="/persons" class="hover:text-pink-600">매물</a>
           <a href="/encounters" class="hover:text-pink-600">만남</a>
           <a href="/compatibility" class="hover:text-pink-600">호환성</a>
+          {% if AUTH_ENABLED %}
           <a href="/users" class="hover:text-pink-600">유저 관리</a>
+          {% endif %}
           <a href="/manual" class="hover:text-pink-600 text-neutral-500">매뉴얼</a>
+          {% if AUTH_ENABLED %}
           <span class="text-xs text-neutral-400 hidden sm:inline">{{ sess.get('user_email') }}</span>
           <form method="post" action="/auth/logout" class="inline">
             <button class="px-3 py-1.5 border border-neutral-300 rounded-full text-xs hover:bg-neutral-50">로그아웃</button>
           </form>
+          {% endif %}
         {% elif logged_in %}
           <a href="/manual" class="hover:text-pink-600 text-neutral-500">매뉴얼</a>
           <span class="text-xs text-neutral-400">{{ sess.get('user_email') }}</span>

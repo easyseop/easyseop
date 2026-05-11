@@ -10,6 +10,7 @@ from ..auth import (
     user_count,
     verify_password,
 )
+from ..config import AUTH_ENABLED
 from ..database import get_session
 from ..models import User
 from ..templating import templates
@@ -17,10 +18,19 @@ from ..templating import templates
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
+def _bypass_if_disabled():
+    """AUTH_ENABLED=False 일 때 모든 /auth/* 페이지는 그냥 대시보드로."""
+    if not AUTH_ENABLED:
+        return RedirectResponse("/", status_code=303)
+    return None
+
+
 @router.get("/login", response_class=HTMLResponse)
 def login_form(
     request: Request, session: Session = Depends(get_session), error: str = ""
 ):
+    if (resp := _bypass_if_disabled()) is not None:
+        return resp
     if get_current_user(request, session):
         return RedirectResponse("/", status_code=303)
     no_users = user_count(session) == 0
@@ -36,6 +46,8 @@ def login(
     password: str = Form(...),
     session: Session = Depends(get_session),
 ):
+    if (resp := _bypass_if_disabled()) is not None:
+        return resp
     email = email.strip().lower()
     user = session.exec(select(User).where(User.email == email)).first()
     if not user or not verify_password(password, user.password_hash):
@@ -51,6 +63,8 @@ def login(
 def register_form(
     request: Request, session: Session = Depends(get_session), error: str = ""
 ):
+    if (resp := _bypass_if_disabled()) is not None:
+        return resp
     if get_current_user(request, session):
         return RedirectResponse("/", status_code=303)
     is_first = user_count(session) == 0
@@ -67,6 +81,8 @@ def register(
     password_confirm: str = Form(...),
     session: Session = Depends(get_session),
 ):
+    if (resp := _bypass_if_disabled()) is not None:
+        return resp
     email = email.strip().lower()
     if not email or "@" not in email:
         return RedirectResponse(
@@ -110,6 +126,8 @@ def logout(request: Request):
 @router.get("/pending", response_class=HTMLResponse)
 def pending(request: Request, session: Session = Depends(get_session)):
     """비관리자 로그인 유저가 보호 영역 접근 시 도착하는 페이지."""
+    if (resp := _bypass_if_disabled()) is not None:
+        return resp
     user = get_current_user(request, session)
     if user is None:
         return RedirectResponse("/auth/login", status_code=303)

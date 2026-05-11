@@ -11,5 +11,9 @@ DATABASE_URL = f"sqlite:///{DB_PATH}"
 SECRET_KEY = os.getenv("MEETCUTE_SECRET", "dev-secret-change-me")
 SECRET_IS_DEFAULT = SECRET_KEY == "dev-secret-change-me"
 
+# 인증 켜고 끄기. 기본은 OFF (혼자 로컬에서 쓰는 용도).
+# 다시 켜고 싶을 때: MEETCUTE_AUTH=on 으로 띄우면 됨.
+AUTH_ENABLED = os.getenv("MEETCUTE_AUTH", "").strip().lower() in ("on", "1", "true", "yes")
+
 DATA_DIR.mkdir(exist_ok=True)
 UPLOAD_DIR.mkdir(exist_ok=True)
