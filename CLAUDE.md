@@ -37,18 +37,24 @@ The flat commit log full of `generated` commits is this workflow, not human acti
 
 ## meetcute (private matchmaking admin)
 
-A Python web app under `meetcute/`. Stack: **FastAPI + SQLModel + SQLite + Jinja2 + HTMX + Tailwind (CDN)**. Single-user, hand-rolled — no auth yet.
+A Python web app under `meetcute/`. Stack: **FastAPI + SQLModel + MySQL (pymysql) + Jinja2 + HTMX + Tailwind (CDN)**. Solo/multi-admin matchmaking tool.
 
 ### Run
 ```bash
 cd meetcute
 pip install -e .   # or: uv sync
+python -m app.seed       # optional: sample data
 uvicorn app.main:app --reload
 # http://127.0.0.1:8000
 ```
 
-DB file: `meetcute/data/meetcute.db` (SQLite, auto-created, gitignored).
-Photos: `meetcute/uploads/{person_id}/...` (gitignored).
+### Database
+- **Default**: MySQL via `mysql+pymysql://root:@127.0.0.1:3306/meetcute?charset=utf8mb4`. Override with `MEETCUTE_DB_URL` env. SQLite (`sqlite:///./data/meetcute.db`) is supported as a fallback.
+- **Auto-bootstrap**: `init_db()` in `app/database.py` runs `CREATE DATABASE IF NOT EXISTS` against the server first (no-op for SQLite), then `SQLModel.metadata.create_all`.
+- **Enum columns** use `SAEnum` so SQLAlchemy converts to/from the Python enum on read/write — don't change them to plain `Text`/`String`, you'll lose enum semantics and `outcome.is_active` will crash with `'str' object has no attribute`.
+- **Long-text fields** (`ideal_type`, `notes`, `EncounterEvent.note`, `PersonRevision.snapshot_json`) are explicit `Column(Text)` so MySQL doesn't reject them as VARCHAR-without-length.
+- Photos live in `meetcute/uploads/{person_id}/...` (filesystem, not DB).
+- Both `data/` and `uploads/` are gitignored.
 
 ### Architecture
 - **Models** (`app/models.py`): `User`, `Person` (with auto-issued `public_id` like `M-001`/`F-001`/`X-001`), `Photo`, `Encounter`, `PersonRevision`, `EncounterEvent`. `Encounter` is the source of truth for the current state of a match; `PersonRevision` is the source of truth for profile-edit history; `EncounterEvent` is the source of truth for outcome transition history (one row per outcome change).

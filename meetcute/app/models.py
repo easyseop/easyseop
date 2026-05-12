@@ -1,7 +1,23 @@
 from datetime import datetime, date
 from enum import Enum
 from typing import Optional
-from sqlmodel import SQLModel, Field, Relationship
+
+from sqlalchemy import Column, Enum as SAEnum, Text
+from sqlmodel import Field, Relationship, SQLModel
+
+
+# ─── 긴 텍스트는 명시적으로 TEXT 컬럼 (MySQL의 VARCHAR-without-length 회피) ────
+def _text_col() -> Column:
+    return Column(Text, nullable=False, default="")
+
+
+def _text_col_required() -> Column:
+    return Column(Text, nullable=False)
+
+
+# ─── enum 컬럼: SQLAlchemy ENUM 으로 (MySQL: ENUM 타입, SQLite: VARCHAR + CHECK)
+def _enum_col(enum_cls) -> Column:
+    return Column(SAEnum(enum_cls), nullable=False)
 
 
 class Gender(str, Enum):
@@ -25,23 +41,23 @@ class EncounterOutcome(str, Enum):
 
 class User(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
-    email: str = Field(index=True, unique=True)
-    password_hash: str
+    email: str = Field(index=True, unique=True, max_length=255)
+    password_hash: str = Field(max_length=255)
     is_admin: bool = False
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
 class Person(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
-    public_id: str = Field(index=True, unique=True)  # M-001 / F-001 / X-001
-    gender: Gender
+    public_id: str = Field(index=True, unique=True, max_length=16)
+    gender: Gender = Field(sa_column=_enum_col(Gender))
     age: int
-    location: str
-    workplace: str
+    location: str = Field(max_length=255)
+    workplace: str = Field(max_length=255)
     height_cm: int
-    ideal_type: str = ""
-    notes: str = ""
-    alias: str = ""  # 주선자용 메모 별칭 (선택)
+    ideal_type: str = Field(default="", sa_column=_text_col())
+    notes: str = Field(default="", sa_column=_text_col())
+    alias: str = Field(default="", max_length=255)
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
@@ -54,7 +70,7 @@ class Person(SQLModel, table=True):
 class Photo(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     person_id: int = Field(foreign_key="person.id", index=True)
-    filename: str  # uploads/ 하위 경로
+    filename: str = Field(max_length=512)  # uploads/ 하위 경로
     order: int = 0
     person: Optional[Person] = Relationship(back_populates="photos")
 
@@ -64,11 +80,14 @@ class Encounter(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     person_a_id: Optional[int] = Field(default=None, foreign_key="person.id", index=True)
     person_b_id: Optional[int] = Field(default=None, foreign_key="person.id", index=True)
-    person_a_snapshot: str = ""  # 예: "M-042"
-    person_b_snapshot: str = ""
+    person_a_snapshot: str = Field(default="", max_length=64)  # 예: "M-042 (deleted)"
+    person_b_snapshot: str = Field(default="", max_length=64)
     met_on: date
-    outcome: EncounterOutcome = EncounterOutcome.PENDING
-    notes: str = ""
+    outcome: EncounterOutcome = Field(
+        default=EncounterOutcome.PENDING,
+        sa_column=_enum_col(EncounterOutcome),
+    )
+    notes: str = Field(default="", sa_column=_text_col())
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
@@ -81,9 +100,9 @@ class PersonRevision(SQLModel, table=True):
     """
     id: Optional[int] = Field(default=None, primary_key=True)
     person_id: int = Field(foreign_key="person.id", index=True)
-    snapshot_json: str
+    snapshot_json: str = Field(sa_column=_text_col_required())
     changed_by_user_id: Optional[int] = Field(default=None, foreign_key="user.id")
-    changed_by_email: str = ""  # 유저 삭제돼도 누가 바꿨는지 남기기 위해
+    changed_by_email: str = Field(default="", max_length=255)
     changed_at: datetime = Field(default_factory=datetime.utcnow)
 
 
@@ -96,8 +115,8 @@ class EncounterEvent(SQLModel, table=True):
     """
     id: Optional[int] = Field(default=None, primary_key=True)
     encounter_id: int = Field(foreign_key="encounter.id", index=True)
-    outcome: EncounterOutcome
-    note: str = ""  # 이 전환에 대한 부가설명 (선택)
+    outcome: EncounterOutcome = Field(sa_column=_enum_col(EncounterOutcome))
+    note: str = Field(default="", sa_column=_text_col())
     changed_by_user_id: Optional[int] = Field(default=None, foreign_key="user.id")
-    changed_by_email: str = ""
+    changed_by_email: str = Field(default="", max_length=255)
     created_at: datetime = Field(default_factory=datetime.utcnow)

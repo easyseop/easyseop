@@ -49,6 +49,33 @@ MEETCUTE_AUTH=on ./dev.sh             # 인증 켜기
 
 > 주의: 본인이 로컬에서 만든 커밋이 있는데 외부 푸시도 들어왔다면 fast-forward 실패로 `dev.sh`가 멈춰요. 평소엔 외부 푸시만 받는 모드로 쓰시고, 본인이 코드 만질 땐 일반 `uvicorn` 으로 띄우는 게 깔끔합니다.
 
+### 0.0.0 데이터베이스 (어디에 저장됨?)
+
+- **기본은 MySQL** (`mysql+pymysql://root:@127.0.0.1:3306/meetcute`)
+- 첫 부팅 시 `meetcute` DB가 없으면 **자동 생성** (`CREATE DATABASE IF NOT EXISTS`)
+- 스키마(테이블)도 첫 부팅 시 자동 생성
+
+**다른 접속 정보로 바꾸려면** 환경변수 `MEETCUTE_DB_URL`:
+```bash
+export MEETCUTE_DB_URL="mysql+pymysql://USER:PASS@HOST:3306/meetcute?charset=utf8mb4"
+```
+
+**MySQL 없으면 SQLite로**:
+```bash
+export MEETCUTE_DB_URL="sqlite:///./data/meetcute.db"
+```
+
+**시드 데이터 (가짜 매물 8명 + 만남 + 이벤트):**
+```bash
+python -m app.seed              # 데이터 없을 때만
+python -m app.seed --force      # 다 지우고 다시
+```
+
+**백업:**
+- MySQL: `mysqldump -u root meetcute > backup.sql`
+- SQLite: `meetcute/data/meetcute.db` 파일 복사
+- 사진은 어느 DB든 `meetcute/uploads/` 폴더에 따로 (이 폴더 복사도 함께)
+
 ### 0.0 인증 켜기/끄기 토글 ⭐
 
 기본은 **꺼져 있습니다.** 혼자 로컬에서 쓸 때는 그냥 띄우면 바로 모든 페이지 접근 가능 — `(local)` 관리자로 동작.
