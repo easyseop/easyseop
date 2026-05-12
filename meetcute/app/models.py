@@ -85,3 +85,19 @@ class PersonRevision(SQLModel, table=True):
     changed_by_user_id: Optional[int] = Field(default=None, foreign_key="user.id")
     changed_by_email: str = ""  # 유저 삭제돼도 누가 바꿨는지 남기기 위해
     changed_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class EncounterEvent(SQLModel, table=True):
+    """만남 한 건의 outcome 변화 이력.
+
+    - Encounter 생성 시 초기 outcome 로 한 건 자동 기록.
+    - update에서 outcome이 바뀌면 한 건 추가 (note 는 그 시점의 부가설명).
+    - notes-only 변경은 이벤트 안 만듦 (소음 방지).
+    """
+    id: Optional[int] = Field(default=None, primary_key=True)
+    encounter_id: int = Field(foreign_key="encounter.id", index=True)
+    outcome: EncounterOutcome
+    note: str = ""  # 이 전환에 대한 부가설명 (선택)
+    changed_by_user_id: Optional[int] = Field(default=None, foreign_key="user.id")
+    changed_by_email: str = ""
+    created_at: datetime = Field(default_factory=datetime.utcnow)

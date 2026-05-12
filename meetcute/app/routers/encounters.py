@@ -5,8 +5,9 @@ from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlmodel import Session, select, or_
 
+from ..auth import get_current_user
 from ..database import get_session
-from ..models import Encounter, EncounterOutcome, Person
+from ..models import Encounter, EncounterEvent, EncounterOutcome, Person, User
 from ..templating import templates
 
 router = APIRouter(prefix="/encounters", tags=["encounters"])
@@ -51,6 +52,32 @@ def _resolve_persons(session: Session, encounters: list[Encounter]) -> dict[int,
         return {}
     rows = session.exec(select(Person).where(Person.id.in_(list(ids)))).all()
     return {p.id: p for p in rows}
+
+
+def _log_event(
+    session: Session,
+    enc: Encounter,
+    outcome: EncounterOutcome,
+    note: str,
+    actor: Optional[User],
+) -> EncounterEvent:
+    ev = EncounterEvent(
+        encounter_id=enc.id,
+        outcome=outcome,
+        note=note,
+        changed_by_user_id=actor.id if actor else None,
+        changed_by_email=actor.email if actor else "",
+    )
+    session.add(ev)
+    return ev
+
+
+def _events_for(session: Session, encounter_id: int) -> list[EncounterEvent]:
+    return session.exec(
+        select(EncounterEvent)
+        .where(EncounterEvent.encounter_id == encounter_id)
+        .order_by(EncounterEvent.created_at.desc())
+    ).all()
 
 
 @router.get("", response_class=HTMLResponse)
@@ -105,6 +132,7 @@ def new_encounter_form(
 
 @router.post("")
 def create_encounter(
+    request: Request,
     person_a_id: int = Form(...),
     person_b_id: int = Form(...),
     met_on: date = Form(...),
@@ -131,6 +159,12 @@ def create_encounter(
     session.add(enc)
     session.commit()
     session.refresh(enc)
+
+    # 초기 outcome 이벤트 기록
+    actor = get_current_user(request, session)
+    _log_event(session, enc, outcome, "최초 등록", actor)
+    session.commit()
+
     return RedirectResponse(f"/encounters/{enc.id}", status_code=303)
 
 
@@ -142,39 +176,59 @@ def encounter_detail(
     if not enc:
         raise HTTPException(404, "Encounter not found")
     persons = _resolve_persons(session, [enc])
+    events = _events_for(session, enc.id)
     return templates.TemplateResponse(
         request,
         "encounters/edit.html",
-        {"enc": enc, "persons": persons, **_ctx_extras()},
+        {"enc": enc, "persons": persons, "events": events, **_ctx_extras()},
     )
 
 
 @router.post("/{encounter_id}")
 def update_encounter(
+    request: Request,
     encounter_id: int,
     met_on: date = Form(...),
     outcome: EncounterOutcome = Form(...),
     notes: str = Form(""),
+    transition_note: str = Form(""),
     session: Session = Depends(get_session),
 ):
     enc = session.get(Encounter, encounter_id)
     if not enc:
         raise HTTPException(404, "Encounter not found")
+
+    outcome_changed = enc.outcome != outcome
     enc.met_on = met_on
     enc.outcome = outcome
     enc.notes = notes
     enc.updated_at = datetime.utcnow()
     session.add(enc)
+
+    if outcome_changed:
+        actor = get_current_user(request, session)
+        _log_event(session, enc, outcome, transition_note.strip(), actor)
+
     session.commit()
     return RedirectResponse(f"/encounters/{enc.id}", status_code=303)
 
 
 @router.post("/{encounter_id}/delete")
 def delete_encounter(encounter_id: int, session: Session = Depends(get_session)):
-    """Encounter 자체는 보통 보존하지만, 잘못 입력했을 때 삭제용."""
+    """Encounter 자체는 보통 보존하지만, 잘못 입력했을 때 삭제용.
+    Encounter를 지우면 그 만남의 outcome 변화 이력(EncounterEvent)도 같이 사라짐.
+    """
     enc = session.get(Encounter, encounter_id)
     if not enc:
         raise HTTPException(404, "Encounter not found")
+
+    # 연관 이벤트 정리
+    events = session.exec(
+        select(EncounterEvent).where(EncounterEvent.encounter_id == enc.id)
+    ).all()
+    for ev in events:
+        session.delete(ev)
+
     session.delete(enc)
     session.commit()
     return RedirectResponse("/encounters", status_code=303)
