@@ -69,6 +69,16 @@ hash_pyproject() {
 }
 
 LAST_PYPROJECT=$(hash_pyproject)
+
+# 시작 시 한 번 의존성 동기화 — 사용자가 dev.sh 시작 전에 git pull 했어도
+# 새로 추가된 라이브러리가 알아서 들어오도록.
+echo "[$(ts)] 📦 의존성 동기화 (pip install -e .)..."
+if $PIP install -e . --quiet; then
+  echo "[$(ts)] ✅ 의존성 OK"
+else
+  echo "[$(ts)] ⚠️ pip install 실패 — 그래도 일단 서버는 띄워봅니다."
+fi
+
 start_server
 
 echo "[$(ts)] 👀 ${POLL_INTERVAL}초마다 깃 변경 확인합니다. (Ctrl+C 로 종료)"
