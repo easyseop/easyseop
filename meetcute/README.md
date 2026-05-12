@@ -20,6 +20,21 @@ pip install -e .
 uvicorn app.main:app --reload
 ```
 
+### 🤖 자리 비울 때: `./dev.sh` (자동 pull + 자동 재시작)
+
+```bash
+./dev.sh                        # 기본 (127.0.0.1:8000, 15초마다 깃 폴링)
+PORT=8001 ./dev.sh              # 다른 포트
+HOST=0.0.0.0 ./dev.sh           # 같은 와이파이의 다른 기기에서 접근 허용
+MEETCUTE_AUTH=on ./dev.sh       # 인증 켜기
+```
+
+이 스크립트는 우리가 외부에서 새 커밋을 푸시해도 **노트북을 안 만져도 알아서 반영**해줍니다:
+- 코드만 바뀌면 → uvicorn이 자동 리로드
+- `pyproject.toml` 도 바뀌면 → `pip install` 후 uvicorn 강제 재시작
+- uvicorn이 어떤 이유로 죽으면 자동 재기동
+- 충돌이 나면 멈추고 알려줌 (수동 해결 필요)
+
 ## 데이터 위치
 
 - DB: `./data/meetcute.db` (SQLite, gitignored)
