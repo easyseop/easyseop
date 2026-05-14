@@ -24,6 +24,17 @@ POLL_INTERVAL="${POLL_INTERVAL:-15}"
 PORT="${PORT:-8765}"
 HOST="${HOST:-127.0.0.1}"
 
+# MEETCUTE_SECRET 자동 생성/영속화 (없으면 .secret 파일에 랜덤 키 생성)
+if [ -z "${MEETCUTE_SECRET:-}" ]; then
+  if [ ! -f .secret ]; then
+    python3 -c 'import secrets; print(secrets.token_hex(32))' > .secret 2>/dev/null \
+      || python -c 'import secrets; print(secrets.token_hex(32))' > .secret
+    chmod 600 .secret
+    echo "[$(date '+%H:%M:%S')] 🔑 .secret 파일 생성 (세션 쿠키 서명용)"
+  fi
+  export MEETCUTE_SECRET=$(cat .secret)
+fi
+
 # venv 우선
 if [ -x ".venv/bin/uvicorn" ]; then
   UVICORN=.venv/bin/uvicorn
