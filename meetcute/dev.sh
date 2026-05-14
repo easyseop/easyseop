@@ -15,10 +15,23 @@
 #   PORT=8001 ./dev.sh             # 다른 포트
 #   HOST=0.0.0.0 ./dev.sh          # 같은 와이파이의 다른 기기에서 접근 허용
 #   POLL_INTERVAL=5 ./dev.sh       # 5초마다 깃 확인
-#   MEETCUTE_AUTH=on ./dev.sh      # 인증 켜기
+#   MEETCUTE_AUTH=on ./dev.sh      # 인증 켜기 (또는 .env 파일에 박아두기)
+#
+# .env 파일 (선택) — 있으면 자동 로드:
+#   MEETCUTE_AUTH=on
+#   MEETCUTE_TELEGRAM_BOT_TOKEN="123:abc..."
+#   MEETCUTE_DB_URL="..."
 # ──────────────────────────────────────────────────────────────────────────────
 set -u
 cd "$(dirname "$0")"
+
+# .env 파일 있으면 자동 로드 (MEETCUTE_AUTH, MEETCUTE_TELEGRAM_BOT_TOKEN 등을 여기 박아두면 매번 export 안 해도 됨)
+if [ -f .env ]; then
+  set -a
+  # shellcheck disable=SC1091
+  . ./.env
+  set +a
+fi
 
 POLL_INTERVAL="${POLL_INTERVAL:-15}"
 PORT="${PORT:-8765}"
