@@ -22,13 +22,21 @@
       <option value="dormant" {% if activity == 'dormant' %}selected{% endif %}>30일+ 미활동</option>
       <option value="never" {% if activity == 'never' %}selected{% endif %}>한 번도 만남 X</option>
     </select>
+    {% if AUTH_ENABLED %}
+    <select name="owner" class="px-3 py-1.5 border border-neutral-300 rounded-lg text-sm">
+      <option value="">전체 매물</option>
+      <option value="mine" {% if owner == 'mine' %}selected{% endif %}>내 매물</option>
+      <option value="others" {% if owner == 'others' %}selected{% endif %}>다른 admin</option>
+      <option value="unassigned" {% if owner == 'unassigned' %}selected{% endif %}>미지정</option>
+    </select>
+    {% endif %}
     <select name="sort" class="px-3 py-1.5 border border-neutral-300 rounded-lg text-sm">
       <option value="" {% if not sort %}selected{% endif %}>등록순(최신)</option>
       <option value="recent_activity" {% if sort == 'recent_activity' %}selected{% endif %}>최근 활동순</option>
       <option value="dormant" {% if sort == 'dormant' %}selected{% endif %}>오래 잠자는순</option>
     </select>
     <button class="px-4 py-1.5 bg-neutral-800 text-white rounded-lg text-sm">적용</button>
-    {% if q or gender or activity or sort %}
+    {% if q or gender or activity or owner or sort %}
     <a href="/persons" class="text-xs text-neutral-500 underline">초기화</a>
     {% endif %}
   </form>
@@ -62,6 +70,18 @@
         </div>
         <div class="text-neutral-500 text-xs mt-0.5 truncate">{{ p.workplace }} · {{ p.height_cm }}cm</div>
         {% if p.alias %}<div class="text-xs text-neutral-400 mt-1">({{ p.alias }})</div>{% endif %}
+        {% if AUTH_ENABLED %}
+          {% set ow = owner_map.get(p.owner_user_id) %}
+          {% if ow %}
+            {% if current_user and ow.id == current_user.id %}
+            <div class="text-xs text-pink-600 mt-1">👤 내 매물</div>
+            {% else %}
+            <div class="text-xs text-neutral-500 mt-1">👤 {{ ow.email }}</div>
+            {% endif %}
+          {% else %}
+            <div class="text-xs text-neutral-400 mt-1">👤 미지정</div>
+          {% endif %}
+        {% endif %}
         {% if st %}
         <div class="flex items-center gap-2 mt-2 text-xs">
           {% if st.never_met %}
