@@ -11,7 +11,7 @@
 #   4) uvicorn이 어떤 이유로 죽으면 자동 재기동
 #
 # 사용:
-#   ./dev.sh                       # 기본 (127.0.0.1:8000, 15초 폴링)
+#   ./dev.sh                       # 기본 (127.0.0.1:8765, 15초 폴링)
 #   PORT=8001 ./dev.sh             # 다른 포트
 #   HOST=0.0.0.0 ./dev.sh          # 같은 와이파이의 다른 기기에서 접근 허용
 #   POLL_INTERVAL=5 ./dev.sh       # 5초마다 깃 확인
@@ -21,7 +21,7 @@ set -u
 cd "$(dirname "$0")"
 
 POLL_INTERVAL="${POLL_INTERVAL:-15}"
-PORT="${PORT:-8000}"
+PORT="${PORT:-8765}"
 HOST="${HOST:-127.0.0.1}"
 
 # venv 우선

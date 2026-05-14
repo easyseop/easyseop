@@ -266,7 +266,7 @@ def _seed(session: Session, force: bool) -> None:
 
     print("\n✅ 시드 완료!")
     print("  매물 8명 / 만남 8건 / 이벤트 17건 / revision 2건 / 사진 12장")
-    print("  → uvicorn app.main:app --reload 띄우고 http://127.0.0.1:8000 접속")
+    print("  → ./dev.sh 또는 'uvicorn app.main:app --reload --port 8765' → http://127.0.0.1:8765")
 
 
 def main():

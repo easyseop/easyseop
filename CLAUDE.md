@@ -45,7 +45,7 @@ cd meetcute
 pip install -e .   # or: uv sync
 python -m app.seed       # optional: sample data
 uvicorn app.main:app --reload
-# http://127.0.0.1:8000
+# http://127.0.0.1:8765 (or :8000 if running uvicorn directly without dev.sh)
 ```
 
 ### Database

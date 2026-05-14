@@ -11,8 +11,8 @@ cd meetcute
 python -m venv .venv && source .venv/bin/activate
 pip install -e .
 python -m app.seed                        # 가짜 매물 8명 + 만남 8건 자동 생성 (선택)
-./dev.sh                                  # 또는: uvicorn app.main:app --reload
-# http://127.0.0.1:8000
+./dev.sh                                  # 또는: uvicorn app.main:app --reload --port 8765
+# http://127.0.0.1:8765
 ```
 
 기본 DB는 **SQLite** (`meetcute/data/meetcute.db` 자동 생성). 별도 설치 필요 없음.
@@ -33,7 +33,7 @@ python -m app.seed --force   # 기존 데이터 다 지우고 새로 채움
 ### 🤖 자리 비울 때: `./dev.sh` (자동 pull + 자동 재시작)
 
 ```bash
-./dev.sh                        # 기본 (127.0.0.1:8000, 15초마다 깃 폴링)
+./dev.sh                        # 기본 (127.0.0.1:8765, 15초마다 깃 폴링)
 PORT=8001 ./dev.sh              # 다른 포트
 HOST=0.0.0.0 ./dev.sh           # 같은 와이파이의 다른 기기에서 접근 허용
 MEETCUTE_AUTH=on ./dev.sh       # 인증 켜기
