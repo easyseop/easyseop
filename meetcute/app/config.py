@@ -6,13 +6,13 @@ DATA_DIR = BASE_DIR / "data"
 UPLOAD_DIR = BASE_DIR / "uploads"
 
 # ─── DB ─────────────────────────────────────────────────────────────────────
-# 기본: 로컬 MySQL (root, 비번 없음, 'meetcute' DB).
-# 다른 환경에선 환경변수 MEETCUTE_DB_URL 로 덮어쓰기. 예시:
-#   MEETCUTE_DB_URL="mysql+pymysql://user:pass@host:3306/db?charset=utf8mb4"
-#   MEETCUTE_DB_URL="sqlite:///./data/meetcute.db"   ← MySQL 없을 때 폴백
+# 기본은 SQLite — 1인 로컬 사용에 충분, 별도 설치 필요 없음.
+# MySQL/PostgreSQL 쓸 거면 환경변수 MEETCUTE_DB_URL 로:
+#   MEETCUTE_DB_URL="mysql+pymysql://user:pass@host:3306/meetcute?charset=utf8mb4"
+#   MEETCUTE_DB_URL="postgresql+psycopg2://user:pass@host:5432/meetcute"
 DATABASE_URL = os.getenv(
     "MEETCUTE_DB_URL",
-    "mysql+pymysql://root:@127.0.0.1:3306/meetcute?charset=utf8mb4",
+    f"sqlite:///{DATA_DIR / 'meetcute.db'}",
 )
 
 # 세션 쿠키 서명용. 운영 시 환경변수 MEETCUTE_SECRET을 반드시 지정하세요.

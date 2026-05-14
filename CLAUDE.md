@@ -37,7 +37,7 @@ The flat commit log full of `generated` commits is this workflow, not human acti
 
 ## meetcute (private matchmaking admin)
 
-A Python web app under `meetcute/`. Stack: **FastAPI + SQLModel + MySQL (pymysql) + Jinja2 + HTMX + Tailwind (CDN)**. Solo/multi-admin matchmaking tool.
+A Python web app under `meetcute/`. Stack: **FastAPI + SQLModel + SQLite (default) / MySQL (opt-in via env) + Jinja2 + HTMX + Tailwind (CDN)**. Solo/multi-admin matchmaking tool.
 
 ### Run
 ```bash
@@ -49,7 +49,8 @@ uvicorn app.main:app --reload
 ```
 
 ### Database
-- **Default**: MySQL via `mysql+pymysql://root:@127.0.0.1:3306/meetcute?charset=utf8mb4`. Override with `MEETCUTE_DB_URL` env. SQLite (`sqlite:///./data/meetcute.db`) is supported as a fallback.
+- **Default**: SQLite at `meetcute/data/meetcute.db` (auto-created). No setup required.
+- **Override**: set `MEETCUTE_DB_URL` to a SQLAlchemy URL — `mysql+pymysql://...` and `postgresql+psycopg2://...` both supported. `pymysql` is in deps.
 - **Auto-bootstrap**: `init_db()` in `app/database.py` runs `CREATE DATABASE IF NOT EXISTS` against the server first (no-op for SQLite), then `SQLModel.metadata.create_all`.
 - **Enum columns** use `SAEnum` so SQLAlchemy converts to/from the Python enum on read/write — don't change them to plain `Text`/`String`, you'll lose enum semantics and `outcome.is_active` will crash with `'str' object has no attribute`.
 - **Long-text fields** (`ideal_type`, `notes`, `EncounterEvent.note`, `PersonRevision.snapshot_json`) are explicit `Column(Text)` so MySQL doesn't reject them as VARCHAR-without-length.
