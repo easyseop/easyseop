@@ -91,6 +91,55 @@
     </form>
   </div>
 
+  {% if db_info %}
+  <div class="bg-white border border-neutral-200 rounded-xl p-6 space-y-3">
+    <h2 class="font-semibold">💾 데이터 / 시스템 상태</h2>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <!-- DB -->
+      <div class="bg-neutral-50 rounded-lg p-4 space-y-1">
+        <div class="text-xs text-neutral-500">데이터베이스</div>
+        <div class="font-semibold">{{ db_info.kind }}</div>
+        <div class="text-xs text-neutral-500 mt-2">파일 경로</div>
+        <div class="text-xs font-mono break-all">{{ db_info.db_file_path or db_info.url_masked }}</div>
+        <div class="text-xs text-neutral-500 mt-2">파일 크기</div>
+        <div class="font-semibold">{{ db_info.db_file_size_h }}</div>
+      </div>
+
+      <!-- 사진 -->
+      <div class="bg-neutral-50 rounded-lg p-4 space-y-1">
+        <div class="text-xs text-neutral-500">사진 저장소</div>
+        <div class="font-semibold">{{ db_info.uploads_count }} 장 · {{ db_info.uploads_size_h }}</div>
+        <div class="text-xs text-neutral-500 mt-2">경로</div>
+        <div class="text-xs font-mono break-all">{{ db_info.uploads_path }}</div>
+      </div>
+    </div>
+
+    <!-- Row counts -->
+    <div>
+      <div class="text-sm font-medium mb-2">테이블별 row 개수</div>
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-sm">
+        {% for table, n in db_info.counts.items() %}
+        <div class="bg-neutral-50 rounded-lg p-3">
+          <div class="text-xs text-neutral-500">{{ table }}</div>
+          <div class="text-lg font-bold">{{ n }}</div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <details class="text-sm">
+      <summary class="cursor-pointer font-medium text-neutral-700">📥 백업하는 법</summary>
+      <div class="mt-3 space-y-2 text-neutral-600">
+        <p>두 폴더만 챙기면 됩니다:</p>
+        <pre class="bg-neutral-100 rounded p-2 text-xs overflow-x-auto"><code>{{ db_info.db_file_path }}
+{{ db_info.uploads_path }}</code></pre>
+        <p>구체적 방법은 <strong>MANUAL.md → 백업 섹션</strong> 또는 <a href="/manual" class="text-pink-600 underline">/manual</a> 참조.</p>
+      </div>
+    </details>
+  </div>
+  {% endif %}
+
   <div class="bg-white border border-neutral-200 rounded-xl p-6 space-y-1">
     <h2 class="font-semibold">계정</h2>
     <div class="text-sm text-neutral-600">이메일: <code>{{ current_user.email }}</code></div>

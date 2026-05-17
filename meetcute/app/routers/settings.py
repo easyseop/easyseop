@@ -1,18 +1,85 @@
-"""유저 개인 설정 (텔레그램 chat_id 등록 등)."""
+"""유저 개인 설정 (텔레그램 chat_id 등록 등) + 시스템 정보 (DB/저장소)."""
 import json
 import urllib.error
 import urllib.request
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
-from sqlmodel import Session
+from sqlmodel import Session, func, select
 
-from ..auth import require_login
-from ..config import AUTH_ENABLED
+from ..auth import require_admin, require_login
+from ..config import AUTH_ENABLED, DATABASE_URL, UPLOAD_DIR
 from ..database import get_session
-from ..models import User
+from ..models import (
+    Encounter,
+    EncounterEvent,
+    IntroductionRequest,
+    Person,
+    PersonRevision,
+    Photo,
+    User,
+)
 from ..notifications import BOT_TOKEN, SSL_CONTEXT, send_telegram, telegram_enabled
 from ..templating import templates
+
+
+def _human_bytes(n: int) -> str:
+    f = float(n)
+    for unit in ("B", "KB", "MB", "GB"):
+        if f < 1024:
+            return f"{f:.1f} {unit}"
+        f /= 1024
+    return f"{f:.1f} TB"
+
+
+def _folder_stats(p: Path) -> tuple[int, int]:
+    if not p.exists():
+        return 0, 0
+    total = 0
+    count = 0
+    for f in p.rglob("*"):
+        if f.is_file():
+            total += f.stat().st_size
+            count += 1
+    return total, count
+
+
+def _db_stats(session: Session) -> dict:
+    counts = {
+        "User": session.exec(select(func.count()).select_from(User)).one(),
+        "Person": session.exec(select(func.count()).select_from(Person)).one(),
+        "Photo": session.exec(select(func.count()).select_from(Photo)).one(),
+        "Encounter": session.exec(select(func.count()).select_from(Encounter)).one(),
+        "EncounterEvent": session.exec(select(func.count()).select_from(EncounterEvent)).one(),
+        "PersonRevision": session.exec(select(func.count()).select_from(PersonRevision)).one(),
+        "IntroductionRequest": session.exec(select(func.count()).select_from(IntroductionRequest)).one(),
+    }
+    is_sqlite = DATABASE_URL.startswith("sqlite")
+    db_file_path = ""
+    db_file_size = 0
+    if is_sqlite:
+        prefix = "sqlite:///"
+        raw = DATABASE_URL[len(prefix):] if DATABASE_URL.startswith(prefix) else ""
+        if raw:
+            p = Path(raw)
+            db_file_path = str(p)
+            if p.exists():
+                db_file_size = p.stat().st_size
+
+    uploads_size, uploads_count = _folder_stats(UPLOAD_DIR)
+    return {
+        "kind": "SQLite" if is_sqlite else "외부 (MySQL/Postgres 등)",
+        "url_masked": DATABASE_URL if is_sqlite else DATABASE_URL.split("@", 1)[-1],
+        "counts": counts,
+        "db_file_path": db_file_path,
+        "db_file_size": db_file_size,
+        "db_file_size_h": _human_bytes(db_file_size) if db_file_size else "—",
+        "uploads_path": str(UPLOAD_DIR),
+        "uploads_size": uploads_size,
+        "uploads_size_h": _human_bytes(uploads_size),
+        "uploads_count": uploads_count,
+    }
 
 router = APIRouter(prefix="/settings", tags=["settings"])
 
@@ -99,6 +166,8 @@ def settings_page(
     if detect:
         detected_chats, detect_error = _detect_chats()
 
+    db_info = _db_stats(session) if user.is_admin else None
+
     return templates.TemplateResponse(
         request,
         "settings.html",
@@ -110,6 +179,7 @@ def settings_page(
             "detected_chats": detected_chats,
             "detect_error": detect_error,
             "detect_attempted": bool(detect),
+            "db_info": db_info,
             "flash": flash,
             "ok": ok,
             "err": err,

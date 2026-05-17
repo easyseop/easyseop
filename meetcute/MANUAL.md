@@ -85,6 +85,70 @@ MEETCUTE_AUTH=on ./dev.sh             # 인증 켜기
 
 > 주의: 본인이 로컬에서 만든 커밋이 있는데 외부 푸시도 들어왔다면 fast-forward 실패로 `dev.sh`가 멈춰요. 평소엔 외부 푸시만 받는 모드로 쓰시고, 본인이 코드 만질 땐 일반 `uvicorn` 으로 띄우는 게 깔끔합니다.
 
+### 0.0.0.5 백업 (Dropbox / iCloud / 외장하드) 💾
+
+데이터는 두 폴더에만 있습니다 — 이 둘만 어딘가에 복사해두면 끝.
+- DB 파일: `meetcute/data/meetcute.db`
+- 사진: `meetcute/uploads/`
+
+`/settings` 페이지의 "💾 데이터 / 시스템 상태" 카드에서 정확한 경로 확인 가능.
+
+#### 방법 A — 심볼릭 링크 (Dropbox 가 알아서 동기화) ⭐ 자동
+**한 번만 셋업하면 영원히 자동.** 단 본인 노트북 한 대에서만 사용 가정.
+
+```bash
+# 1) 서버 꺼두기
+Ctrl+C   # dev.sh 종료
+
+cd ~/easyseop/meetcute
+
+# 2) data/uploads 를 Dropbox 안으로 이동
+mkdir -p ~/Dropbox/meetcute-backup
+mv data ~/Dropbox/meetcute-backup/data
+mv uploads ~/Dropbox/meetcute-backup/uploads
+
+# 3) 원래 경로엔 심볼릭 링크
+ln -s ~/Dropbox/meetcute-backup/data data
+ln -s ~/Dropbox/meetcute-backup/uploads uploads
+
+# 4) 서버 재시작
+./dev.sh
+```
+
+이후 매물 등록할 때마다 Dropbox 가 자동 동기화. iCloud 도 같은 방식 (`~/Library/Mobile\ Documents/com~apple~CloudDocs/` 가 iCloud 경로).
+
+> ⚠️ 두 대 이상의 노트북에서 동시에 같은 Dropbox 의 SQLite DB 에 접속하면 데이터 깨질 수 있음 (SQLite 는 단일 writer 가정). **메인 노트북 한 대에서만** 쓰세요.
+
+#### 방법 B — 주기적 rsync 백업 (안전, 일 1회)
+SQLite 의 동시쓰기 위험 피하고 싶으면 그냥 정기 복사:
+
+```bash
+# 수동
+rsync -av ~/easyseop/meetcute/data ~/easyseop/meetcute/uploads ~/Dropbox/meetcute-backup/
+
+# 자동 (매일 새벽 2시) — crontab -e 열어서 한 줄 추가
+0 2 * * * rsync -a ~/easyseop/meetcute/data ~/easyseop/meetcute/uploads ~/Dropbox/meetcute-backup/ 2>&1 | logger -t meetcute-backup
+```
+
+#### 방법 C — 그냥 가끔 손으로
+번거롭지만 가장 안전. 매물 많이 등록한 날 저녁에 한 번씩:
+```bash
+cp -R ~/easyseop/meetcute/data ~/Dropbox/meetcute-backup/data-$(date +%Y%m%d)
+cp -R ~/easyseop/meetcute/uploads ~/Dropbox/meetcute-backup/uploads-$(date +%Y%m%d)
+```
+(날짜 박혀서 여러 시점 보관됨)
+
+#### 복구
+백업한 폴더를 원위치로 덮어쓰기:
+```bash
+Ctrl+C   # 서버 끄고
+cp -R ~/Dropbox/meetcute-backup/data/* ~/easyseop/meetcute/data/
+cp -R ~/Dropbox/meetcute-backup/uploads/* ~/easyseop/meetcute/uploads/
+./dev.sh
+```
+
+---
+
 ### 0.0.0 데이터베이스 (어디에 저장됨?)
 
 - **기본은 SQLite** — `meetcute/data/meetcute.db` 단일 파일에 자동 생성. 별도 설치 X.
