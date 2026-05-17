@@ -88,9 +88,11 @@ def list_persons(
     request: Request,
     gender: Optional[str] = None,    # "" 또는 None 또는 enum value
     q: Optional[str] = None,
+    status: Optional[str] = None,    # 'AVAILABLE' | 'IN_PROGRESS' | 'MATCHED' | None
     activity: Optional[str] = None,  # 'never' | 'dormant' | 'active' | None
     owner: Optional[str] = None,     # 'mine' | 'unassigned' | 'user:<id>' | 'others' | None
     sort: Optional[str] = None,      # 'recent_activity' | 'dormant' | 'created' (default)
+    view: Optional[str] = None,      # 'list' | 'card' (default 'card')
     session: Session = Depends(get_session),
 ):
     current_user = get_current_user(request, session)
@@ -148,6 +150,10 @@ def list_persons(
     statuses = statuses_for_persons(session, persons)
     stats = activity_for_persons(session, persons)
 
+    # 상태 필터 (소개가능/진행중/매칭됨)
+    if status in ("AVAILABLE", "IN_PROGRESS", "MATCHED"):
+        persons = [p for p in persons if statuses.get(p.id) and statuses.get(p.id).value == status]
+
     if activity == "never":
         persons = [p for p in persons if stats[p.id].never_met]
     elif activity == "active":
@@ -200,9 +206,11 @@ def list_persons(
             "status_badge_class": status_badge_class,
             "gender": gender or "",
             "q": q or "",
+            "status": status or "",
             "activity": activity or "",
             "owner": owner or "",
             "sort": sort or "",
+            "view": view if view in ("card", "list") else "card",
         },
     )
 

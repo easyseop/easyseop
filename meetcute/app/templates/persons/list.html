@@ -2,12 +2,29 @@
 {% block title %}매물 목록 · meetcute{% endblock %}
 {% block content %}
 <div class="space-y-4">
-  <div class="flex items-center justify-between">
+  <div class="flex items-center justify-between gap-2 flex-wrap">
     <h1 class="text-2xl font-bold">매물 목록</h1>
-    <a href="/persons/new" class="px-4 py-2 bg-pink-600 text-white rounded-lg text-sm hover:bg-pink-700">+ 새 매물</a>
+    <div class="flex items-center gap-2">
+      {# 카드/목록 토글 — 현재 필터/정렬 유지하며 view 만 바꿈 #}
+      {% set _qs = request.query_params %}
+      {% set _base = [] %}
+      {% for k in ['q','gender','status','activity','owner','sort'] %}
+        {% if _qs.get(k) %}{% set _ = _base.append(k ~ '=' ~ _qs.get(k)) %}{% endif %}
+      {% endfor %}
+      {% set _qs_str = _base | join('&') %}
+      <div class="inline-flex border border-neutral-200 rounded-lg overflow-hidden text-sm">
+        <a href="/persons?{{ _qs_str }}{% if _qs_str %}&{% endif %}view=card"
+           class="px-3 py-1.5 {% if view == 'card' %}bg-pink-600 text-white{% else %}bg-white hover:bg-neutral-50{% endif %}"
+           title="카드 보기 (사진 포함)">🎴 카드</a>
+        <a href="/persons?{{ _qs_str }}{% if _qs_str %}&{% endif %}view=list"
+           class="px-3 py-1.5 {% if view == 'list' %}bg-pink-600 text-white{% else %}bg-white hover:bg-neutral-50{% endif %}"
+           title="간단 목록 (사진 없이 한 줄씩)">📋 목록</a>
+      </div>
+      <a href="/persons/new" class="px-4 py-2 bg-pink-600 text-white rounded-lg text-sm hover:bg-pink-700">+ 새 매물</a>
+    </div>
   </div>
 
-  {% set _filter_count = (1 if q else 0) + (1 if gender else 0) + (1 if activity else 0) + (1 if owner else 0) + (1 if sort else 0) %}
+  {% set _filter_count = (1 if q else 0) + (1 if gender else 0) + (1 if status else 0) + (1 if activity else 0) + (1 if owner else 0) + (1 if sort else 0) %}
   <details class="bg-white border border-neutral-200 rounded-xl" {% if _filter_count %}open{% endif %}>
     <summary class="cursor-pointer p-3 text-sm font-medium flex items-center justify-between hover:bg-neutral-50 rounded-xl">
       <span>🔍 검색 / 필터
@@ -18,6 +35,7 @@
       <span class="text-neutral-400 text-xs">펼치기 ▾</span>
     </summary>
   <form method="get" class="flex flex-wrap gap-2 items-center p-3 pt-0">
+    <input type="hidden" name="view" value="{{ view }}" />
     <input type="text" name="q" value="{{ q }}" placeholder="ID/이름/지역/직장 검색"
            class="flex-1 min-w-[180px] px-3 py-1.5 border border-neutral-300 rounded-lg text-sm" />
     <select name="gender" class="px-3 py-1.5 border border-neutral-300 rounded-lg text-sm">
@@ -25,6 +43,12 @@
       <option value="M" {% if gender == 'M' %}selected{% endif %}>남자</option>
       <option value="F" {% if gender == 'F' %}selected{% endif %}>여자</option>
       <option value="OTHER" {% if gender == 'OTHER' %}selected{% endif %}>기타</option>
+    </select>
+    <select name="status" class="px-3 py-1.5 border border-neutral-300 rounded-lg text-sm">
+      <option value="">전체 상태</option>
+      <option value="AVAILABLE" {% if status == 'AVAILABLE' %}selected{% endif %}>🟢 소개 가능</option>
+      <option value="IN_PROGRESS" {% if status == 'IN_PROGRESS' %}selected{% endif %}>🟡 진행 중</option>
+      <option value="MATCHED" {% if status == 'MATCHED' %}selected{% endif %}>💗 매칭됨</option>
     </select>
     <select name="activity" class="px-3 py-1.5 border border-neutral-300 rounded-lg text-sm">
       <option value="">활동 무관</option>
@@ -56,13 +80,56 @@
       <option value="dormant" {% if sort == 'dormant' %}selected{% endif %}>오래 잠자는순</option>
     </select>
     <button class="px-4 py-1.5 bg-neutral-800 text-white rounded-lg text-sm">적용</button>
-    {% if q or gender or activity or owner or sort %}
+    {% if q or gender or status or activity or owner or sort %}
     <a href="/persons" class="text-xs text-neutral-500 underline">초기화</a>
     {% endif %}
   </form>
   </details>
 
   {% if persons %}
+
+  {% if view == 'list' %}
+  {# ── 간단 목록 view (사진 없이 한 줄씩, 한 화면에 많이) ── #}
+  <div class="bg-white border border-neutral-200 rounded-xl overflow-hidden">
+    <ul class="divide-y divide-neutral-100">
+    {% for p in persons %}
+    {% set st = stats.get(p.id) %}
+    {% set s = statuses.get(p.id) %}
+    {% set _is_mine = current_user and (current_user.is_owner or p.owner_user_id == current_user.id) %}
+    {% set ow = owner_map.get(p.owner_user_id) %}
+    <li>
+      <a href="/persons/{{ p.id }}" class="flex items-center gap-3 px-3 py-2.5 hover:bg-neutral-50">
+        <span class="font-mono font-semibold text-sm shrink-0">{{ p.public_id }}</span>
+        <span class="text-xs text-neutral-500 shrink-0">{{ p.gender.label }} · {{ p.age }}세 · {{ p.height_cm }}cm</span>
+        <span class="text-xs text-neutral-600 truncate flex-1 min-w-0">
+          {{ p.location }} · {{ p.workplace }}
+          {% if p.alias and (not AUTH_ENABLED or _is_mine) %}
+          <span class="text-neutral-400">({{ p.alias }})</span>
+          {% endif %}
+        </span>
+        {% if AUTH_ENABLED and ow %}
+          {% if current_user and ow.id == current_user.id %}
+          <span class="text-xs text-pink-600 shrink-0 hidden sm:inline">👤 내것</span>
+          {% else %}
+          <span class="text-xs text-neutral-400 shrink-0 hidden sm:inline">👤 {{ ow.display_name }}</span>
+          {% endif %}
+        {% endif %}
+        {% if s %}
+        <span class="px-2 py-0.5 rounded-full text-xs font-medium border {{ status_badge_class(s) }} shrink-0">
+          {{ status_label(s) }}
+        </span>
+        {% endif %}
+        {% if st and not st.never_met %}
+        <span class="text-xs text-neutral-400 shrink-0 hidden sm:inline">🔁 {{ st.total }}</span>
+        {% endif %}
+      </a>
+    </li>
+    {% endfor %}
+    </ul>
+  </div>
+
+  {% else %}
+  {# ── 카드 view (기본, 사진 + 정보 ── #}
   <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
     {% for p in persons %}
     {% set st = stats.get(p.id) %}
@@ -123,10 +190,12 @@
     </a>
     {% endfor %}
   </div>
+  {% endif %}
+
   {% else %}
   <div class="bg-white rounded-xl border border-dashed border-neutral-300 p-12 text-center">
     <div class="text-5xl mb-3">📭</div>
-    {% if q or gender or activity or owner or sort %}
+    {% if q or gender or status or activity or owner or sort %}
     <p class="text-neutral-500 mb-4">조건에 맞는 매물이 없어요.</p>
     <a href="/persons" class="inline-block px-4 py-2 border border-neutral-300 rounded-lg text-sm hover:bg-neutral-50">필터 초기화</a>
     {% else %}

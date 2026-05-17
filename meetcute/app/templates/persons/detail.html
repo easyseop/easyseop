@@ -69,18 +69,28 @@
     <button type="button" onclick="meetcuteCloseLightbox()"
             class="absolute top-3 right-3 z-10 text-white text-3xl w-12 h-12 flex items-center justify-center hover:bg-white/10 rounded-full"
             aria-label="닫기">×</button>
-    <div class="flex-1 flex items-center justify-center select-none" onclick="meetcuteCloseLightbox()">
+    <div class="flex-1 overflow-auto flex items-center justify-center select-none"
+         id="mc-lightbox-stage" onclick="meetcuteCloseLightbox()">
       <button type="button" onclick="event.stopPropagation(); meetcutePrevPhoto()"
               class="hidden sm:flex absolute left-2 text-white text-5xl w-14 h-14 items-center justify-center hover:bg-white/10 rounded-full"
               aria-label="이전">‹</button>
       <img id="mc-lightbox-img" src="" alt=""
-           class="max-h-[88vh] max-w-[92vw] object-contain"
-           onclick="event.stopPropagation()" />
+           class="object-contain transition-transform duration-200"
+           style="max-height: 88vh; max-width: 92vw; cursor: zoom-in;"
+           onclick="event.stopPropagation(); meetcuteToggleZoom(event)" />
       <button type="button" onclick="event.stopPropagation(); meetcuteNextPhoto()"
               class="hidden sm:flex absolute right-2 text-white text-5xl w-14 h-14 items-center justify-center hover:bg-white/10 rounded-full"
               aria-label="다음">›</button>
     </div>
     <div id="mc-lightbox-meta" class="text-white text-center pb-6 text-sm select-none"></div>
+    <div class="absolute top-3 left-3 flex gap-2">
+      <button type="button" onclick="meetcuteZoom(1)"
+              class="text-white text-sm px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-full" title="원본">1×</button>
+      <button type="button" onclick="meetcuteZoom(2)"
+              class="text-white text-sm px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-full" title="2배">2×</button>
+      <button type="button" onclick="meetcuteZoom(3)"
+              class="text-white text-sm px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-full" title="3배">3×</button>
+    </div>
   </div>
   <script>
     (function() {
@@ -91,7 +101,8 @@
       const meta = document.getElementById('mc-lightbox-meta');
       function render() {
         img.src = photos[idx];
-        meta.textContent = (idx + 1) + ' / ' + photos.length + '  (스와이프 / 화살표 / 클릭하여 닫기)';
+        meta.textContent = (idx + 1) + ' / ' + photos.length + '  · 사진 클릭 = 확대 토글  · 좌우 스와이프/화살표 · 배경/× 닫기';
+        meetcuteZoom(1);  // 새 사진은 1× 로 리셋
       }
       window.meetcuteOpenLightbox = function(i) {
         idx = i; render(); box.classList.remove('hidden');
@@ -100,6 +111,7 @@
       window.meetcuteCloseLightbox = function() {
         box.classList.add('hidden');
         document.body.style.overflow = '';
+        meetcuteZoom(1);
       };
       window.meetcutePrevPhoto = function() {
         idx = (idx - 1 + photos.length) % photos.length; render();
@@ -107,6 +119,34 @@
       window.meetcuteNextPhoto = function() {
         idx = (idx + 1) % photos.length; render();
       };
+      // ── 줌 ─────────────────────────────────────────
+      let currentZoom = 1;
+      window.meetcuteZoom = function(level) {
+        currentZoom = level;
+        if (level === 1) {
+          img.style.maxHeight = '88vh';
+          img.style.maxWidth = '92vw';
+          img.style.cursor = 'zoom-in';
+        } else {
+          // 자연 크기 * level 만큼 키워서 컨테이너가 overflow-auto 로 스크롤 가능
+          img.style.maxHeight = 'none';
+          img.style.maxWidth = 'none';
+          // naturalWidth 기준 scale
+          if (img.naturalWidth) {
+            img.style.width = (img.naturalWidth * level / Math.max(1, window.devicePixelRatio)) + 'px';
+            img.style.height = 'auto';
+          }
+          img.style.cursor = 'zoom-out';
+        }
+      };
+      window.meetcuteToggleZoom = function(e) {
+        // 탭 1×→2×, 2×→3×, 3×→1× 순환
+        const next = currentZoom === 1 ? 2 : (currentZoom === 2 ? 3 : 1);
+        meetcuteZoom(next);
+      };
+      img.addEventListener('load', function() {
+        if (currentZoom > 1) meetcuteZoom(currentZoom);  // 이미지 로딩 후 다시 적용
+      });
       document.addEventListener('keydown', function(e) {
         if (box.classList.contains('hidden')) return;
         if (e.key === 'Escape') meetcuteCloseLightbox();
