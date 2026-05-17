@@ -40,27 +40,47 @@ TMP_DIR = UPLOAD_DIR / ".tmp_bot"
 # Conversation state per chat_id
 _sessions: dict[str, dict] = {}
 
-STATE_REG_GENDER = "REG_GENDER"
-STATE_REG_NAME = "REG_NAME"          # 이름 (alias 메모용)
-STATE_REG_LOCATION = "REG_LOCATION"
-STATE_REG_WORKPLACE = "REG_WORKPLACE"
-STATE_REG_AGE = "REG_AGE"
-STATE_REG_HEIGHT = "REG_HEIGHT"
+STATE_FORM_FILL = "FORM_FILL"  # 양식을 채워서 한 번에 답장 기다림
 STATE_REG_PHOTOS = "REG_PHOTOS"
 
-_PROMPTS = {
-    STATE_REG_GENDER: "1/7 · 성별? (M / F / OTHER 중 하나)",
-    STATE_REG_NAME: "2/7 · 이름? (메모용, 본인만 봄. 없으면 '-')",
-    STATE_REG_LOCATION: "3/7 · 사는곳? (예: 서울 마포구)",
-    STATE_REG_WORKPLACE: "4/7 · 직장? (예: ○○회사 마케팅팀)",
-    STATE_REG_AGE: "5/7 · 나이? (18~99 숫자)",
-    STATE_REG_HEIGHT: "6/7 · 키 (cm)? (120~220 숫자)",
-    STATE_REG_PHOTOS: (
-        "7/7 · 사진을 보내주세요 (최대 5장). "
-        "다 보냈으면 /done. 사진 없이도 /done 가능. /cancel 로 취소.\n"
-        "💡 이상형/메모는 등록 후 웹 /persons/{id}/edit 에서 추가 가능."
-    ),
+# 한글 라벨 → 모델 필드 매핑 (사용자가 양식을 자유롭게 작성 가능)
+_FIELD_MAP = {
+    "성별": "gender",
+    "이름": "alias",
+    "별칭": "alias",
+    "사는곳": "location",
+    "거주지": "location",
+    "지역": "location",
+    "직장": "workplace",
+    "회사": "workplace",
+    "나이": "age",
+    "키": "height_cm",
+    "신장": "height_cm",
+    "이상형": "ideal_type",
+    "메모": "notes",
+    "주선자 메모": "notes",
+    "주선자메모": "notes",
 }
+
+FORM_TEMPLATE = (
+    "📝 <b>매물 등록 양식</b>\n"
+    "아래 양식을 <b>전체 복사 → 빈 칸 채우기 → 그대로 전송</b>해주세요.\n"
+    "(순서 / 추가 줄 자유. 필수 6칸, 빈 칸 두면 검증 실패)\n\n"
+    "<code>"
+    "성별: \n"
+    "이름: \n"
+    "사는곳: \n"
+    "직장: \n"
+    "나이: \n"
+    "키: \n"
+    "</code>\n"
+    "선택사항도 같이 넣을 수 있어요:\n"
+    "<code>"
+    "이상형: \n"
+    "메모: \n"
+    "</code>\n"
+    "다 채워 보내면 → 검증 → 사진 단계로 진행."
+)
 
 
 # ── API 헬퍼 ─────────────────────────────────────────────────────────────
@@ -96,13 +116,73 @@ def _get_user(chat_id) -> Optional[User]:
         return s.exec(select(User).where(User.telegram_chat_id == str(chat_id))).first()
 
 
-def _ask_next(chat_id: str) -> None:
-    sess = _sessions.get(str(chat_id))
-    if not sess:
-        return
-    prompt = _PROMPTS.get(sess["state"])
-    if prompt:
-        _send(chat_id, prompt)
+def _ask_photos(chat_id: str) -> None:
+    _send(chat_id, (
+        "📷 <b>이제 사진을 보내주세요</b> (최대 5장)\n"
+        "다 보냈으면 <b>/done</b> 으로 등록 마무리. 사진 없이 등록도 가능 (/done 바로).\n"
+        "/cancel 로 취소 가능."
+    ))
+
+
+def _parse_form(text: str) -> dict[str, str]:
+    """'성별: F\n나이: 28' 같은 멀티라인 텍스트를 dict 로."""
+    result: dict[str, str] = {}
+    for line in text.splitlines():
+        if ":" not in line:
+            continue
+        key, _, val = line.partition(":")
+        key = key.strip()
+        val = val.strip()
+        field = _FIELD_MAP.get(key)
+        if field:
+            result[field] = val
+    return result
+
+
+def _validate_form(raw: dict[str, str]) -> tuple[dict, list[str]]:
+    """반환: (cleaned dict, errors list). errors 비어있으면 성공."""
+    errors: list[str] = []
+    cleaned: dict = {}
+
+    g = raw.get("gender", "").upper().strip()
+    if g not in ("M", "F", "OTHER"):
+        errors.append("성별: M / F / OTHER 중 하나로")
+    else:
+        cleaned["gender"] = g
+
+    try:
+        age = int(raw.get("age", "").strip())
+        if not (18 <= age <= 99):
+            raise ValueError
+        cleaned["age"] = age
+    except (ValueError, AttributeError):
+        errors.append("나이: 18~99 사이 숫자로")
+
+    try:
+        h = int(raw.get("height_cm", "").strip())
+        if not (120 <= h <= 220):
+            raise ValueError
+        cleaned["height_cm"] = h
+    except (ValueError, AttributeError):
+        errors.append("키: 120~220 사이 cm 숫자로")
+
+    loc = raw.get("location", "").strip()
+    if not loc:
+        errors.append("사는곳: 빈 칸 X")
+    else:
+        cleaned["location"] = loc[:255]
+
+    wk = raw.get("workplace", "").strip()
+    if not wk:
+        errors.append("직장: 빈 칸 X")
+    else:
+        cleaned["workplace"] = wk[:255]
+
+    cleaned["alias"] = raw.get("alias", "").strip()[:64]
+    cleaned["ideal_type"] = raw.get("ideal_type", "").strip()
+    cleaned["notes"] = raw.get("notes", "").strip()
+
+    return cleaned, errors
 
 
 def _cleanup_tmp(sess: dict) -> None:
@@ -128,9 +208,9 @@ def _full_help_message(user: User) -> str:
         f"본인: <b>{user.display_name}</b> · {role}\n\n"
 
         f"<b>━ 봇 명령어 ━</b>\n"
-        f"/register — 새 매물 등록 (7단계)\n"
+        f"/form 또는 /register — 매물 등록 양식 받기 → 채워서 한 번에 답장\n"
+        f"/done — 양식 검증 후 사진 단계에서 등록 마무리\n"
         f"/cancel — 진행 중인 등록 취소\n"
-        f"/done — 사진 단계에서 등록 마무리\n"
         f"/me — 본인 계정 정보\n"
         f"/start — chat_id 확인\n"
         f"/help — 이 도움말\n\n"
@@ -213,18 +293,17 @@ def _handle_command(chat_id: str, cmd: str, user: Optional[User]) -> None:
             _send(chat_id, "취소할 작업이 없어요.")
         return
 
-    if cmd == "/register":
+    if cmd in ("/register", "/form"):
         if not user.is_admin:
             _send(chat_id, "❌ 관리자만 매물 등록 가능합니다. 책임자에게 승급 요청하세요.")
             return
         _sessions[chat_id] = {
-            "state": STATE_REG_GENDER,
+            "state": STATE_FORM_FILL,
             "data": {},
             "photo_paths": [],
             "user_id": user.id,
         }
-        _send(chat_id, "🆕 새 매물 등록을 시작합니다. /cancel 로 언제든 취소.\n")
-        _ask_next(chat_id)
+        _send(chat_id, FORM_TEMPLATE)
         return
 
     if cmd == "/done":
@@ -249,68 +328,44 @@ def _handle_text(chat_id: str, text: str, user: Optional[User]) -> None:
 
     sess = _sessions.get(chat_id)
     if not sess:
-        _send(chat_id, "진행 중인 작업이 없어요. /register 로 시작.")
+        _send(chat_id, "진행 중인 작업이 없어요. /form 또는 /register 로 매물 등록 양식 받기.")
         return
 
     state = sess["state"]
-    data = sess["data"]
-    val = text.strip()
 
-    if state == STATE_REG_GENDER:
-        g = val.upper()
-        if g not in ("M", "F", "OTHER"):
-            _send(chat_id, "M / F / OTHER 중 하나로 답해주세요.")
+    if state == STATE_FORM_FILL:
+        raw = _parse_form(text)
+        if not raw:
+            _send(chat_id, (
+                "❌ '필드: 값' 형식의 줄을 찾을 수 없어요.\n"
+                "/form 으로 양식 다시 받기."
+            ))
             return
-        data["gender"] = g
-        sess["state"] = STATE_REG_AGE
-
-    elif state == STATE_REG_AGE:
-        try:
-            age = int(val)
-            assert 18 <= age <= 99
-        except (ValueError, AssertionError):
-            _send(chat_id, "18~99 사이의 숫자로 답해주세요.")
+        cleaned, errors = _validate_form(raw)
+        if errors:
+            _send(chat_id, (
+                "❌ <b>검증 실패</b>\n"
+                + "\n".join(f"• {e}" for e in errors)
+                + "\n\n수정해서 다시 보내주세요. /cancel 로 취소."
+            ))
             return
-        data["age"] = age
-        sess["state"] = STATE_REG_LOCATION
+        sess["data"] = cleaned
+        sess["state"] = STATE_REG_PHOTOS
+        summary = (
+            f"✅ <b>입력 확인</b>\n"
+            f"성별: {cleaned['gender']} · 나이: {cleaned['age']} · 키: {cleaned['height_cm']}cm\n"
+            f"사는곳: {cleaned['location']}\n"
+            f"직장: {cleaned['workplace']}\n"
+        )
+        if cleaned.get("alias"):
+            summary += f"이름: {cleaned['alias']}\n"
+        _send(chat_id, summary)
+        _ask_photos(chat_id)
+        return
 
-    elif state == STATE_REG_LOCATION:
-        if not val:
-            _send(chat_id, "거주지를 입력해주세요.")
-            return
-        data["location"] = val[:255]
-        sess["state"] = STATE_REG_WORKPLACE
-
-    elif state == STATE_REG_WORKPLACE:
-        if not val:
-            _send(chat_id, "직장을 입력해주세요.")
-            return
-        data["workplace"] = val[:255]
-        sess["state"] = STATE_REG_HEIGHT
-
-    elif state == STATE_REG_HEIGHT:
-        try:
-            h = int(val)
-            assert 120 <= h <= 220
-        except (ValueError, AssertionError):
-            _send(chat_id, "120~220 사이의 cm 숫자로 답해주세요.")
-            return
-        data["height_cm"] = h
-        sess["state"] = STATE_REG_IDEAL
-
-    elif state in _FIELD_FOR_STATE:
-        field, nxt = _FIELD_FOR_STATE[state]
-        data[field] = "" if val == "-" else val
-        sess["state"] = nxt
-
-    elif state == STATE_REG_PHOTOS:
+    if state == STATE_REG_PHOTOS:
         _send(chat_id, "사진을 보내거나 /done 으로 등록 완료, /cancel 로 취소하세요.")
         return
-
-    else:
-        return
-
-    _ask_next(chat_id)
 
 
 def _handle_photo(chat_id: str, file_id: str, user: Optional[User]) -> None:
