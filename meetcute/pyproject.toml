@@ -27,4 +27,11 @@ exclude = ["data*", "uploads*", "tests*"]
 [tool.uv]
 dev-dependencies = [
     "ruff>=0.7",
+    "pytest>=8.0",
+    "httpx>=0.27",
 ]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-q"
