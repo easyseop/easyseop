@@ -96,7 +96,7 @@
       <a href="/persons/{{ p.id }}" class="flex items-center gap-2 p-2 rounded-lg border border-pink-100 hover:border-pink-300 hover:bg-pink-50/50">
         <div class="w-10 h-10 rounded-lg bg-neutral-100 flex items-center justify-center text-lg shrink-0">
           {% set thumb = p.photos | sort(attribute='order') | first %}
-          {% if thumb %}<img src="/uploads/{{ thumb.filename }}" class="w-full h-full object-cover rounded-lg" />{% else %}📷{% endif %}
+          {% if thumb %}<img loading="lazy" decoding="async" src="/uploads/{{ thumb.filename }}" class="w-full h-full object-cover rounded-lg" />{% else %}📷{% endif %}
         </div>
         <div class="flex-1 min-w-0">
           <div class="font-mono text-sm font-semibold">{{ p.public_id }}</div>
@@ -119,7 +119,7 @@
       <a href="/persons/{{ p.id }}" class="flex items-center gap-2 p-2 rounded-lg border border-neutral-100 hover:border-pink-300 hover:bg-pink-50/30">
         <div class="w-10 h-10 rounded-lg bg-neutral-100 flex items-center justify-center text-lg shrink-0">
           {% set thumb = p.photos | sort(attribute='order') | first %}
-          {% if thumb %}<img src="/uploads/{{ thumb.filename }}" class="w-full h-full object-cover rounded-lg" />{% else %}📷{% endif %}
+          {% if thumb %}<img loading="lazy" decoding="async" src="/uploads/{{ thumb.filename }}" class="w-full h-full object-cover rounded-lg" />{% else %}📷{% endif %}
         </div>
         <div class="flex-1 min-w-0">
           <div class="font-mono text-sm font-semibold">{{ p.public_id }}</div>

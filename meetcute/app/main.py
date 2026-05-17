@@ -69,8 +69,9 @@ _UPLOAD_ROOT = UPLOAD_DIR.resolve()
 
 @app.get("/uploads/{rest:path}")
 def serve_upload(rest: str, current_user=Depends(require_admin)):
-    """업로드된 사진은 로그인된 관리자만 접근 가능 (URL 추측 + 유출 방어).
-    AUTH=off 모드면 require_admin 이 LOCAL_ADMIN 으로 통과시킴."""
+    """업로드된 사진은 로그인된 마담뚜만 접근 가능 (URL 추측 + 유출 방어).
+    AUTH=off 모드면 require_admin 이 LOCAL_ADMIN 으로 통과시킴.
+    Cache-Control 헤더로 브라우저 캐시 — 같은 사진 재요청 시 즉시."""
     # path traversal 방어
     target = (UPLOAD_DIR / rest).resolve()
     try:
@@ -79,7 +80,14 @@ def serve_upload(rest: str, current_user=Depends(require_admin)):
         raise HTTPException(404)
     if not target.is_file():
         raise HTTPException(404)
-    return FileResponse(target)
+    return FileResponse(
+        target,
+        headers={
+            # private = CDN 등 공유 캐시 차단, 브라우저만 캐시
+            # immutable = 파일명이 uuid 라 절대 안 바뀜 → 새로고침해도 재요청 안 함
+            "Cache-Control": "private, max-age=86400, immutable",
+        },
+    )
 
 # 인증 / 매뉴얼은 누구나 접근 가능
 app.include_router(auth.router)

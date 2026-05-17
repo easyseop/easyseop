@@ -138,7 +138,7 @@
       <div class="aspect-square bg-neutral-100 relative">
         {% set thumb = p.photos | sort(attribute='order') | first %}
         {% if thumb %}
-          <img src="/uploads/{{ thumb.filename }}" class="w-full h-full object-cover" />
+          <img loading="lazy" decoding="async" src="/uploads/{{ thumb.filename }}" class="w-full h-full object-cover" />
         {% else %}
           <div class="flex items-center justify-center h-full text-4xl text-neutral-300">📷</div>
         {% endif %}
