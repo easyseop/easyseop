@@ -134,20 +134,38 @@
   <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
     {% for p in persons %}
     {% set st = stats.get(p.id) %}
-    <a href="/persons/{{ p.id }}" class="bg-white border border-neutral-200 rounded-xl overflow-hidden hover:shadow-md transition">
+    <a href="/persons/{{ p.id }}" class="bg-white border border-neutral-200 rounded-xl overflow-hidden hover:shadow-md transition block">
       <div class="aspect-square bg-neutral-100 relative">
-        {% set thumb = p.photos | sort(attribute='order') | first %}
-        {% if thumb %}
-          <img loading="lazy" decoding="async" src="/uploads/{{ thumb.filename }}" class="w-full h-full object-cover" />
+        {% set _photos = p.photos | sort(attribute='order') | list %}
+        {% if _photos %}
+          {% if _photos|length > 1 %}
+          {# 여러 장: 스와이프 가능한 carousel + 카운터 + 도트 #}
+          <div class="mc-photo-strip absolute inset-0 overflow-x-auto snap-x snap-mandatory flex scroll-smooth">
+            {% for ph in _photos %}
+            <img loading="lazy" decoding="async" src="/uploads/{{ ph.filename }}"
+                 class="snap-center shrink-0 w-full h-full object-cover" />
+            {% endfor %}
+          </div>
+          <span class="mc-photo-counter absolute bottom-2 right-2 bg-black/60 text-white text-[11px] px-2 py-0.5 rounded-full pointer-events-none font-medium">
+            1/{{ _photos|length }}
+          </span>
+          <div class="mc-photo-dots absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1 pointer-events-none">
+            {% for ph in _photos %}
+            <span class="w-1.5 h-1.5 rounded-full {% if loop.index == 1 %}bg-white{% else %}bg-white/50{% endif %}"></span>
+            {% endfor %}
+          </div>
+          {% else %}
+          <img loading="lazy" decoding="async" src="/uploads/{{ _photos[0].filename }}" class="w-full h-full object-cover" />
+          {% endif %}
         {% else %}
           <div class="flex items-center justify-center h-full text-4xl text-neutral-300">📷</div>
         {% endif %}
-        <span class="absolute top-2 left-2 bg-white/90 backdrop-blur px-2 py-0.5 rounded-full text-xs font-semibold">
+        <span class="absolute top-2 left-2 bg-white/90 backdrop-blur px-2 py-0.5 rounded-full text-xs font-semibold pointer-events-none">
           {{ p.public_id }}
         </span>
         {% set s = statuses.get(p.id) %}
         {% if s %}
-        <span class="absolute top-2 right-2 px-2 py-0.5 rounded-full text-xs font-medium border {{ status_badge_class(s) }}">
+        <span class="absolute top-2 right-2 px-2 py-0.5 rounded-full text-xs font-medium border {{ status_badge_class(s) }} pointer-events-none">
           {{ status_label(s) }}
         </span>
         {% endif %}
@@ -207,4 +225,42 @@
   </div>
   {% endif %}
 </div>
+
+<style>
+  /* 카드 사진 carousel 스크롤바 숨김 */
+  .mc-photo-strip::-webkit-scrollbar { display: none; }
+  .mc-photo-strip { -ms-overflow-style: none; scrollbar-width: none; }
+</style>
+<script>
+  (function() {
+    function attach(strip) {
+      const parent = strip.parentElement;
+      const counter = parent.querySelector('.mc-photo-counter');
+      const dots = parent.querySelectorAll('.mc-photo-dots span');
+      const total = strip.children.length;
+      let raf = 0;
+      function update() {
+        const w = strip.clientWidth;
+        if (!w) return;
+        const idx = Math.round(strip.scrollLeft / w);
+        if (counter) counter.textContent = (idx + 1) + '/' + total;
+        dots.forEach((d, i) => {
+          d.classList.toggle('bg-white', i === idx);
+          d.classList.toggle('bg-white/50', i !== idx);
+        });
+      }
+      strip.addEventListener('scroll', () => {
+        cancelAnimationFrame(raf);
+        raf = requestAnimationFrame(update);
+      }, { passive: true });
+    }
+    document.querySelectorAll('.mc-photo-strip').forEach(attach);
+    // htmx 로 페이지 swap 후 새 strip 도 바인딩
+    document.body.addEventListener('htmx:afterSwap', () => {
+      document.querySelectorAll('.mc-photo-strip').forEach(s => {
+        if (!s.dataset.mcBound) { s.dataset.mcBound = '1'; attach(s); }
+      });
+    });
+  })();
+</script>
 {% endblock %}
