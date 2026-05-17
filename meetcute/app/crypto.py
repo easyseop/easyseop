@@ -101,3 +101,44 @@ class EncryptedText(TypeDecorator):
         if value is None:
             return None
         return decrypt_str(value)
+
+
+class LegacyEncryptedText(TypeDecorator):
+    """평문으로 저장하되, 옛 'enc1:' 데이터는 자동 복호화해서 읽음.
+    점진 마이그레이션용 — write 가 일어나면 평문으로 덮어쓰여 결국 모두 평문."""
+    impl = Text
+    cache_ok = True
+
+    def process_bind_param(self, value, dialect):
+        if value is None:
+            return None
+        return str(value)
+
+    def process_result_value(self, value, dialect):
+        if value is None:
+            return None
+        # decrypt_str 은 prefix 없으면 그대로 반환 → 평문은 그대로
+        return decrypt_str(value)
+
+
+class IntEncryptedText(TypeDecorator):
+    """int 값을 암호화 텍스트로 저장. 기존 INTEGER 평문도 읽음 (SQLite 한정 호환)."""
+    impl = Text
+    cache_ok = True
+
+    def process_bind_param(self, value, dialect):
+        if value is None:
+            return None
+        return encrypt_str(str(int(value)))
+
+    def process_result_value(self, value, dialect):
+        if value is None:
+            return None
+        # 기존 INTEGER 컬럼에서 그대로 읽힌 경우
+        if isinstance(value, int):
+            return value
+        plain = decrypt_str(str(value))
+        try:
+            return int(plain)
+        except (ValueError, TypeError):
+            return 0

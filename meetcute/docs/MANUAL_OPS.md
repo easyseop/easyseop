@@ -99,7 +99,7 @@ python -m app.seed --force      # 다 지우고 다시
 - `meetcute/data/meetcute.db` — DB
 - `meetcute/uploads/` — 사진
 - `meetcute/.secret` — 세션 쿠키 서명 키 (사라지면 모든 사용자 다시 로그인)
-- `meetcute/.encryption_key` — **DB 필드 암호화 키** (사라지면 이름/이상형/메모/응답메모 등 모두 복구 불가)
+- `meetcute/.encryption_key` — **DB 필드 암호화 키** (사라지면 거주지/직장/나이 복구 불가, 그리고 옛날에 암호화돼 아직 평문으로 안 덮어쓴 데이터도 못 읽음)
 
 ⚠️ **.encryption_key 가 가장 중요.** 이 파일 잃으면 암호화된 텍스트 영구 복구 불가. 백업 폴더에 꼭 같이 복사하세요.
 
@@ -139,9 +139,9 @@ cp -R ~/Dropbox/meetcute-backup/uploads/* uploads/
 ### 자동 적용
 - 세션 쿠키 서명 (`.secret` 자동 생성, chmod 600)
 - **DB 필드 암호화** (`.encryption_key` 자동 생성, Fernet/AES-128-CBC + HMAC)
-  - 암호화 대상: 이름(alias), 이상형, 주선자 메모, 만남 메모, 변경 이력, 요청/응답 메모
-  - 비암호화 (필터/검색 필요): public_id, 성별, 나이, 키, 거주지, 직장, 이메일/닉네임/텔레그램
-  - 백워드 호환: 기존 평문 데이터는 그대로 읽힘 (write 시점에 암호화됨)
+  - 암호화 대상 (실제로 사람 식별 가능한 PII 만): **거주지, 직장, 나이**
+  - 비암호화: public_id, 성별, 키, 이름(메모/alias), 이상형, 주선자 메모, 만남 메모, 변경 이력, 요청/응답 메모, 이메일/닉네임/텔레그램
+  - 백워드 호환: 기존 평문은 그대로 읽힘. 옛날에 enc1: 로 암호화된 데이터(alias/이상형/메모 등)도 자동 복호화해서 읽다가, 한 번 수정/저장되면 평문으로 정착
 - 매물 공개 범위 (PUBLIC / RESTRICTED): RESTRICTED 매물은 owner + 책임자 + 허락된 admin 만 접근
 - bcrypt 비밀번호 해싱
 - SameSite=Lax 쿠키 (CSRF 차단)

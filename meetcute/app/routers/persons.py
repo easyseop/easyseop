@@ -113,11 +113,11 @@ def list_persons(
         stmt = stmt.where(Person.gender == gender_enum)
     if q:
         like = f"%{q}%"
-        # alias 는 암호화 저장이라 DB LIKE 가 안 됨. 검색은 public_id/location/workplace 만.
+        # 거주지/직장은 암호화 저장 → DB LIKE 가 안 됨. 검색은 public_id / alias 만.
+        # alias 는 LegacyEncryptedText: 새 데이터는 평문이라 LIKE 가능 (옛 enc1: 데이터는 안 잡힘 → 한 번 저장하면 평문화).
         stmt = stmt.where(
             (Person.public_id.like(like))
-            | (Person.location.like(like))
-            | (Person.workplace.like(like))
+            | (Person.alias.like(like))
         )
     persons = session.exec(stmt).all()
 

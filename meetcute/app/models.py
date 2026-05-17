@@ -5,7 +5,7 @@ from typing import Optional
 from sqlalchemy import Column, Enum as SAEnum, Text
 from sqlmodel import Field, Relationship, SQLModel
 
-from .crypto import EncryptedText
+from .crypto import EncryptedText, IntEncryptedText, LegacyEncryptedText
 
 
 # ─── 긴 텍스트는 명시적으로 TEXT 컬럼 (MySQL의 VARCHAR-without-length 회피) ────
@@ -17,13 +17,22 @@ def _text_col_required() -> Column:
     return Column(Text, nullable=False)
 
 
-# ─── 암호화된 텍스트 컬럼 (개인정보/메모 등 민감한 필드)
+# ─── 암호화된 텍스트 컬럼: 거주지/직장/(나이) 등 민감 식별 가능 정보
 def _enc_text_col() -> Column:
     return Column(EncryptedText(), nullable=False, default="")
 
 
 def _enc_text_col_required() -> Column:
     return Column(EncryptedText(), nullable=False)
+
+
+# ─── 평문 저장 + 옛 enc1: 데이터 자동 복호화 (점진 마이그레이션)
+def _legacy_enc_text_col() -> Column:
+    return Column(LegacyEncryptedText(), nullable=False, default="")
+
+
+def _legacy_enc_text_col_required() -> Column:
+    return Column(LegacyEncryptedText(), nullable=False)
 
 
 # ─── enum 컬럼: SQLAlchemy ENUM 으로 (MySQL: ENUM 타입, SQLite: VARCHAR + CHECK)
@@ -86,13 +95,15 @@ class Person(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     public_id: str = Field(index=True, unique=True, max_length=16)
     gender: Gender = Field(sa_column=_enum_col(Gender))
-    age: int
-    location: str = Field(max_length=255)
-    workplace: str = Field(max_length=255)
+    # 암호화 대상: 거주지/직장/나이 (실제로 사람 식별에 도움 되는 PII)
+    age: int = Field(sa_column=Column(IntEncryptedText(), nullable=False))
+    location: str = Field(default="", sa_column=_enc_text_col())
+    workplace: str = Field(default="", sa_column=_enc_text_col())
     height_cm: int
-    ideal_type: str = Field(default="", sa_column=_enc_text_col())
-    notes: str = Field(default="", sa_column=_enc_text_col())
-    alias: str = Field(default="", sa_column=_enc_text_col())
+    # 메모/취향 — 평문 + 옛 enc1: 데이터는 자동 복호화 (점진 마이그레이션)
+    ideal_type: str = Field(default="", sa_column=_legacy_enc_text_col())
+    notes: str = Field(default="", sa_column=_legacy_enc_text_col())
+    alias: str = Field(default="", sa_column=_legacy_enc_text_col())
     owner_user_id: Optional[int] = Field(default=None, foreign_key="user.id", index=True)
     visibility: PersonVisibility = Field(
         default=PersonVisibility.PUBLIC,
@@ -133,7 +144,7 @@ class Encounter(SQLModel, table=True):
         default=EncounterOutcome.PENDING,
         sa_column=_enum_col(EncounterOutcome),
     )
-    notes: str = Field(default="", sa_column=_enc_text_col())
+    notes: str = Field(default="", sa_column=_legacy_enc_text_col())
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
@@ -146,7 +157,7 @@ class PersonRevision(SQLModel, table=True):
     """
     id: Optional[int] = Field(default=None, primary_key=True)
     person_id: int = Field(foreign_key="person.id", index=True)
-    snapshot_json: str = Field(sa_column=_enc_text_col_required())
+    snapshot_json: str = Field(sa_column=_legacy_enc_text_col_required())
     changed_by_user_id: Optional[int] = Field(default=None, foreign_key="user.id")
     changed_by_email: str = Field(default="", max_length=255)
     changed_at: datetime = Field(default_factory=datetime.utcnow)
@@ -173,12 +184,12 @@ class IntroductionRequest(SQLModel, table=True):
     to_user_id: int = Field(foreign_key="user.id", index=True)
     my_person_id: int = Field(foreign_key="person.id", index=True)
     their_person_id: int = Field(foreign_key="person.id", index=True)
-    message: str = Field(default="", sa_column=_enc_text_col())
+    message: str = Field(default="", sa_column=_legacy_enc_text_col())
     status: IntroRequestStatus = Field(
         default=IntroRequestStatus.PENDING,
         sa_column=_enum_col(IntroRequestStatus),
     )
-    response_note: str = Field(default="", sa_column=_enc_text_col())
+    response_note: str = Field(default="", sa_column=_legacy_enc_text_col())
     resolved_encounter_id: Optional[int] = Field(default=None, foreign_key="encounter.id")
     last_reminded_at: Optional[datetime] = Field(default=None)  # 마지막 재알림 시각 (없으면 한 번도 안 보냄)
     created_at: datetime = Field(default_factory=datetime.utcnow)
@@ -195,7 +206,7 @@ class EncounterEvent(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     encounter_id: int = Field(foreign_key="encounter.id", index=True)
     outcome: EncounterOutcome = Field(sa_column=_enum_col(EncounterOutcome))
-    note: str = Field(default="", sa_column=_enc_text_col())
+    note: str = Field(default="", sa_column=_legacy_enc_text_col())
     changed_by_user_id: Optional[int] = Field(default=None, foreign_key="user.id")
     changed_by_email: str = Field(default="", max_length=255)
     created_at: datetime = Field(default_factory=datetime.utcnow)
