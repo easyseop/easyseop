@@ -18,6 +18,23 @@ from ..templating import templates
 router = APIRouter(prefix="/settings", tags=["settings"])
 
 
+def _bot_info() -> tuple[str, str]:
+    """봇 username 조회 (getMe). 실패 시 빈 문자열."""
+    if not BOT_TOKEN:
+        return "", "토큰 없음"
+    try:
+        url = f"https://api.telegram.org/bot{BOT_TOKEN}/getMe"
+        with urllib.request.urlopen(url, timeout=5) as resp:
+            data = json.loads(resp.read())
+        if not data.get("ok"):
+            return "", data.get("description", "거부됨")
+        return data["result"].get("username", ""), ""
+    except urllib.error.HTTPError as e:
+        return "", f"HTTP {e.code}"
+    except Exception as e:
+        return "", f"{e}"
+
+
 def _detect_chats() -> tuple[list[dict], str]:
     """봇 getUpdates 호출해서 봇에 메시지 보낸 사람들의 chat 정보 모음.
 
@@ -76,6 +93,10 @@ def settings_page(
 
     detected_chats: list[dict] = []
     detect_error = ""
+    bot_username = ""
+    bot_error = ""
+    if telegram_enabled():
+        bot_username, bot_error = _bot_info()
     if detect:
         detected_chats, detect_error = _detect_chats()
 
@@ -85,6 +106,8 @@ def settings_page(
         {
             "current_user": user,
             "telegram_enabled_globally": telegram_enabled(),
+            "bot_username": bot_username,
+            "bot_error": bot_error,
             "detected_chats": detected_chats,
             "detect_error": detect_error,
             "detect_attempted": bool(detect),

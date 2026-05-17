@@ -23,7 +23,16 @@
     {% if not telegram_enabled_globally %}
     <div class="bg-amber-50 border border-amber-200 text-amber-800 rounded-lg p-3 text-sm">
       ⚠️ 서버에 <code class="bg-amber-100 px-1 rounded">MEETCUTE_TELEGRAM_BOT_TOKEN</code> 환경변수가 설정되지 않았습니다.
-      관리자에게 봇 토큰 설정을 요청하거나, 본인이 띄우는 경우 <code class="bg-amber-100 px-1 rounded">MEETCUTE_TELEGRAM_BOT_TOKEN=토큰 ./dev.sh</code> 로 재기동.
+      <code class="bg-amber-100 px-1 rounded">.env</code> 에 추가 후 dev.sh 재시작 필요.
+    </div>
+    {% elif bot_username %}
+    <div class="bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-lg p-3 text-sm">
+      ✅ 봇 연결됨: <a href="https://t.me/{{ bot_username }}" target="_blank" class="font-semibold underline">@{{ bot_username }}</a>
+      <span class="text-xs text-emerald-600">← 휴대폰 텔레그램에서 이 봇을 찾아 <code class="bg-emerald-100 px-1 rounded">/start</code> 한 번 보내세요.</span>
+    </div>
+    {% elif bot_error %}
+    <div class="bg-red-50 border border-red-200 text-red-700 rounded-lg p-3 text-sm">
+      ⚠️ 봇 인증 실패: {{ bot_error }} (토큰이 잘못됐을 수 있음 — <code class="bg-red-100 px-1 rounded">.env</code> 확인)
     </div>
     {% endif %}
 
