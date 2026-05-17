@@ -44,7 +44,7 @@
       <ul class="divide-y divide-neutral-100">
         {% for e in active_encs %}
         <li class="py-2 flex items-center gap-2 text-sm">
-          <span class="text-xs text-neutral-400 w-20">{{ e.met_on.strftime('%m-%d') }}</span>
+          <span class="text-xs text-neutral-400 w-20">{{ e.met_on | human_time }}</span>
           {{ person_chip(e.person_a_id, e.person_a_snapshot) }}
           <span class="text-neutral-300">×</span>
           {{ person_chip(e.person_b_id, e.person_b_snapshot) }}
@@ -69,7 +69,7 @@
       <ul class="divide-y divide-neutral-100">
         {% for e in recent_encs %}
         <li class="py-2 flex items-center gap-2 text-sm">
-          <span class="text-xs text-neutral-400 w-20">{{ e.met_on.strftime('%m-%d') }}</span>
+          <span class="text-xs text-neutral-400 w-20">{{ e.met_on | human_time }}</span>
           {{ person_chip(e.person_a_id, e.person_a_snapshot) }}
           <span class="text-neutral-300">×</span>
           {{ person_chip(e.person_b_id, e.person_b_snapshot) }}

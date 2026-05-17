@@ -108,8 +108,16 @@
     {% endfor %}
   </div>
   {% else %}
-  <div class="bg-white rounded-xl border border-dashed border-neutral-300 p-12 text-center text-neutral-400">
-    조건에 맞는 매물이 없습니다. <a href="/persons" class="text-pink-600 underline">필터 초기화</a>
+  <div class="bg-white rounded-xl border border-dashed border-neutral-300 p-12 text-center">
+    <div class="text-5xl mb-3">📭</div>
+    {% if q or gender or activity or owner or sort %}
+    <p class="text-neutral-500 mb-4">조건에 맞는 매물이 없어요.</p>
+    <a href="/persons" class="inline-block px-4 py-2 border border-neutral-300 rounded-lg text-sm hover:bg-neutral-50">필터 초기화</a>
+    {% else %}
+    <p class="text-neutral-700 font-medium mb-1">아직 매물이 없어요</p>
+    <p class="text-sm text-neutral-500 mb-4">첫 매물 등록부터 시작하세요.</p>
+    <a href="/persons/new" class="inline-block px-5 py-2.5 bg-pink-600 text-white rounded-lg text-sm font-medium hover:bg-pink-700">+ 새 매물 등록</a>
+    {% endif %}
   </div>
   {% endif %}
 </div>

@@ -39,6 +39,9 @@ MAX_PHOTOS = 5
 
 
 def _save_photo(person_id: int, upload: UploadFile) -> str:
+    """사진 저장. EXIF orientation 자동 보정 (모바일 사진이 거꾸로/옆으로 뜨는 거 방지)."""
+    from PIL import Image, ImageOps
+
     ext = Path(upload.filename or "").suffix.lower()
     if ext not in ALLOWED_EXT:
         raise HTTPException(400, f"Unsupported file type: {ext}")
@@ -46,8 +49,26 @@ def _save_photo(person_id: int, upload: UploadFile) -> str:
     person_dir.mkdir(parents=True, exist_ok=True)
     name = f"{uuid.uuid4().hex}{ext}"
     dest = person_dir / name
-    with dest.open("wb") as f:
-        shutil.copyfileobj(upload.file, f)
+
+    # heic 는 PIL 기본 미지원 → 원본 그대로 저장
+    if ext == ".heic":
+        with dest.open("wb") as f:
+            shutil.copyfileobj(upload.file, f)
+        return f"{person_id}/{name}"
+
+    # 그 외는 PIL 로 열어서 EXIF 회전 적용 후 저장
+    try:
+        img = Image.open(upload.file)
+        img = ImageOps.exif_transpose(img)
+        # JPEG 는 RGBA 지원 X — 변환
+        if ext in (".jpg", ".jpeg") and img.mode in ("RGBA", "P"):
+            img = img.convert("RGB")
+        img.save(dest)
+    except Exception:
+        # 파싱 실패 시 원본 그대로
+        upload.file.seek(0)
+        with dest.open("wb") as f:
+            shutil.copyfileobj(upload.file, f)
     return f"{person_id}/{name}"
 
 

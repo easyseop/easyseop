@@ -120,7 +120,7 @@
       {% set other = others.get(other_id) %}
       <li class="ml-4">
         <div class="absolute -left-1.5 w-3 h-3 rounded-full bg-pink-400 mt-1.5"></div>
-        <div class="text-xs text-neutral-500">{{ e.met_on.strftime('%Y-%m-%d') }}</div>
+        <div class="text-xs text-neutral-500">{{ e.met_on.strftime('%Y-%m-%d') }} · {{ e.met_on | human_time }}</div>
         <div class="flex items-center gap-2 mt-0.5 text-sm">
           <span class="text-neutral-400">→</span>
           {% if other %}
@@ -156,7 +156,7 @@
       <li class="ml-4">
         <div class="absolute -left-1.5 w-3 h-3 rounded-full bg-amber-400 mt-1.5"></div>
         <div class="text-xs text-neutral-500">
-          {{ rev.changed_at.strftime('%Y-%m-%d %H:%M') }}
+          {{ rev.changed_at | human_time }} <span class="text-neutral-300">({{ rev.changed_at.strftime('%Y-%m-%d %H:%M') }})</span>
           {% if rev.changed_by_email %}
             · <span class="font-medium">{{ rev.changed_by_email }}</span>
           {% endif %}

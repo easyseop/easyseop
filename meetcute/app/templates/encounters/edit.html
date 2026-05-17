@@ -76,7 +76,7 @@
       <li class="ml-4">
         <div class="absolute -left-1.5 w-3 h-3 rounded-full {% if ev.outcome.value == 'MATCHED' %}bg-pink-400{% elif ev.outcome.value in ['PENDING','CONTINUING'] %}bg-amber-400{% else %}bg-neutral-300{% endif %} mt-1.5"></div>
         <div class="text-xs text-neutral-500">
-          {{ ev.created_at.strftime('%Y-%m-%d %H:%M') }}
+          {{ ev.created_at | human_time }} <span class="text-neutral-300">({{ ev.created_at.strftime('%Y-%m-%d %H:%M') }})</span>
           {% if ev.changed_by_email %}· <span class="font-medium">{{ ev.changed_by_email }}</span>{% endif %}
         </div>
         <div class="mt-0.5 flex items-center gap-2 text-sm">

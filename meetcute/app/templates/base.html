@@ -115,8 +115,47 @@
     </div>
   </nav>
 
-  <main class="max-w-5xl mx-auto px-3 sm:px-4 py-4 sm:py-6 pb-12">
+  <main class="max-w-5xl mx-auto px-3 sm:px-4 py-4 sm:py-6 pb-24 sm:pb-12">
     {% block content %}{% endblock %}
   </main>
+
+  <!-- 모바일 하단 탭바 (sm 미만 + 로그인된 admin 만) -->
+  {% if effective_admin %}
+  <nav class="sm:hidden fixed bottom-0 inset-x-0 z-30 bg-white border-t border-neutral-200 grid grid-cols-5 text-xs"
+       style="padding-bottom: env(safe-area-inset-bottom);">
+    <a href="/" class="py-2 text-center hover:bg-neutral-50">🏠<br><span class="text-[10px]">홈</span></a>
+    <a href="/persons" class="py-2 text-center hover:bg-neutral-50">👥<br><span class="text-[10px]">매물</span></a>
+    <a href="/encounters" class="py-2 text-center hover:bg-neutral-50">💞<br><span class="text-[10px]">만남</span></a>
+    {% if AUTH_ENABLED %}
+    <a href="/requests" class="py-2 text-center hover:bg-neutral-50">📨<br><span class="text-[10px]">요청</span></a>
+    <a href="/settings" class="py-2 text-center hover:bg-neutral-50">👤<br><span class="text-[10px]">내정보</span></a>
+    {% else %}
+    <a href="/compatibility" class="py-2 text-center hover:bg-neutral-50">🔀<br><span class="text-[10px]">호환성</span></a>
+    <a href="/manual" class="py-2 text-center hover:bg-neutral-50">📖<br><span class="text-[10px]">매뉴얼</span></a>
+    {% endif %}
+  </nav>
+  {% endif %}
+
+  <!-- Toast: ?ok= / ?err= / ?flash= 쿼리스트링 자동 렌더 + 3초 후 자동 닫힘 -->
+  {% set _ok = request.query_params.get('ok') %}
+  {% set _err = request.query_params.get('err') %}
+  {% set _flash = request.query_params.get('flash') %}
+  {% if _ok or _err or _flash %}
+  <div id="meetcute-toast"
+       class="fixed top-16 left-1/2 -translate-x-1/2 z-50 px-4 py-3 rounded-xl shadow-lg text-sm max-w-sm
+              {% if _err %}bg-red-600 text-white{% elif _ok %}bg-emerald-600 text-white{% else %}bg-neutral-800 text-white{% endif %}">
+    {% if _err %}⚠️ {{ _err }}{% elif _ok %}✅ {{ _ok }}{% else %}{{ _flash }}{% endif %}
+  </div>
+  <script>
+    setTimeout(() => {
+      const t = document.getElementById('meetcute-toast');
+      if (t) {
+        t.style.transition = 'opacity .4s';
+        t.style.opacity = '0';
+        setTimeout(() => t.remove(), 400);
+      }
+    }, 3500);
+  </script>
+  {% endif %}
 </body>
 </html>
