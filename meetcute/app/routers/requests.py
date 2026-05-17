@@ -17,8 +17,9 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlmodel import Session, or_, select
 
 from ..auth import require_admin
-from ..config import AUTH_ENABLED, PUBLIC_URL
+from ..config import AUTH_ENABLED
 from ..database import get_session
+from ..url_watcher import current_public_url
 from ..models import (
     Encounter,
     EncounterEvent,
@@ -170,9 +171,10 @@ def _person_summary(p: Optional[Person]) -> str:
 
 
 def _requests_link(text: str = "/requests 에서 응답") -> str:
-    """텔레그램 HTML 메시지용. PUBLIC_URL 설정 시 클릭 가능 링크."""
-    if PUBLIC_URL:
-        return f'<a href="{PUBLIC_URL}/requests">{text}</a>'
+    """텔레그램 HTML 메시지용. live URL (파일/env) 있을 때 클릭 가능 링크."""
+    url = current_public_url()
+    if url:
+        return f'<a href="{url}/requests">{text}</a>'
     return text
 
 
@@ -297,7 +299,8 @@ def accept_request(
     )
     if response_note:
         msg += f"\n<i>{response_note}</i>\n"
-    enc_link = f'<a href="{PUBLIC_URL}/encounters/{enc.id}">#{enc.id}</a>' if PUBLIC_URL else f"#{enc.id}"
+    _url = current_public_url()
+    enc_link = f'<a href="{_url}/encounters/{enc.id}">#{enc.id}</a>' if _url else f"#{enc.id}"
     msg += f"\n→ 만남 기록 자동 생성 {enc_link}"
     _notify(from_user, msg)
 

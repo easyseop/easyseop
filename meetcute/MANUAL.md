@@ -49,6 +49,9 @@ cloudflared tunnel route dns meetcute meetcute.yourdomain.com
 cloudflared tunnel run meetcute
 ```
 
+**🔄 URL 변경 자동 알림:**
+`./tunnel.sh` 가 cloudflared 출력에서 새 URL 을 파싱해 `.public_url` 파일에 기록합니다. 앱은 매분 이 파일을 확인하고, **URL 이 변경되면 telegram_chat_id 가 등록된 모든 admin 에게 새 URL 을 텔레그램으로 자동 푸시**해줍니다. 노트북 재부팅이나 cloudflared 재시작 시 quick 모드 URL 이 바뀌어도 자동으로 알림이 가니, 다른 admin 들이 새 URL 을 받아서 홈 화면에 다시 추가하기 편함.
+
 **🔒 외부 노출 시 보안 강화 (필수):**
 `.env` 에 추가:
 ```
@@ -361,19 +364,19 @@ MEETCUTE_AUTH=on uvicorn app.main:app --reload
 
 **등록 흐름 (`/register`):**
 ```
-1/9. 성별?           → M / F / OTHER
-2/9. 나이?           → 28
-3/9. 거주지?         → 서울 마포구
-4/9. 직장?           → 회사명 + 부서
-5/9. 키?             → 165
-6/9. 이상형?         → 메모 또는 '-'
-7/9. 별칭?           → 메모 또는 '-'
-8/9. 주선자 메모?    → 메모 또는 '-'
-9/9. 사진 보내기     → 1~5장 보낸 뒤 /done
+1/7. 성별?    → M / F / OTHER
+2/7. 이름?    → 메모 또는 '-'  (본인만 봄)
+3/7. 사는곳?  → 서울 마포구
+4/7. 직장?    → 회사명 + 부서
+5/7. 나이?    → 28
+6/7. 키?      → 165
+7/7. 사진     → 1~5장 보낸 뒤 /done
 ```
 
 → 자동으로 매물 등록 완료. 사진은 EXIF 회전 적용되어 저장됨.
 완료 메시지에 `/persons/{id}` 링크 박혀서 웹에서 바로 확인 가능.
+
+> 💡 **이상형 / 주선자 메모는 등록 후 웹 `/persons/{id}/edit` 에서 추가** — 모바일 등록은 빠르게, 자세한 정보는 나중에.
 
 **제약:**
 - 1:1 채팅(private)에서만 작동. 그룹/채널 메시지는 무시.

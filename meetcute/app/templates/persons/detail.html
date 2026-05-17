@@ -12,7 +12,8 @@
           {{ status_label(status) }}
         </span>
       </h1>
-      {% if person.alias %}<div class="text-sm text-neutral-500 mt-1">별칭: {{ person.alias }}</div>{% endif %}
+      {# 이름(alias) 은 owner 본인 또는 책임자에게만 노출 #}
+      {% if person.alias and can_edit %}<div class="text-sm text-neutral-500 mt-1">이름: {{ person.alias }}</div>{% endif %}
       {% if AUTH_ENABLED %}
       <div class="text-sm text-neutral-500 mt-1">
         관리자:

@@ -41,34 +41,25 @@ TMP_DIR = UPLOAD_DIR / ".tmp_bot"
 _sessions: dict[str, dict] = {}
 
 STATE_REG_GENDER = "REG_GENDER"
-STATE_REG_AGE = "REG_AGE"
+STATE_REG_NAME = "REG_NAME"          # 이름 (alias 메모용)
 STATE_REG_LOCATION = "REG_LOCATION"
 STATE_REG_WORKPLACE = "REG_WORKPLACE"
+STATE_REG_AGE = "REG_AGE"
 STATE_REG_HEIGHT = "REG_HEIGHT"
-STATE_REG_IDEAL = "REG_IDEAL"
-STATE_REG_ALIAS = "REG_ALIAS"
-STATE_REG_NOTES = "REG_NOTES"
 STATE_REG_PHOTOS = "REG_PHOTOS"
 
 _PROMPTS = {
-    STATE_REG_GENDER: "1/9 · 성별? (M / F / OTHER 중 하나)",
-    STATE_REG_AGE: "2/9 · 나이? (18~99 숫자)",
-    STATE_REG_LOCATION: "3/9 · 거주지? (예: 서울 마포구)",
-    STATE_REG_WORKPLACE: "4/9 · 직장? (예: ○○회사 마케팅팀)",
-    STATE_REG_HEIGHT: "5/9 · 키 (cm)? (120~220 숫자)",
-    STATE_REG_IDEAL: "6/9 · 이상형? (없으면 '-' 입력)",
-    STATE_REG_ALIAS: "7/9 · 별칭(메모용)? (없으면 '-')",
-    STATE_REG_NOTES: "8/9 · 주선자 메모? (없으면 '-')",
+    STATE_REG_GENDER: "1/7 · 성별? (M / F / OTHER 중 하나)",
+    STATE_REG_NAME: "2/7 · 이름? (메모용, 본인만 봄. 없으면 '-')",
+    STATE_REG_LOCATION: "3/7 · 사는곳? (예: 서울 마포구)",
+    STATE_REG_WORKPLACE: "4/7 · 직장? (예: ○○회사 마케팅팀)",
+    STATE_REG_AGE: "5/7 · 나이? (18~99 숫자)",
+    STATE_REG_HEIGHT: "6/7 · 키 (cm)? (120~220 숫자)",
     STATE_REG_PHOTOS: (
-        "9/9 · 사진을 보내주세요 (최대 5장). "
-        "다 보냈으면 /done. 사진 없이도 /done 가능. /cancel 로 취소."
+        "7/7 · 사진을 보내주세요 (최대 5장). "
+        "다 보냈으면 /done. 사진 없이도 /done 가능. /cancel 로 취소.\n"
+        "💡 이상형/메모는 등록 후 웹 /persons/{id}/edit 에서 추가 가능."
     ),
-}
-
-_FIELD_FOR_STATE = {
-    STATE_REG_IDEAL: ("ideal_type", STATE_REG_ALIAS),
-    STATE_REG_ALIAS: ("alias", STATE_REG_NOTES),
-    STATE_REG_NOTES: ("notes", STATE_REG_PHOTOS),
 }
 
 
@@ -122,6 +113,56 @@ def _cleanup_tmp(sess: dict) -> None:
             pass
 
 
+def _full_help_message(user: User) -> str:
+    from .url_watcher import current_public_url
+
+    base = current_public_url()
+    def link(path: str) -> str:
+        if base:
+            return f'<a href="{base}{path}">{path}</a>'
+        return f"<code>{path}</code>"
+
+    role = "👑 책임자" if user.is_owner else ("관리자" if user.is_admin else "일반 유저")
+    msg = (
+        f"🤖 <b>meetcute 도움말</b>\n"
+        f"본인: <b>{user.display_name}</b> · {role}\n\n"
+
+        f"<b>━ 봇 명령어 ━</b>\n"
+        f"/register — 새 매물 등록 (7단계)\n"
+        f"/cancel — 진행 중인 등록 취소\n"
+        f"/done — 사진 단계에서 등록 마무리\n"
+        f"/me — 본인 계정 정보\n"
+        f"/start — chat_id 확인\n"
+        f"/help — 이 도움말\n\n"
+
+        f"<b>━ 봇이 보내는 알림 ━</b>\n"
+        f"📨 새 소개 요청 도착\n"
+        f"✅ 보낸 요청 수락됨\n"
+        f"❌ 보낸 요청 거절됨\n"
+        f"↩️ 받은 요청 취소됨\n"
+        f"⏰ 24시간+ 미응답 재알림\n\n"
+
+        f"<b>━ 웹사이트 기능 ━</b>\n"
+        f"• 매물 관리 — 등록/수정/삭제, 사진 5장, 변경 이력 자동 기록\n"
+        f"• 만남 기록 — 두 매물 매칭, 결과 변화 이력 자동 기록\n"
+        f"• 호환성 체크 — 두 매물 비교, 이전 만남 표시\n"
+        f"• 소개 요청 — 다른 admin 매물에 소개 요청 → 수락 시 만남 자동 생성\n"
+        f"• 활동 통계 — 매물별 만남 횟수 / 매칭 성공 / 잠자는 매물 알림\n"
+        f"• 유저 관리 — 가입자 권한 토글 (책임자만)\n"
+        f"• 닉네임 / 텔레그램 / DB 상태 — 내정보 페이지\n\n"
+
+        f"<b>━ 웹 주요 경로 ━</b>\n"
+        f"홈: {link('/')}\n"
+        f"매물 목록: {link('/persons')}\n"
+        f"만남 기록: {link('/encounters')}\n"
+        f"소개 요청: {link('/requests')}\n"
+        f"호환성 체크: {link('/compatibility')}\n"
+        f"내정보: {link('/settings')}\n"
+        f"전체 매뉴얼: {link('/manual')}\n"
+    )
+    return msg
+
+
 # ── 핸들러 ──────────────────────────────────────────────────────────────
 def _handle_command(chat_id: str, cmd: str, user: Optional[User]) -> None:
     if cmd == "/start":
@@ -145,18 +186,13 @@ def _handle_command(chat_id: str, cmd: str, user: Optional[User]) -> None:
         if not user:
             _send(chat_id, (
                 "❌ 먼저 웹 /settings 에서 chat_id 등록이 필요해요.\n"
-                "/start 로 본인 chat_id 확인 가능."
+                "/start 로 본인 chat_id 확인 가능.\n\n"
+                "<b>meetcute 는?</b>\n"
+                "소개팅 주선용 관리 도구. 매물·만남·매칭 기록을 한 곳에서.\n"
+                "여러 admin 이 같이 쓸 수 있고, 다른 admin 매물에 소개 요청 보내기 가능."
             ))
             return
-        _send(chat_id, (
-            "🤖 <b>명령어</b>\n"
-            "/register — 새 매물 등록 (9단계 대화)\n"
-            "/cancel — 진행 중인 작업 취소\n"
-            "/done — 사진 단계에서 등록 마무리\n"
-            "/me — 연결된 계정 정보\n"
-            "/start — chat_id 확인\n"
-            "/help — 이 도움말"
-        ))
+        _send(chat_id, _full_help_message(user))
         return
 
     if not user:

@@ -3,6 +3,8 @@ __pycache__/
 .venv/
 .env
 .secret
+.public_url
+.last_known_url
 data/
 uploads/
 *.egg-info/

@@ -56,9 +56,9 @@
     </div>
 
     <div>
-      <label class="block text-sm font-medium mb-1">별칭 (메모용, 본인만 봄)</label>
+      <label class="block text-sm font-medium mb-1">이름 (메모용, 본인만 봄)</label>
       <input type="text" name="alias" value="{{ person.alias if person else '' }}"
-             placeholder="예: 동아리 후배"
+             placeholder="예: 민지, 동아리 후배"
              class="w-full px-3 py-2 border border-neutral-300 rounded-lg" />
     </div>
 
@@ -78,17 +78,38 @@
     </div>
     {% endif %}
 
+    {% if person %}
+    <!-- EDIT 모드: 기존 데이터 보여줘야 하니 항상 펼쳐서 보임 -->
     <div>
       <label class="block text-sm font-medium mb-1">이상형</label>
       <textarea name="ideal_type" rows="3"
-                class="w-full px-3 py-2 border border-neutral-300 rounded-lg">{{ person.ideal_type if person else '' }}</textarea>
+                class="w-full px-3 py-2 border border-neutral-300 rounded-lg">{{ person.ideal_type }}</textarea>
     </div>
-
     <div>
       <label class="block text-sm font-medium mb-1">주선자 메모</label>
       <textarea name="notes" rows="3"
-                class="w-full px-3 py-2 border border-neutral-300 rounded-lg">{{ person.notes if person else '' }}</textarea>
+                class="w-full px-3 py-2 border border-neutral-300 rounded-lg">{{ person.notes }}</textarea>
     </div>
+    {% else %}
+    <!-- NEW 모드: 기본 등록은 단순하게, 추가 정보는 expand 로 -->
+    <details class="border border-neutral-200 rounded-lg">
+      <summary class="cursor-pointer text-sm font-medium px-3 py-2 text-neutral-600 hover:bg-neutral-50 rounded-lg">
+        ➕ 추가 정보 (이상형 / 메모) — 선택
+      </summary>
+      <div class="p-3 pt-0 space-y-3 border-t border-neutral-100">
+        <div>
+          <label class="block text-sm font-medium mb-1 mt-2">이상형</label>
+          <textarea name="ideal_type" rows="3"
+                    class="w-full px-3 py-2 border border-neutral-300 rounded-lg"></textarea>
+        </div>
+        <div>
+          <label class="block text-sm font-medium mb-1">주선자 메모</label>
+          <textarea name="notes" rows="3"
+                    class="w-full px-3 py-2 border border-neutral-300 rounded-lg"></textarea>
+        </div>
+      </div>
+    </details>
+    {% endif %}
 
     <div>
       <label class="block text-sm font-medium mb-1">사진 추가 (최대 5장, jpg/png/webp/heic)</label>

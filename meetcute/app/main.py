@@ -13,6 +13,7 @@ from .auth import require_admin
 from .bot import bot_poll_loop
 from .config import AUTH_ENABLED, BASE_DIR, PUBLIC_MODE, SECRET_IS_DEFAULT, SECRET_KEY, UPLOAD_DIR
 from .reminders import reminder_loop
+from .url_watcher import url_watcher_loop
 from .database import get_session, init_db
 from .models import Encounter, EncounterOutcome, Gender, Person, User
 from .routers import auth, compatibility, encounters, manual, persons, requests as requests_router, settings as settings_router, users
@@ -38,10 +39,11 @@ async def lifespan(app: FastAPI):
         )
     reminder_task = asyncio.create_task(reminder_loop())
     bot_task = asyncio.create_task(bot_poll_loop())
+    url_task = asyncio.create_task(url_watcher_loop())
     try:
         yield
     finally:
-        for t in (reminder_task, bot_task):
+        for t in (reminder_task, bot_task, url_task):
             t.cancel()
             try:
                 await t
@@ -111,30 +113,37 @@ def index(
         if s:
             by_status[s] += 1
 
-    # "오래 잠자는 매물": AVAILABLE 이면서 30일+ 미활동(또는 한 번도 만남 X). 최대 6명.
+    # "🆕 신규 매물": 등록 7일 이내. 신규 풀에 있는 동안은 "오래 잠자는" 에서 제외.
+    # "😴 오래 잠자는 매물": AVAILABLE + 7일+ 등록 + 30일+ 미활동(또는 한 번도 만남 X).
+    from datetime import datetime as _dt, timedelta as _td
+
     dormant_threshold = 30
-    dormant_candidates = []
+    new_threshold_days = 7
+    now = _dt.utcnow()
+
+    new_persons: list = []
+    dormant_candidates: list = []
     for p in all_persons:
+        age_days = (now - p.created_at).days
         s = statuses.get(p.id)
-        if s != PersonStatus.AVAILABLE:
-            continue
         a = activities.get(p.id)
-        if a is None:
+        if age_days < new_threshold_days:
+            new_persons.append((p, a))
+            continue  # 신규 풀에 있으면 잠자는 풀 제외
+        if s != PersonStatus.AVAILABLE or a is None:
             continue
         if a.never_met or (a.days_dormant or 0) >= dormant_threshold:
             dormant_candidates.append((p, a))
-    # 미활동 일수 큰 순 (never_met은 created_at 오래된 순)
-    from datetime import datetime as _dt
+
+    # 신규는 최신순 (가장 최근 등록이 위)
+    new_persons.sort(key=lambda x: x[0].created_at, reverse=True)
+    new_persons = new_persons[:6]
 
     def _dormant_key(item):
         p, a = item
         if a.never_met:
-            return (
-                10**9,
-                (_dt.utcnow() - p.created_at).days,
-            )
+            return (10**9, (now - p.created_at).days)
         return (a.days_dormant or 0, 0)
-
     dormant_candidates.sort(key=_dormant_key, reverse=True)
     dormant_persons = dormant_candidates[:6]
 
@@ -174,6 +183,8 @@ def index(
             "active_encs": active_encs,
             "recent_encs": recent_encs,
             "person_map": person_map,
+            "new_persons": new_persons,
+            "new_threshold_days": new_threshold_days,
             "dormant_persons": dormant_persons,
             "dormant_threshold": dormant_threshold,
             "current_user": current_user,

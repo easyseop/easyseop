@@ -85,9 +85,32 @@
     </div>
   </div>
 
+  {% if new_persons %}
+  <div class="bg-white rounded-xl border border-pink-200 p-5">
+    <div class="flex items-center justify-between mb-3">
+      <h2 class="font-semibold">🆕 신규 매물 <span class="text-xs font-normal text-neutral-500">(등록 {{ new_threshold_days }}일 이내)</span></h2>
+      <a href="/persons?sort=created" class="text-xs text-pink-600 hover:underline">전체 매물 보기</a>
+    </div>
+    <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+      {% for p, a in new_persons %}
+      <a href="/persons/{{ p.id }}" class="flex items-center gap-2 p-2 rounded-lg border border-pink-100 hover:border-pink-300 hover:bg-pink-50/50">
+        <div class="w-10 h-10 rounded-lg bg-neutral-100 flex items-center justify-center text-lg shrink-0">
+          {% set thumb = p.photos | sort(attribute='order') | first %}
+          {% if thumb %}<img src="/uploads/{{ thumb.filename }}" class="w-full h-full object-cover rounded-lg" />{% else %}📷{% endif %}
+        </div>
+        <div class="flex-1 min-w-0">
+          <div class="font-mono text-sm font-semibold">{{ p.public_id }}</div>
+          <div class="text-xs text-pink-600 truncate">{{ p.created_at | human_time }} 등록</div>
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
   <div class="bg-white rounded-xl border border-neutral-200 p-5">
     <div class="flex items-center justify-between mb-3">
-      <h2 class="font-semibold">😴 오래 잠자는 매물 <span class="text-xs font-normal text-neutral-500">({{ dormant_threshold }}일+ 미활동 · 사용 가능)</span></h2>
+      <h2 class="font-semibold">😴 오래 잠자는 매물 <span class="text-xs font-normal text-neutral-500">({{ dormant_threshold }}일+ 미활동 · 사용 가능 · 등록 {{ new_threshold_days }}일 초과)</span></h2>
       <a href="/persons?activity=dormant&sort=dormant" class="text-xs text-pink-600 hover:underline">전체 보기</a>
     </div>
     {% if dormant_persons %}

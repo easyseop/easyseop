@@ -14,8 +14,9 @@ from datetime import datetime, timedelta
 
 from sqlmodel import Session, select
 
-from .config import AUTH_ENABLED, PUBLIC_URL
+from .config import AUTH_ENABLED
 from .database import engine
+from .url_watcher import current_public_url
 from .models import IntroductionRequest, IntroRequestStatus, Person, User
 from .notifications import send_telegram, telegram_enabled
 
@@ -62,7 +63,8 @@ def _send_pending_reminders() -> int:
             )
             if r.message:
                 msg += f"\n<i>{r.message}</i>\n"
-            link = f'<a href="{PUBLIC_URL}/requests">/requests</a>' if PUBLIC_URL else "/requests"
+            _url = current_public_url()
+            link = f'<a href="{_url}/requests">/requests</a>' if _url else "/requests"
             msg += f"\n→ {link} 에서 응답 (수락/거절)"
             ok, _ = send_telegram(recipient.telegram_chat_id, msg)
             if ok:

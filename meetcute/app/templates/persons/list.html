@@ -8,7 +8,7 @@
   </div>
 
   <form method="get" class="flex flex-wrap gap-2 items-center bg-white border border-neutral-200 rounded-xl p-3">
-    <input type="text" name="q" value="{{ q }}" placeholder="ID/별칭/지역/직장 검색"
+    <input type="text" name="q" value="{{ q }}" placeholder="ID/이름/지역/직장 검색"
            class="flex-1 min-w-[180px] px-3 py-1.5 border border-neutral-300 rounded-lg text-sm" />
     <select name="gender" class="px-3 py-1.5 border border-neutral-300 rounded-lg text-sm">
       <option value="">전체 성별</option>
@@ -78,7 +78,11 @@
           <span class="text-neutral-500">· {{ p.location }}</span>
         </div>
         <div class="text-neutral-500 text-xs mt-0.5 truncate">{{ p.workplace }} · {{ p.height_cm }}cm</div>
-        {% if p.alias %}<div class="text-xs text-neutral-400 mt-1">({{ p.alias }})</div>{% endif %}
+        {# 이름(alias) 은 owner 본인 또는 책임자에게만 노출 (다른 admin 한테 안 보이게) #}
+        {% set _is_mine = current_user and (current_user.is_owner or p.owner_user_id == current_user.id) %}
+        {% if p.alias and (not AUTH_ENABLED or _is_mine) %}
+        <div class="text-xs text-neutral-400 mt-1">({{ p.alias }})</div>
+        {% endif %}
         {% if AUTH_ENABLED %}
           {% set ow = owner_map.get(p.owner_user_id) %}
           {% if ow %}
