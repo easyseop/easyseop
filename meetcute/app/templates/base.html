@@ -187,6 +187,29 @@
   </script>
   {% endif %}
 
+  <!-- Pull-to-refresh: PWA standalone 모드에서도 동작 (브라우저 기본은 standalone 모드에선 사라짐) -->
+  <script src="https://cdn.jsdelivr.net/npm/pulltorefreshjs@0.1.22/dist/index.umd.min.js" defer></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      if (typeof PullToRefresh === 'undefined') return;
+      PullToRefresh.init({
+        mainElement: 'body',
+        instructionsPullToRefresh: '↓ 당겨서 새로고침',
+        instructionsReleaseToRefresh: '✋ 놓으면 새로고침',
+        instructionsRefreshing: '⏳ 새로고침 중',
+        distThreshold: 70,
+        distMax: 100,
+        distReload: 60,
+        // 텍스트 입력/스크롤 중인 요소 안에서는 트리거 안 함
+        shouldPullToRefresh() {
+          return !window.scrollY
+                 && !document.activeElement.matches('input, textarea, select');
+        },
+        onRefresh() { window.location.reload(); },
+      });
+    });
+  </script>
+
   <!-- htmx 글로벌 설정: View Transitions API + 로딩 진행바 -->
   <script>
     if (typeof htmx !== 'undefined') {

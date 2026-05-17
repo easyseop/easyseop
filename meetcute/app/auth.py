@@ -143,10 +143,12 @@ def require_owner(user: User = Depends(require_admin)) -> User:
     if not AUTH_ENABLED:
         return LOCAL_ADMIN
     if not user.is_owner:
+        from urllib.parse import quote
+        # HTTP 헤더는 latin-1 → 한글 쿼리스트링은 URL-encode 필수
         raise HTTPException(
             status_code=303,
             detail="책임자 권한 필요",
-            headers={"Location": "/?err=책임자만+접근+가능합니다"},
+            headers={"Location": "/?err=" + quote("책임자만 접근 가능합니다")},
         )
     return user
 
