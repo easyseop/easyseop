@@ -12,14 +12,15 @@
         {% if _qs.get(k) %}{% set _ = _base.append(k ~ '=' ~ _qs.get(k)) %}{% endif %}
       {% endfor %}
       {% set _qs_str = _base | join('&') %}
-      <div class="inline-flex border border-neutral-200 rounded-lg overflow-hidden text-sm">
-        <a href="/persons?{{ _qs_str }}{% if _qs_str %}&{% endif %}view=card"
-           class="px-3 py-1.5 {% if view == 'card' %}bg-pink-600 text-white{% else %}bg-white hover:bg-neutral-50{% endif %}"
-           title="카드 보기 (사진 포함)">🎴 카드</a>
-        <a href="/persons?{{ _qs_str }}{% if _qs_str %}&{% endif %}view=list"
-           class="px-3 py-1.5 {% if view == 'list' %}bg-pink-600 text-white{% else %}bg-white hover:bg-neutral-50{% endif %}"
-           title="간단 목록 (사진 없이 한 줄씩)">📋 목록</a>
-      </div>
+      {% if view == 'list' %}
+      <a href="/persons?{{ _qs_str }}{% if _qs_str %}&{% endif %}view=card"
+         class="px-3 py-1.5 border border-neutral-300 rounded-lg text-sm bg-pink-50 text-pink-700 hover:bg-pink-100"
+         title="카드(사진) 보기로 전환">📋 간단보기 ON</a>
+      {% else %}
+      <a href="/persons?{{ _qs_str }}{% if _qs_str %}&{% endif %}view=list"
+         class="px-3 py-1.5 border border-neutral-300 rounded-lg text-sm bg-white hover:bg-neutral-50"
+         title="사진 없이 한 줄씩 보기로 전환">📋 간단보기 OFF</a>
+      {% endif %}
       <a href="/persons/new" class="px-4 py-2 bg-pink-600 text-white rounded-lg text-sm hover:bg-pink-700">+ 새 매물</a>
     </div>
   </div>
