@@ -103,10 +103,12 @@
         {% for ph in person.photos | sort(attribute='order') %}
         <div class="relative group">
           <img src="/uploads/{{ ph.filename }}" class="aspect-square w-full object-cover rounded-lg" />
-          <form method="post" action="/persons/{{ person.id }}/photos/{{ ph.id }}/delete"
-                class="absolute top-1 right-1 opacity-0 group-hover:opacity-100">
-            <button class="bg-red-600 text-white text-xs px-2 py-1 rounded">×</button>
-          </form>
+          <button type="submit"
+                  formaction="/persons/{{ person.id }}/photos/{{ ph.id }}/delete"
+                  formmethod="post"
+                  formnovalidate
+                  onclick="return confirm('이 사진 삭제?')"
+                  class="absolute top-1 right-1 opacity-0 group-hover:opacity-100 bg-red-600 text-white text-xs px-2 py-1 rounded">×</button>
         </div>
         {% endfor %}
       </div>
