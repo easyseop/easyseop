@@ -9,15 +9,17 @@
     <h1 class="text-2xl font-bold">{{ section_icon }} {{ section_title }}</h1>
   </div>
 
-  <!-- 섹션 탭 -->
-  <div class="flex gap-2 flex-wrap border-b border-neutral-200 pb-2">
-    {% for key, meta in sections.items() %}
-    <a href="/manual/{{ key }}"
-       class="px-3 py-1.5 rounded-lg text-sm
-              {% if key == section_key %}bg-pink-100 text-pink-700 font-medium{% else %}text-neutral-600 hover:bg-neutral-100{% endif %}">
-      {{ meta.icon }} {{ meta.title }}
-    </a>
-    {% endfor %}
+  <!-- 섹션 탭 (모바일에선 가로 스크롤) -->
+  <div class="border-b border-neutral-200 pb-2 -mx-3 sm:mx-0 px-3 sm:px-0 overflow-x-auto">
+    <div class="flex gap-2 whitespace-nowrap">
+      {% for key, meta in sections.items() %}
+      <a href="/manual/{{ key }}"
+         class="px-3 py-1.5 rounded-lg text-sm shrink-0
+                {% if key == section_key %}bg-pink-100 text-pink-700 font-medium{% else %}text-neutral-600 hover:bg-neutral-100{% endif %}">
+        {{ meta.icon }} {{ meta.title }}
+      </a>
+      {% endfor %}
+    </div>
   </div>
 
   <article class="bg-white rounded-xl border border-neutral-200 p-6 sm:p-8 prose prose-neutral max-w-none

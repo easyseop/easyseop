@@ -35,17 +35,13 @@
       </a>
       {% endif %}
     </div>
-    <div class="flex gap-2 flex-wrap justify-end">
+    <div class="flex gap-2 flex-wrap justify-end shrink-0">
       {% if can_send_intro_request %}
       <a href="/requests/new?their={{ person.id }}"
          class="px-3 py-1.5 bg-pink-600 text-white rounded-lg text-sm hover:bg-pink-700">📨 소개 요청</a>
       {% endif %}
       {% if can_edit %}
-      <a href="/persons/{{ person.id }}/edit" class="px-3 py-1.5 border border-neutral-300 rounded-lg text-sm hover:bg-neutral-100">수정</a>
-      <form method="post" action="/persons/{{ person.id }}/delete"
-            onsubmit="return confirm('정말 삭제? 사진까지 모두 삭제됩니다. (만남 기록은 보존)')">
-        <button class="px-3 py-1.5 border border-red-300 text-red-600 rounded-lg text-sm hover:bg-red-50">삭제</button>
-      </form>
+      <a href="/persons/{{ person.id }}/edit" class="px-3 py-1.5 border border-neutral-300 rounded-lg text-sm hover:bg-neutral-100">✏️ 수정</a>
       {% else %}
       <span class="text-xs text-neutral-400 self-center">🔒 등록한 관리자만 수정 가능</span>
       {% endif %}
@@ -55,11 +51,77 @@
   {% if photos %}
   <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
     {% for ph in photos %}
-    <div class="aspect-square bg-neutral-100 rounded-xl overflow-hidden">
-      <img src="/uploads/{{ ph.filename }}" class="w-full h-full object-cover" />
-    </div>
+    <button type="button"
+            class="aspect-square bg-neutral-100 rounded-xl overflow-hidden cursor-zoom-in transition-transform hover:scale-[1.02]"
+            onclick="meetcuteOpenLightbox({{ loop.index0 }})">
+      <img src="/uploads/{{ ph.filename }}" class="w-full h-full object-cover pointer-events-none" />
+    </button>
     {% endfor %}
   </div>
+
+  <!-- 사진 라이트박스 -->
+  <div id="mc-lightbox" class="hidden fixed inset-0 bg-black/95 z-50 flex flex-col" style="touch-action: pan-y;">
+    <button type="button" onclick="meetcuteCloseLightbox()"
+            class="absolute top-3 right-3 z-10 text-white text-3xl w-12 h-12 flex items-center justify-center hover:bg-white/10 rounded-full"
+            aria-label="닫기">×</button>
+    <div class="flex-1 flex items-center justify-center select-none" onclick="meetcuteCloseLightbox()">
+      <button type="button" onclick="event.stopPropagation(); meetcutePrevPhoto()"
+              class="hidden sm:flex absolute left-2 text-white text-5xl w-14 h-14 items-center justify-center hover:bg-white/10 rounded-full"
+              aria-label="이전">‹</button>
+      <img id="mc-lightbox-img" src="" alt=""
+           class="max-h-[88vh] max-w-[92vw] object-contain"
+           onclick="event.stopPropagation()" />
+      <button type="button" onclick="event.stopPropagation(); meetcuteNextPhoto()"
+              class="hidden sm:flex absolute right-2 text-white text-5xl w-14 h-14 items-center justify-center hover:bg-white/10 rounded-full"
+              aria-label="다음">›</button>
+    </div>
+    <div id="mc-lightbox-meta" class="text-white text-center pb-6 text-sm select-none"></div>
+  </div>
+  <script>
+    (function() {
+      const photos = [{% for ph in photos %}"/uploads/{{ ph.filename }}"{% if not loop.last %},{% endif %}{% endfor %}];
+      let idx = 0;
+      const box = document.getElementById('mc-lightbox');
+      const img = document.getElementById('mc-lightbox-img');
+      const meta = document.getElementById('mc-lightbox-meta');
+      function render() {
+        img.src = photos[idx];
+        meta.textContent = (idx + 1) + ' / ' + photos.length + '  (스와이프 / 화살표 / 클릭하여 닫기)';
+      }
+      window.meetcuteOpenLightbox = function(i) {
+        idx = i; render(); box.classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
+      };
+      window.meetcuteCloseLightbox = function() {
+        box.classList.add('hidden');
+        document.body.style.overflow = '';
+      };
+      window.meetcutePrevPhoto = function() {
+        idx = (idx - 1 + photos.length) % photos.length; render();
+      };
+      window.meetcuteNextPhoto = function() {
+        idx = (idx + 1) % photos.length; render();
+      };
+      document.addEventListener('keydown', function(e) {
+        if (box.classList.contains('hidden')) return;
+        if (e.key === 'Escape') meetcuteCloseLightbox();
+        else if (e.key === 'ArrowLeft') meetcutePrevPhoto();
+        else if (e.key === 'ArrowRight') meetcuteNextPhoto();
+      });
+      // 터치 스와이프 (좌우)
+      let touchX = 0, touchY = 0;
+      box.addEventListener('touchstart', function(e) {
+        touchX = e.touches[0].clientX; touchY = e.touches[0].clientY;
+      }, { passive: true });
+      box.addEventListener('touchend', function(e) {
+        const dx = e.changedTouches[0].clientX - touchX;
+        const dy = e.changedTouches[0].clientY - touchY;
+        if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) {
+          if (dx > 0) meetcutePrevPhoto(); else meetcuteNextPhoto();
+        }
+      });
+    })();
+  </script>
   {% else %}
   <div class="bg-white border border-dashed border-neutral-300 rounded-xl p-8 text-center text-neutral-400 text-sm">사진 없음</div>
   {% endif %}
@@ -216,5 +278,14 @@
     <div class="text-sm text-neutral-400 text-center py-4">한 번도 정보 수정 안 됨</div>
     {% endif %}
   </details>
+
+  {% if can_edit %}
+  <div class="border-t border-neutral-200 pt-4 text-right">
+    <form method="post" action="/persons/{{ person.id }}/delete"
+          onsubmit="return confirm('정말 삭제? 사진까지 모두 삭제됩니다. (만남 기록은 보존)')">
+      <button class="text-xs text-red-500 hover:text-red-700 hover:underline">⚠️ 이 매물 삭제</button>
+    </form>
+  </div>
+  {% endif %}
 </div>
 {% endblock %}

@@ -48,7 +48,7 @@
 
   <form method="get" class="grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr_auto] gap-2 items-center bg-white border border-neutral-200 rounded-xl p-3">
     {{ picker("a", person_a) }}
-    <div class="text-center text-pink-400 text-xl">×</div>
+    <div class="hidden sm:block text-center text-pink-400 text-xl">×</div>
     {{ picker("b", person_b) }}
     <button class="px-4 py-2 bg-pink-600 text-white rounded-lg text-sm">비교</button>
   </form>

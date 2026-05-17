@@ -22,9 +22,9 @@
 <div class="max-w-2xl mx-auto space-y-4">
   <h1 class="text-2xl font-bold">만남 기록 편집</h1>
 
-  <div class="flex gap-3 items-stretch">
+  <div class="flex flex-col sm:flex-row gap-3 items-stretch">
     {{ person_card(enc.person_a_id, enc.person_a_snapshot) }}
-    <div class="flex items-center text-2xl text-pink-400">×</div>
+    <div class="flex items-center justify-center text-2xl text-pink-400 sm:px-2">×</div>
     {{ person_card(enc.person_b_id, enc.person_b_snapshot) }}
   </div>
 

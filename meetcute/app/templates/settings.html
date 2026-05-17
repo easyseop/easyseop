@@ -160,11 +160,34 @@
   </div>
   {% endif %}
 
-  <div class="bg-white border border-neutral-200 rounded-xl p-6 space-y-1">
+  <div class="bg-white border border-neutral-200 rounded-xl p-6 space-y-3">
     <h2 class="font-semibold">계정</h2>
     <div class="text-sm text-neutral-600">이메일: <code>{{ current_user.email }}</code></div>
-    <div class="text-sm text-neutral-600">권한: {% if current_user.is_admin %}👑 관리자{% else %}일반 유저{% endif %}</div>
+    <div class="text-sm text-neutral-600">권한:
+      {% if current_user.is_owner %}👑 책임자
+      {% elif current_user.is_admin %}관리자
+      {% else %}일반 유저{% endif %}
+    </div>
     <div class="text-sm text-neutral-400">가입일: {{ current_user.created_at.strftime('%Y-%m-%d') }}</div>
+
+    <div class="border-t border-neutral-100 pt-3">
+      <form method="post" action="/auth/logout">
+        <button class="w-full px-4 py-2 border border-neutral-300 rounded-lg text-sm text-red-600 hover:bg-red-50">로그아웃</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- 모바일에서 햄버거 없으니 여기서 자주 안 쓰는 메뉴 접근 -->
+  <div class="bg-white border border-neutral-200 rounded-xl p-4">
+    <div class="text-xs text-neutral-500 mb-2">🔗 바로 가기</div>
+    <div class="grid grid-cols-2 gap-2 text-sm">
+      <a href="/compatibility" class="px-3 py-2 border border-neutral-200 rounded-lg hover:bg-neutral-50 text-center">🔀 호환성 체크</a>
+      <a href="/manual" class="px-3 py-2 border border-neutral-200 rounded-lg hover:bg-neutral-50 text-center">📖 매뉴얼</a>
+      {% if current_user.is_admin %}
+      <a href="/users" class="px-3 py-2 border border-neutral-200 rounded-lg hover:bg-neutral-50 text-center">👥 유저 관리</a>
+      {% endif %}
+      <a href="/persons/new" class="px-3 py-2 border border-pink-200 bg-pink-50 text-pink-700 rounded-lg hover:bg-pink-100 text-center">+ 새 매물</a>
+    </div>
   </div>
 </div>
 {% endblock %}

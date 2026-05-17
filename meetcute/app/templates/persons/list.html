@@ -7,14 +7,24 @@
     <a href="/persons/new" class="px-4 py-2 bg-pink-600 text-white rounded-lg text-sm hover:bg-pink-700">+ 새 매물</a>
   </div>
 
-  <form method="get" class="flex flex-wrap gap-2 items-center bg-white border border-neutral-200 rounded-xl p-3">
+  {% set _filter_count = (1 if q else 0) + (1 if gender else 0) + (1 if activity else 0) + (1 if owner else 0) + (1 if sort else 0) %}
+  <details class="bg-white border border-neutral-200 rounded-xl" {% if _filter_count %}open{% endif %}>
+    <summary class="cursor-pointer p-3 text-sm font-medium flex items-center justify-between hover:bg-neutral-50 rounded-xl">
+      <span>🔍 검색 / 필터
+        {% if _filter_count %}
+        <span class="ml-2 px-2 py-0.5 bg-pink-100 text-pink-700 rounded-full text-xs">{{ _filter_count }}개 적용 중</span>
+        {% endif %}
+      </span>
+      <span class="text-neutral-400 text-xs">펼치기 ▾</span>
+    </summary>
+  <form method="get" class="flex flex-wrap gap-2 items-center p-3 pt-0">
     <input type="text" name="q" value="{{ q }}" placeholder="ID/이름/지역/직장 검색"
            class="flex-1 min-w-[180px] px-3 py-1.5 border border-neutral-300 rounded-lg text-sm" />
     <select name="gender" class="px-3 py-1.5 border border-neutral-300 rounded-lg text-sm">
       <option value="">전체 성별</option>
-      <option value="M" {% if gender == 'M' %}selected{% endif %}>M</option>
-      <option value="F" {% if gender == 'F' %}selected{% endif %}>F</option>
-      <option value="OTHER" {% if gender == 'OTHER' %}selected{% endif %}>OTHER</option>
+      <option value="M" {% if gender == 'M' %}selected{% endif %}>남자</option>
+      <option value="F" {% if gender == 'F' %}selected{% endif %}>여자</option>
+      <option value="OTHER" {% if gender == 'OTHER' %}selected{% endif %}>기타</option>
     </select>
     <select name="activity" class="px-3 py-1.5 border border-neutral-300 rounded-lg text-sm">
       <option value="">활동 무관</option>
@@ -50,6 +60,7 @@
     <a href="/persons" class="text-xs text-neutral-500 underline">초기화</a>
     {% endif %}
   </form>
+  </details>
 
   {% if persons %}
   <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
