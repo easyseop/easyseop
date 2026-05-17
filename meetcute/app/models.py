@@ -25,6 +25,10 @@ class Gender(str, Enum):
     F = "F"
     OTHER = "OTHER"
 
+    @property
+    def label(self) -> str:
+        return {"M": "남자", "F": "여자", "OTHER": "기타"}.get(self.value, self.value)
+
 
 class EncounterOutcome(str, Enum):
     PENDING = "PENDING"        # 만남 잡힘 / 결과 미정

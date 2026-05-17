@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}{{ section_icon }} {{ section_title }} · 매뉴얼{% endblock %}
+{% block content %}
+<div class="space-y-4">
+  <div class="text-xs text-neutral-500">
+    <a href="/manual" class="hover:text-pink-600">📖 매뉴얼</a> /
+  </div>
+  <div class="flex items-baseline gap-2">
+    <h1 class="text-2xl font-bold">{{ section_icon }} {{ section_title }}</h1>
+  </div>
+
+  <!-- 섹션 탭 -->
+  <div class="flex gap-2 flex-wrap border-b border-neutral-200 pb-2">
+    {% for key, meta in sections.items() %}
+    <a href="/manual/{{ key }}"
+       class="px-3 py-1.5 rounded-lg text-sm
+              {% if key == section_key %}bg-pink-100 text-pink-700 font-medium{% else %}text-neutral-600 hover:bg-neutral-100{% endif %}">
+      {{ meta.icon }} {{ meta.title }}
+    </a>
+    {% endfor %}
+  </div>
+
+  <article class="bg-white rounded-xl border border-neutral-200 p-6 sm:p-8 prose prose-neutral max-w-none
+    prose-h1:text-2xl prose-h1:font-bold prose-h1:mt-0
+    prose-h2:text-xl prose-h2:font-semibold prose-h2:mt-8 prose-h2:pb-2 prose-h2:border-b prose-h2:border-neutral-200
+    prose-h3:text-base prose-h3:font-semibold prose-h3:mt-6
+    prose-p:text-sm prose-li:text-sm
+    prose-table:text-sm prose-table:my-4
+    prose-th:bg-neutral-50 prose-th:px-3 prose-th:py-2 prose-th:text-left prose-th:border prose-th:border-neutral-200
+    prose-td:px-3 prose-td:py-2 prose-td:border prose-td:border-neutral-200
+    prose-code:bg-neutral-100 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:text-xs prose-code:before:content-none prose-code:after:content-none
+    prose-pre:bg-neutral-100 prose-pre:text-neutral-800
+    prose-blockquote:border-l-4 prose-blockquote:border-pink-300 prose-blockquote:bg-pink-50 prose-blockquote:py-2 prose-blockquote:px-4 prose-blockquote:not-italic prose-blockquote:text-sm
+    prose-a:text-pink-600">
+    {{ body | safe }}
+  </article>
+</div>
+{% endblock %}

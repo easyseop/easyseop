@@ -8,7 +8,7 @@
     <div class="text-xs text-neutral-500 mb-1">상대 매물 (다른 admin 소유)</div>
     <a href="/persons/{{ their_person.id }}" class="font-mono text-lg font-bold hover:text-pink-600">{{ their_person.public_id }}</a>
     <div class="text-sm text-neutral-600 mt-1">
-      {{ their_person.gender.value }} · {{ their_person.age }}세 · {{ their_person.height_cm }}cm · {{ their_person.location }}
+      {{ their_person.gender.label }} · {{ their_person.age }}세 · {{ their_person.height_cm }}cm · {{ their_person.location }}
     </div>
     {% if their_owner %}
     <div class="text-xs text-neutral-500 mt-1">관리자: 👤 {{ their_owner.display_name }}</div>
@@ -25,7 +25,7 @@
         <option value="">선택</option>
         {% for p in my_persons %}
         <option value="{{ p.id }}">
-          {{ p.public_id }} · {{ p.gender.value }} · {{ p.age }}세 · {{ p.location }}{% if p.alias %} ({{ p.alias }}){% endif %}
+          {{ p.public_id }} · {{ p.gender.label }} · {{ p.age }}세 · {{ p.location }}{% if p.alias %} ({{ p.alias }}){% endif %}
         </option>
         {% endfor %}
       </select>

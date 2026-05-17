@@ -7,7 +7,7 @@
       <div class="text-sm text-neutral-500">매물</div>
       <h1 class="text-2xl font-bold flex items-center gap-2 flex-wrap">
         {{ person.public_id }}
-        <span class="text-sm font-normal text-neutral-500">{{ person.gender.value }} · {{ person.age }}세</span>
+        <span class="text-sm font-normal text-neutral-500">{{ person.gender.label }} · {{ person.age }}세</span>
         <span class="px-2 py-0.5 rounded-full text-xs font-medium border {{ status_badge_class(status) }}">
           {{ status_label(status) }}
         </span>
@@ -27,6 +27,12 @@
           <span class="text-neutral-400">미지정</span>
         {% endif %}
       </div>
+      {% endif %}
+      {% if revision_diffs %}
+      {% set _latest = revision_diffs[0][0] %}
+      <a href="#revision-section" class="inline-block mt-1 text-xs text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full hover:bg-amber-100">
+        📝 {{ revision_diffs | length }}회 수정 · 최근 {{ _latest.changed_at | human_time }}
+      </a>
       {% endif %}
     </div>
     <div class="flex gap-2 flex-wrap justify-end">
@@ -85,11 +91,23 @@
   </div>
 
   <div class="bg-white border border-neutral-200 rounded-xl p-5 space-y-3">
+    {% if can_edit %}
+    <div class="flex items-center justify-between -mt-1 -mr-1">
+      <div class="text-xs text-neutral-400">
+        등록 {{ person.created_at | human_time }}
+        {% if person.updated_at != person.created_at %} · 수정 {{ person.updated_at | human_time }}{% endif %}
+      </div>
+      <a href="/persons/{{ person.id }}/edit"
+         class="text-xs px-2 py-1 text-neutral-500 hover:text-pink-600 hover:bg-pink-50 rounded-lg">
+        ✏️ 정보 수정
+      </a>
+    </div>
+    {% endif %}
     <div class="grid grid-cols-2 gap-3 text-sm">
       <div><span class="text-neutral-500">거주지</span><div class="font-medium">{{ person.location }}</div></div>
       <div><span class="text-neutral-500">직장</span><div class="font-medium">{{ person.workplace }}</div></div>
       <div><span class="text-neutral-500">키</span><div class="font-medium">{{ person.height_cm }}cm</div></div>
-      <div><span class="text-neutral-500">등록일</span><div class="font-medium">{{ person.created_at.strftime('%Y-%m-%d') }}</div></div>
+      <div><span class="text-neutral-500">나이</span><div class="font-medium">{{ person.age }}세</div></div>
     </div>
     {% if person.ideal_type %}
     <div class="text-sm">
@@ -101,6 +119,15 @@
     <div class="text-sm">
       <div class="text-neutral-500 mb-1">주선자 메모</div>
       <div class="whitespace-pre-wrap bg-yellow-50 rounded-lg p-3">{{ person.notes }}</div>
+    </div>
+    {% endif %}
+    {% if can_edit and (not person.ideal_type or not person.notes) %}
+    <div class="text-xs text-neutral-400">
+      <a href="/persons/{{ person.id }}/edit" class="hover:text-pink-600">
+        ➕ 비어있는 정보 추가하기
+        {% if not person.ideal_type %}(이상형){% endif %}
+        {% if not person.notes %}(메모){% endif %}
+      </a>
     </div>
     {% endif %}
   </div>
@@ -146,10 +173,15 @@
     {% endif %}
   </div>
 
-  <details class="bg-white border border-neutral-200 rounded-xl p-5" {% if revision_diffs %}open{% endif %}>
+  <details id="revision-section" class="bg-white border border-neutral-200 rounded-xl p-5 scroll-mt-20" {% if revision_diffs %}open{% endif %}>
     <summary class="font-semibold cursor-pointer flex items-center justify-between">
       <span>📝 정보 변경 이력</span>
-      <span class="text-xs font-normal text-neutral-500">{{ revision_diffs | length }}건</span>
+      <span class="flex items-center gap-2">
+        {% if can_edit %}
+        <a href="/persons/{{ person.id }}/edit" class="text-xs px-2 py-0.5 bg-pink-50 text-pink-600 rounded hover:bg-pink-100">+ 새 수정</a>
+        {% endif %}
+        <span class="text-xs font-normal text-neutral-500">{{ revision_diffs | length }}건</span>
+      </span>
     </summary>
     {% if revision_diffs %}
     <ol class="mt-4 relative border-l border-neutral-200 ml-2 space-y-3">

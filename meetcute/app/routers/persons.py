@@ -149,6 +149,9 @@ def list_persons(
             key=lambda p: stats[p.id].last_activity or __import__("datetime").date.min,
             reverse=True,
         )
+    elif sort == "recent_update":
+        # 최근 정보 수정순 (updated_at 최신)
+        persons.sort(key=lambda p: p.updated_at or p.created_at, reverse=True)
     elif sort == "dormant":
         # 미활동 오래된 것이 위로 (never_met = 가장 위)
         def k(p):

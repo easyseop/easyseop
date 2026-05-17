@@ -67,7 +67,7 @@ FORM_TEMPLATE = (
     "아래 양식을 <b>전체 복사 → 빈 칸 채우기 → 그대로 전송</b>해주세요.\n"
     "(순서 / 추가 줄 자유. 필수 6칸, 빈 칸 두면 검증 실패)\n\n"
     "<code>"
-    "성별: \n"
+    "성별: (남자/여자/기타)\n"
     "이름: \n"
     "사는곳: \n"
     "직장: \n"
@@ -81,6 +81,13 @@ FORM_TEMPLATE = (
     "</code>\n"
     "다 채워 보내면 → 검증 → 사진 단계로 진행."
 )
+
+# 성별 입력 노멀라이즈: 한글 / 영문 / 약자 모두 허용
+_GENDER_NORMALIZE = {
+    "남자": "M", "남": "M", "남성": "M", "M": "M",
+    "여자": "F", "여": "F", "여성": "F", "F": "F",
+    "기타": "OTHER", "OTHER": "OTHER", "X": "OTHER",
+}
 
 
 # ── API 헬퍼 ─────────────────────────────────────────────────────────────
@@ -144,9 +151,10 @@ def _validate_form(raw: dict[str, str]) -> tuple[dict, list[str]]:
     errors: list[str] = []
     cleaned: dict = {}
 
-    g = raw.get("gender", "").upper().strip()
-    if g not in ("M", "F", "OTHER"):
-        errors.append("성별: M / F / OTHER 중 하나로")
+    g_raw = raw.get("gender", "").strip()
+    g = _GENDER_NORMALIZE.get(g_raw) or _GENDER_NORMALIZE.get(g_raw.upper())
+    if not g:
+        errors.append("성별: 남자 / 여자 / 기타 중 하나로")
     else:
         cleaned["gender"] = g
 

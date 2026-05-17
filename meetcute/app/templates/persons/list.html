@@ -41,6 +41,7 @@
     {% endif %}
     <select name="sort" class="px-3 py-1.5 border border-neutral-300 rounded-lg text-sm">
       <option value="" {% if not sort %}selected{% endif %}>등록순(최신)</option>
+      <option value="recent_update" {% if sort == 'recent_update' %}selected{% endif %}>최근 수정순</option>
       <option value="recent_activity" {% if sort == 'recent_activity' %}selected{% endif %}>최근 활동순</option>
       <option value="dormant" {% if sort == 'dormant' %}selected{% endif %}>오래 잠자는순</option>
     </select>

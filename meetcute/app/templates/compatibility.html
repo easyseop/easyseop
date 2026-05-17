@@ -6,7 +6,7 @@
     <option value="">선택</option>
     {% for p in all_persons %}
     <option value="{{ p.id }}" {% if selected and selected.id == p.id %}selected{% endif %}>
-      {{ p.public_id }} · {{ p.gender.value }} · {{ p.age }}세 · {{ p.location }}
+      {{ p.public_id }} · {{ p.gender.label }} · {{ p.age }}세 · {{ p.location }}
     </option>
     {% endfor %}
   </select>
@@ -24,7 +24,7 @@
       {% endif %}
     </div>
     <div class="mt-2 text-sm space-y-1">
-      <div><span class="text-neutral-500 w-16 inline-block">성별/나이</span> {{ p.gender.value }} · {{ p.age }}세</div>
+      <div><span class="text-neutral-500 w-16 inline-block">성별/나이</span> {{ p.gender.label }} · {{ p.age }}세</div>
       <div><span class="text-neutral-500 w-16 inline-block">키</span> {{ p.height_cm }}cm</div>
       <div><span class="text-neutral-500 w-16 inline-block">지역</span> {{ p.location }}</div>
       <div><span class="text-neutral-500 w-16 inline-block">직장</span> {{ p.workplace }}</div>

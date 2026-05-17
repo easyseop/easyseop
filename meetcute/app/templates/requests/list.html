@@ -5,7 +5,7 @@
   {% set p = persons.get(pid) %}
   {% if p %}
     <a href="/persons/{{ p.id }}" class="font-mono font-semibold hover:text-pink-600">{{ p.public_id }}</a>
-    <span class="text-xs text-neutral-500">{{ p.gender.value }} · {{ p.age }}세 · {{ p.location }}</span>
+    <span class="text-xs text-neutral-500">{{ p.gender.label }} · {{ p.age }}세 · {{ p.location }}</span>
   {% else %}
     <span class="font-mono text-neutral-400 line-through">(삭제됨)</span>
   {% endif %}
