@@ -135,14 +135,6 @@
     {% endif %}
   </div>
 
-  <div class="bg-white rounded-xl border border-neutral-200 p-4 flex flex-wrap gap-2">
-    <a href="/persons/new" class="px-4 py-2 bg-pink-600 text-white rounded-lg text-sm hover:bg-pink-700">+ 새 매물</a>
-    <a href="/encounters/new" class="px-4 py-2 border border-neutral-300 rounded-lg text-sm hover:bg-neutral-50">+ 만남 기록</a>
-    <a href="/compatibility" class="px-4 py-2 border border-neutral-300 rounded-lg text-sm hover:bg-neutral-50">호환성 체크</a>
-    {% if AUTH_ENABLED %}
-    <a href="/users" class="px-4 py-2 border border-neutral-300 rounded-lg text-sm hover:bg-neutral-50">마담뚜 관리</a>
-    {% endif %}
-    <a href="/manual" class="px-4 py-2 border border-neutral-300 rounded-lg text-sm hover:bg-neutral-50 ml-auto">📖 사용 매뉴얼</a>
-  </div>
+  {# 홈 하단 빠른 액션 바는 제거 — 네비 + 햄버거 + 하단 탭바에 다 있음 (중복) #}
 </div>
 {% endblock %}
