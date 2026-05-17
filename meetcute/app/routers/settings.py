@@ -187,6 +187,43 @@ def settings_page(
     )
 
 
+@router.post("/nickname")
+def save_nickname(
+    nickname: str = Form(""),
+    current_user: User = Depends(require_login),
+    session: Session = Depends(get_session),
+):
+    if not AUTH_ENABLED:
+        return RedirectResponse("/", status_code=303)
+    user = session.get(User, current_user.id)
+    if not user:
+        return RedirectResponse("/", status_code=303)
+    nick = nickname.strip()[:64]
+    # 비워서 저장하면 새 랜덤 닉네임으로
+    from ..nicknames import random_nickname
+    user.nickname = nick or random_nickname()
+    session.add(user)
+    session.commit()
+    return RedirectResponse("/settings?flash=닉네임+저장됨", status_code=303)
+
+
+@router.post("/nickname/reroll")
+def reroll_nickname(
+    current_user: User = Depends(require_login),
+    session: Session = Depends(get_session),
+):
+    if not AUTH_ENABLED:
+        return RedirectResponse("/", status_code=303)
+    user = session.get(User, current_user.id)
+    if not user:
+        return RedirectResponse("/", status_code=303)
+    from ..nicknames import random_nickname
+    user.nickname = random_nickname()
+    session.add(user)
+    session.commit()
+    return RedirectResponse(f"/settings?flash=새+닉네임+'{user.nickname}'", status_code=303)
+
+
 @router.post("/telegram")
 def save_telegram(
     chat_id: str = Form(""),

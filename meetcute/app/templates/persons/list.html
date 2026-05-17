@@ -32,7 +32,7 @@
       <optgroup label="다른 admin 별">
         {% for a in other_admins %}
         <option value="user:{{ a.id }}" {% if owner == 'user:' ~ a.id %}selected{% endif %}>
-          👤 {{ a.email }}
+          👤 {{ a.display_name }}
         </option>
         {% endfor %}
       </optgroup>
@@ -85,7 +85,7 @@
             {% if current_user and ow.id == current_user.id %}
             <div class="text-xs text-pink-600 mt-1">👤 내 매물</div>
             {% else %}
-            <div class="text-xs text-neutral-500 mt-1">👤 {{ ow.email }}</div>
+            <div class="text-xs text-neutral-500 mt-1">👤 {{ ow.display_name }}</div>
             {% endif %}
           {% else %}
             <div class="text-xs text-neutral-400 mt-1">👤 미지정</div>

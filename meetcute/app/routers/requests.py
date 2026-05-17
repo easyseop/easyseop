@@ -209,7 +209,7 @@ def create_request(
     to_user = session.get(User, their_p.owner_user_id)
     msg_text = (
         f"📨 <b>새 소개 요청</b>\n"
-        f"<b>From:</b> {current_user.email}\n"
+        f"<b>From:</b> {current_user.display_name}\n"
         f"<b>너네 매물:</b> {_person_summary(their_p)}\n"
         f"<b>소개하려는 매물:</b> {_person_summary(my_p)}\n"
     )
@@ -270,7 +270,7 @@ def accept_request(
         outcome=EncounterOutcome.PENDING,
         note=f"소개 요청 수락으로 자동 생성 (req#{req.id})",
         changed_by_user_id=current_user.id,
-        changed_by_email=current_user.email,
+        changed_by_email=current_user.display_name,
     ))
 
     req.status = IntroRequestStatus.ACCEPTED
@@ -284,7 +284,7 @@ def accept_request(
     from_user = session.get(User, req.from_user_id)
     msg = (
         f"✅ <b>소개 요청 수락됨</b>\n"
-        f"<b>By:</b> {current_user.email}\n"
+        f"<b>By:</b> {current_user.display_name}\n"
         f"<b>매칭:</b> {_person_summary(my_p)} × {_person_summary(their_p)}\n"
     )
     if response_note:
@@ -316,7 +316,7 @@ def decline_request(
     their_p = session.get(Person, req.their_person_id)
     msg = (
         f"❌ <b>소개 요청 거절됨</b>\n"
-        f"<b>By:</b> {current_user.email}\n"
+        f"<b>By:</b> {current_user.display_name}\n"
         f"<b>매칭:</b> {_person_summary(my_p)} × {_person_summary(their_p)}\n"
     )
     if response_note:
@@ -345,7 +345,7 @@ def withdraw_request(
     their_p = session.get(Person, req.their_person_id)
     msg = (
         f"↩️ <b>소개 요청 취소됨</b>\n"
-        f"<b>By:</b> {current_user.email}\n"
+        f"<b>By:</b> {current_user.display_name}\n"
         f"<b>매칭:</b> {_person_summary(my_p)} × {_person_summary(their_p)}\n"
     )
     _notify(to_user, msg)

@@ -18,17 +18,22 @@
       <div class="flex items-start justify-between gap-2">
         <div class="min-w-0 flex-1">
           <div class="text-sm font-medium truncate">
-            {{ u.email }}
+            {{ u.display_name }}
             {% if u.id == current_user.id %}<span class="text-xs text-neutral-400">(나)</span>{% endif %}
           </div>
-          <div class="text-xs text-neutral-400 mt-0.5">{{ u.created_at.strftime('%Y-%m-%d') }} 가입</div>
+          <div class="text-xs text-neutral-400 mt-0.5 truncate">{{ u.email }} · {{ u.created_at.strftime('%Y-%m-%d') }}</div>
         </div>
-        {% if u.is_admin %}
-        <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-pink-100 text-pink-700 whitespace-nowrap">👑 관리자</span>
+        {% if u.is_owner %}
+        <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-pink-100 text-pink-700 whitespace-nowrap">👑 책임자</span>
+        {% elif u.is_admin %}
+        <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-pink-50 text-pink-700 whitespace-nowrap">관리자</span>
         {% else %}
         <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-neutral-100 text-neutral-500 whitespace-nowrap">일반</span>
         {% endif %}
       </div>
+      {% if current_user.is_owner and u.telegram_chat_id %}
+      <div class="text-xs text-neutral-400 font-mono">📱 {{ u.telegram_chat_id }}</div>
+      {% endif %}
       <div class="flex gap-2">
         <form method="post" action="/users/{{ u.id }}/toggle-admin" class="flex-1"
               onsubmit="return confirm('{% if u.is_admin %}관리자 강등?{% else %}관리자로 승격?{% endif %}')">
@@ -51,8 +56,12 @@
     <table class="w-full text-sm">
       <thead class="bg-neutral-50 text-neutral-500 text-xs">
         <tr>
+          <th class="text-left py-2 px-3">닉네임</th>
           <th class="text-left py-2 px-3">이메일</th>
           <th class="text-left py-2 px-3">권한</th>
+          {% if current_user.is_owner %}
+          <th class="text-left py-2 px-3">텔레그램</th>
+          {% endif %}
           <th class="text-left py-2 px-3">가입일</th>
           <th class="py-2 px-3 w-32"></th>
         </tr>
@@ -60,16 +69,21 @@
       <tbody class="divide-y divide-neutral-100">
         {% for u in users %}
         <tr class="hover:bg-neutral-50">
-          <td class="py-2 px-3">
-            {{ u.email }}
+          <td class="py-2 px-3 font-medium">
+            {{ u.display_name }}
             {% if u.id == current_user.id %}
             <span class="text-xs text-neutral-400 ml-1">(나)</span>
             {% endif %}
           </td>
-          <td class="py-2 px-3">
-            {% if u.is_admin %}
+          <td class="py-2 px-3 text-neutral-500 text-xs">{{ u.email }}</td>
+          <td class="py-2 px-3 space-x-1">
+            {% if u.is_owner %}
             <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-pink-100 text-pink-700">
-              👑 관리자
+              👑 책임자
+            </span>
+            {% elif u.is_admin %}
+            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-pink-50 text-pink-700">
+              관리자
             </span>
             {% else %}
             <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-neutral-100 text-neutral-500">
@@ -77,6 +91,11 @@
             </span>
             {% endif %}
           </td>
+          {% if current_user.is_owner %}
+          <td class="py-2 px-3 text-neutral-500 text-xs font-mono">
+            {% if u.telegram_chat_id %}{{ u.telegram_chat_id }}{% else %}<span class="text-neutral-300">—</span>{% endif %}
+          </td>
+          {% endif %}
           <td class="py-2 px-3 text-neutral-500">{{ u.created_at.strftime('%Y-%m-%d') }}</td>
           <td class="py-2 px-3 text-right space-x-1">
             <form method="post" action="/users/{{ u.id }}/toggle-admin" class="inline"

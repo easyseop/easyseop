@@ -11,7 +11,7 @@
       {{ their_person.gender.value }} · {{ their_person.age }}세 · {{ their_person.height_cm }}cm · {{ their_person.location }}
     </div>
     {% if their_owner %}
-    <div class="text-xs text-neutral-500 mt-1">관리자: 👤 {{ their_owner.email }}</div>
+    <div class="text-xs text-neutral-500 mt-1">관리자: 👤 {{ their_owner.display_name }}</div>
     {% endif %}
   </div>
 

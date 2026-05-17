@@ -5,6 +5,17 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#ec4899" />
   <title>{% block title %}meetcute{% endblock %}</title>
+
+  <!-- PWA: 홈 화면에 추가 가능 -->
+  <link rel="manifest" href="/static/manifest.webmanifest" />
+  <link rel="icon" href="/static/icon.svg" type="image/svg+xml" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/static/icon-192.png" />
+  <link rel="apple-touch-icon" href="/static/icon-192.png" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="meetcute" />
+  <meta name="mobile-web-app-capable" content="yes" />
+
   <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
   <script src="https://unpkg.com/htmx.org@2.0.3"></script>
   <style>
@@ -44,7 +55,7 @@
           {% if AUTH_ENABLED %}
           <a href="/requests" class="hover:text-pink-600">📨 요청</a>
           <a href="/users" class="hover:text-pink-600">유저</a>
-          <a href="/settings" class="hover:text-pink-600 text-neutral-500" title="설정">⚙️</a>
+          <a href="/settings" class="hover:text-pink-600">내정보</a>
           {% endif %}
           <a href="/manual" class="hover:text-pink-600 text-neutral-500">매뉴얼</a>
           {% if AUTH_ENABLED %}
@@ -80,7 +91,7 @@
           {% if AUTH_ENABLED %}
           <a href="/requests" class="py-2.5 border-b border-neutral-50 hover:text-pink-600">📨 요청</a>
           <a href="/users" class="py-2.5 border-b border-neutral-50 hover:text-pink-600">유저 관리</a>
-          <a href="/settings" class="py-2.5 border-b border-neutral-50 hover:text-pink-600">⚙️ 설정</a>
+          <a href="/settings" class="py-2.5 border-b border-neutral-50 hover:text-pink-600">👤 내정보</a>
           {% endif %}
           <a href="/manual" class="py-2.5 border-b border-neutral-50 hover:text-pink-600">📖 매뉴얼</a>
           {% if AUTH_ENABLED %}

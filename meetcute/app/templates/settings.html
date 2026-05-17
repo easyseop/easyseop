@@ -15,6 +15,26 @@
   {% endif %}
 
   <div class="bg-white border border-neutral-200 rounded-xl p-6 space-y-3">
+    <h2 class="font-semibold">🪪 닉네임</h2>
+    <p class="text-sm text-neutral-600">
+      다른 admin 한테 표시되는 이름입니다. <strong>이메일은 절대 노출되지 않아요.</strong>
+      비워두면 <code class="bg-neutral-100 px-1 rounded">admin-{{ current_user.id }}</code> 로 표시됩니다.
+    </p>
+    <form method="post" action="/settings/nickname" class="flex gap-2 flex-wrap">
+      <input type="text" name="nickname" value="{{ current_user.nickname }}" maxlength="64"
+             placeholder="예: 엉뚱한강아지"
+             class="flex-1 min-w-[160px] px-3 py-2 border border-neutral-300 rounded-lg" />
+      <button class="px-4 py-2 bg-pink-600 text-white rounded-lg text-sm hover:bg-pink-700">저장</button>
+      <button formaction="/settings/nickname/reroll" formnovalidate
+              class="px-4 py-2 border border-neutral-300 rounded-lg text-sm hover:bg-neutral-50">🎲 새로 뽑기</button>
+    </form>
+    <div class="text-xs text-neutral-500">
+      현재 표시되는 이름: <span class="font-mono font-semibold">{{ current_user.display_name }}</span>
+      {% if current_user.is_owner %}<span class="ml-2 px-1.5 py-0.5 rounded bg-pink-100 text-pink-700">👑 책임자</span>{% endif %}
+    </div>
+  </div>
+
+  <div class="bg-white border border-neutral-200 rounded-xl p-6 space-y-3">
     <h2 class="font-semibold">📱 텔레그램 알림</h2>
     <p class="text-sm text-neutral-600">
       소개 요청을 받거나 응답이 올 때 텔레그램으로 알림 받으려면 chat_id를 등록하세요.

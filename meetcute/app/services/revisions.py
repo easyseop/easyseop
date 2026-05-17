@@ -46,7 +46,8 @@ def record_revision(
         person_id=person.id,
         snapshot_json=json.dumps(_snapshot(person), ensure_ascii=False),
         changed_by_user_id=user.id if user else None,
-        changed_by_email=user.email if user else "",
+        # 컬럼 이름은 _email 이지만 표시용이라 display_name 저장 (이메일 노출 방지)
+        changed_by_email=user.display_name if user else "",
         changed_at=datetime.utcnow(),
     )
     session.add(rev)

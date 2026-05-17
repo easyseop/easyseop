@@ -29,7 +29,9 @@ LOCAL_ADMIN = User(
     id=0,
     email="(local)",
     password_hash="",
+    nickname="(나)",
     is_admin=True,
+    is_owner=True,
     created_at=datetime.utcnow(),
 )
 

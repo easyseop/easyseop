@@ -13,7 +13,7 @@
 
 {% macro user_chip(uid) %}
   {% set u = users.get(uid) %}
-  {% if u %}{{ u.email }}{% else %}<span class="text-neutral-400">(삭제됨)</span>{% endif %}
+  {% if u %}{{ u.display_name }}{% else %}<span class="text-neutral-400">(삭제됨)</span>{% endif %}
 {% endmacro %}
 
 {% block content %}
@@ -35,6 +35,9 @@
           <span class="px-2 py-0.5 rounded-full text-xs font-medium {{ STATUS_BADGE[r.status] }}">
             {{ STATUS_LABEL[r.status] }}
           </span>
+          {% if r.status.value == 'PENDING' and r.last_reminded_at %}
+          <span class="text-xs text-amber-600">⏰ 재알림 {{ r.last_reminded_at.strftime('%m-%d %H:%M') }}</span>
+          {% endif %}
         </div>
         <div class="text-sm">
           <div><span class="text-neutral-500">보낸이:</span> {{ user_chip(r.from_user_id) }}</div>

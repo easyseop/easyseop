@@ -66,7 +66,8 @@ def _log_event(
         outcome=outcome,
         note=note,
         changed_by_user_id=actor.id if actor else None,
-        changed_by_email=actor.email if actor else "",
+        # 표시용. 컬럼명은 _email 유지하되 실제로는 display_name 저장 (이메일 노출 방지)
+        changed_by_email=actor.display_name if actor else "",
     )
     session.add(ev)
     return ev

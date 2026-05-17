@@ -13,6 +13,7 @@ from ..auth import (
     user_count,
     verify_password,
 )
+from ..nicknames import random_nickname
 from ..config import AUTH_ENABLED
 from ..database import get_session
 from ..models import User
@@ -117,7 +118,9 @@ def register(
     user = User(
         email=email,
         password_hash=hash_password(password),
-        is_admin=is_first,  # 첫 가입자는 자동 관리자
+        nickname=random_nickname(),
+        is_admin=is_first,   # 첫 가입자는 자동 관리자
+        is_owner=is_first,   # 첫 가입자는 자동 책임자
     )
     session.add(user)
     session.commit()

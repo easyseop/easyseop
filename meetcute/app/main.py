@@ -1,14 +1,17 @@
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 from pathlib import Path as _Path
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from sqlmodel import Session, select
 from starlette.middleware.sessions import SessionMiddleware
 
 from .auth import require_admin
-from .config import PUBLIC_MODE, SECRET_IS_DEFAULT, SECRET_KEY, UPLOAD_DIR
+from .config import AUTH_ENABLED, BASE_DIR, PUBLIC_MODE, SECRET_IS_DEFAULT, SECRET_KEY, UPLOAD_DIR
+from .reminders import reminder_loop
 from .database import get_session, init_db
 from .models import Encounter, EncounterOutcome, Gender, Person, User
 from .routers import auth, compatibility, encounters, manual, persons, requests as requests_router, settings as settings_router, users
@@ -32,7 +35,15 @@ async def lifespan(app: FastAPI):
             "MEETCUTE_SECRET 환경변수가 설정되지 않았습니다 (개발용 기본키 사용 중). "
             "운영 시 반드시 강한 임의값으로 지정하세요."
         )
-    yield
+    reminder_task = asyncio.create_task(reminder_loop())
+    try:
+        yield
+    finally:
+        reminder_task.cancel()
+        try:
+            await reminder_task
+        except asyncio.CancelledError:
+            pass
 
 
 app = FastAPI(title="meetcute", lifespan=lifespan)
@@ -43,6 +54,11 @@ app.add_middleware(
     https_only=PUBLIC_MODE,  # 외부 노출 시 자동 HTTPS-only 쿠키
     max_age=60 * 60 * 24 * 14,  # 2주
 )
+_STATIC_DIR = _Path(__file__).resolve().parent / "static"
+if _STATIC_DIR.is_dir():
+    app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
+
+
 _UPLOAD_ROOT = UPLOAD_DIR.resolve()
 
 

@@ -18,9 +18,9 @@
         관리자:
         {% if owner %}
           {% if current_user and owner.id == current_user.id %}
-            <span class="text-pink-600 font-medium">👤 나 ({{ owner.email }})</span>
+            <span class="text-pink-600 font-medium">👤 나 ({{ owner.display_name }})</span>
           {% else %}
-            <span>👤 {{ owner.email }}</span>
+            <span>👤 {{ owner.display_name }}</span>
           {% endif %}
         {% else %}
           <span class="text-neutral-400">미지정</span>

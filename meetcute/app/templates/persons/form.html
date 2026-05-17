@@ -70,7 +70,7 @@
         {% for a in admins %}
         {% set selected = (person.owner_user_id == a.id) if person else (current_user and a.id == current_user.id) %}
         <option value="{{ a.id }}" {% if selected %}selected{% endif %}>
-          {{ a.email }}{% if current_user and a.id == current_user.id %} (나){% endif %}
+          {{ a.display_name }}{% if current_user and a.id == current_user.id %} (나){% endif %}
         </option>
         {% endfor %}
       </select>
