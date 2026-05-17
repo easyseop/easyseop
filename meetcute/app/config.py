@@ -23,5 +23,13 @@ SECRET_IS_DEFAULT = SECRET_KEY == "dev-secret-change-me"
 # 다시 켜고 싶을 때: MEETCUTE_AUTH=on 으로 띄우면 됨.
 AUTH_ENABLED = os.getenv("MEETCUTE_AUTH", "").strip().lower() in ("on", "1", "true", "yes")
 
+# 외부 공개 모드 (cloudflared 등 터널 뒤에서 돌릴 때):
+#   - 세션 쿠키 HTTPS 전용 (Secure 플래그)
+#   - AUTH 자동 강제 ON
+#   - UI 에 공개 모드 배너
+PUBLIC_MODE = os.getenv("MEETCUTE_PUBLIC", "").strip().lower() in ("on", "1", "true", "yes")
+if PUBLIC_MODE:
+    AUTH_ENABLED = True  # 공개 모드면 인증 강제
+
 DATA_DIR.mkdir(exist_ok=True)
 UPLOAD_DIR.mkdir(exist_ok=True)

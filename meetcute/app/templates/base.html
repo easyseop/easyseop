@@ -2,12 +2,17 @@
 <html lang="ko">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#ec4899" />
   <title>{% block title %}meetcute{% endblock %}</title>
   <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
   <script src="https://unpkg.com/htmx.org@2.0.3"></script>
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    /* 모바일 사파리에서 입력 시 화면 줌-인 방지 */
+    input, select, textarea { font-size: 16px; }
+    /* 좌우 스크롤 영역 표시 */
+    .scroll-x { overflow-x: auto; -webkit-overflow-scrolling: touch; }
   </style>
 </head>
 <body class="bg-neutral-50 text-neutral-900 min-h-screen">
@@ -16,28 +21,34 @@
   {% set is_admin = sess.get('is_admin') %}
   {% set effective_admin = (not AUTH_ENABLED) or is_admin %}
 
-  {% if not AUTH_ENABLED %}
-  <div class="bg-amber-50 border-b border-amber-200 text-amber-800 text-xs text-center py-1">
-    🔓 로컬 모드 — 인증 꺼짐. 다시 켜려면 <code class="bg-amber-100 px-1 rounded">MEETCUTE_AUTH=on</code> 으로 서버 띄우기
+  {% if PUBLIC_MODE %}
+  <div class="bg-pink-600 text-white text-xs text-center py-1 px-2">
+    🌐 공개 모드 — 외부 노출 중 (HTTPS 쿠키 활성)
+  </div>
+  {% elif not AUTH_ENABLED %}
+  <div class="bg-amber-50 border-b border-amber-200 text-amber-800 text-xs text-center py-1 px-2">
+    🔓 로컬 모드 — 인증 꺼짐. 다시 켜려면 <code class="bg-amber-100 px-1 rounded">MEETCUTE_AUTH=on</code>
   </div>
   {% endif %}
 
-  <nav class="bg-white border-b border-neutral-200">
-    <div class="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
-      <a href="/" class="font-bold text-lg tracking-tight">💘 meetcute</a>
-      <div class="flex items-center gap-4 text-sm">
+  <nav class="bg-white border-b border-neutral-200 sticky top-0 z-20">
+    <div class="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between gap-2">
+      <a href="/" class="font-bold text-lg tracking-tight whitespace-nowrap">💘 meetcute</a>
+
+      <!-- 데스크탑 메뉴 (sm 이상) -->
+      <div class="hidden sm:flex items-center gap-4 text-sm">
         {% if effective_admin %}
           <a href="/persons" class="hover:text-pink-600">매물</a>
           <a href="/encounters" class="hover:text-pink-600">만남</a>
           <a href="/compatibility" class="hover:text-pink-600">호환성</a>
           {% if AUTH_ENABLED %}
           <a href="/requests" class="hover:text-pink-600">📨 요청</a>
-          <a href="/users" class="hover:text-pink-600">유저 관리</a>
-          <a href="/settings" class="hover:text-pink-600 text-neutral-500">⚙️</a>
+          <a href="/users" class="hover:text-pink-600">유저</a>
+          <a href="/settings" class="hover:text-pink-600 text-neutral-500" title="설정">⚙️</a>
           {% endif %}
           <a href="/manual" class="hover:text-pink-600 text-neutral-500">매뉴얼</a>
           {% if AUTH_ENABLED %}
-          <span class="text-xs text-neutral-400 hidden sm:inline">{{ sess.get('user_email') }}</span>
+          <span class="text-xs text-neutral-400 hidden lg:inline">{{ sess.get('user_email') }}</span>
           <form method="post" action="/auth/logout" class="inline">
             <button class="px-3 py-1.5 border border-neutral-300 rounded-full text-xs hover:bg-neutral-50">로그아웃</button>
           </form>
@@ -54,9 +65,46 @@
           <a href="/auth/register" class="px-3 py-1.5 bg-pink-600 text-white rounded-full hover:bg-pink-700">가입</a>
         {% endif %}
       </div>
+
+      <!-- 모바일 햄버거 (sm 미만) -->
+      <button class="sm:hidden p-2 -m-2 text-2xl leading-none" onclick="document.getElementById('mobile-menu').classList.toggle('hidden')" aria-label="메뉴">☰</button>
+    </div>
+
+    <!-- 모바일 메뉴 펼침 -->
+    <div id="mobile-menu" class="hidden sm:hidden border-t border-neutral-100 bg-white">
+      <div class="max-w-5xl mx-auto px-4 py-2 flex flex-col text-sm">
+        {% if effective_admin %}
+          <a href="/persons" class="py-2.5 border-b border-neutral-50 hover:text-pink-600">매물</a>
+          <a href="/encounters" class="py-2.5 border-b border-neutral-50 hover:text-pink-600">만남</a>
+          <a href="/compatibility" class="py-2.5 border-b border-neutral-50 hover:text-pink-600">호환성</a>
+          {% if AUTH_ENABLED %}
+          <a href="/requests" class="py-2.5 border-b border-neutral-50 hover:text-pink-600">📨 요청</a>
+          <a href="/users" class="py-2.5 border-b border-neutral-50 hover:text-pink-600">유저 관리</a>
+          <a href="/settings" class="py-2.5 border-b border-neutral-50 hover:text-pink-600">⚙️ 설정</a>
+          {% endif %}
+          <a href="/manual" class="py-2.5 border-b border-neutral-50 hover:text-pink-600">📖 매뉴얼</a>
+          {% if AUTH_ENABLED %}
+          <div class="py-2.5 text-xs text-neutral-400">로그인: {{ sess.get('user_email') }}</div>
+          <form method="post" action="/auth/logout">
+            <button class="w-full text-left py-2.5 text-red-600 hover:text-red-700">로그아웃</button>
+          </form>
+          {% endif %}
+        {% elif logged_in %}
+          <a href="/manual" class="py-2.5 border-b border-neutral-50 hover:text-pink-600">📖 매뉴얼</a>
+          <div class="py-2.5 text-xs text-neutral-400">로그인: {{ sess.get('user_email') }}</div>
+          <form method="post" action="/auth/logout">
+            <button class="w-full text-left py-2.5 text-red-600 hover:text-red-700">로그아웃</button>
+          </form>
+        {% else %}
+          <a href="/auth/login" class="py-2.5 border-b border-neutral-50 hover:text-pink-600">로그인</a>
+          <a href="/auth/register" class="py-2.5 border-b border-neutral-50 text-pink-600 font-semibold">+ 가입</a>
+          <a href="/manual" class="py-2.5 hover:text-pink-600">📖 매뉴얼</a>
+        {% endif %}
+      </div>
     </div>
   </nav>
-  <main class="max-w-5xl mx-auto px-4 py-6">
+
+  <main class="max-w-5xl mx-auto px-3 sm:px-4 py-4 sm:py-6 pb-12">
     {% block content %}{% endblock %}
   </main>
 </body>

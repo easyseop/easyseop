@@ -12,7 +12,42 @@
     가입 직후에는 권한이 없으므로, 여기서 <strong>관리자로 승격</strong>해줘야 매물 기능을 쓸 수 있어요.
   </div>
 
-  <div class="bg-white border border-neutral-200 rounded-xl overflow-hidden">
+  <ul class="space-y-2 sm:hidden">
+    {% for u in users %}
+    <li class="bg-white border border-neutral-200 rounded-xl p-3 space-y-2">
+      <div class="flex items-start justify-between gap-2">
+        <div class="min-w-0 flex-1">
+          <div class="text-sm font-medium truncate">
+            {{ u.email }}
+            {% if u.id == current_user.id %}<span class="text-xs text-neutral-400">(나)</span>{% endif %}
+          </div>
+          <div class="text-xs text-neutral-400 mt-0.5">{{ u.created_at.strftime('%Y-%m-%d') }} 가입</div>
+        </div>
+        {% if u.is_admin %}
+        <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-pink-100 text-pink-700 whitespace-nowrap">👑 관리자</span>
+        {% else %}
+        <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-neutral-100 text-neutral-500 whitespace-nowrap">일반</span>
+        {% endif %}
+      </div>
+      <div class="flex gap-2">
+        <form method="post" action="/users/{{ u.id }}/toggle-admin" class="flex-1"
+              onsubmit="return confirm('{% if u.is_admin %}관리자 강등?{% else %}관리자로 승격?{% endif %}')">
+          <button class="w-full text-xs px-3 py-2 border border-neutral-300 rounded-lg hover:bg-neutral-100">
+            {% if u.is_admin %}강등{% else %}관리자로{% endif %}
+          </button>
+        </form>
+        {% if u.id != current_user.id %}
+        <form method="post" action="/users/{{ u.id }}/delete"
+              onsubmit="return confirm('정말 삭제? 되돌릴 수 없습니다.')">
+          <button class="text-xs px-3 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50">삭제</button>
+        </form>
+        {% endif %}
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+
+  <div class="hidden sm:block bg-white border border-neutral-200 rounded-xl overflow-hidden scroll-x">
     <table class="w-full text-sm">
       <thead class="bg-neutral-50 text-neutral-500 text-xs">
         <tr>

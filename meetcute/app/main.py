@@ -8,7 +8,7 @@ from sqlmodel import Session, select
 from starlette.middleware.sessions import SessionMiddleware
 
 from .auth import require_admin
-from .config import SECRET_IS_DEFAULT, SECRET_KEY, UPLOAD_DIR
+from .config import PUBLIC_MODE, SECRET_IS_DEFAULT, SECRET_KEY, UPLOAD_DIR
 from .database import get_session, init_db
 from .models import Encounter, EncounterOutcome, Gender, Person, User
 from .routers import auth, compatibility, encounters, manual, persons, requests as requests_router, settings as settings_router, users
@@ -40,7 +40,7 @@ app.add_middleware(
     SessionMiddleware,
     secret_key=SECRET_KEY,
     same_site="lax",
-    https_only=False,  # 운영 시 HTTPS 사용하면 True 권장
+    https_only=PUBLIC_MODE,  # 외부 노출 시 자동 HTTPS-only 쿠키
     max_age=60 * 60 * 24 * 14,  # 2주
 )
 app.mount("/uploads", StaticFiles(directory=str(UPLOAD_DIR)), name="uploads")
