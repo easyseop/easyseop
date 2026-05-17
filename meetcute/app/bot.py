@@ -246,20 +246,27 @@ def _full_help_message(user: User) -> str:
 # ── 핸들러 ──────────────────────────────────────────────────────────────
 def _handle_command(chat_id: str, cmd: str, user: Optional[User]) -> None:
     if cmd == "/start":
-        msg = f"🤖 <b>meetcute 봇</b>\n\n당신의 chat_id: <code>{chat_id}</code>\n\n"
+        header = f"🤖 <b>meetcute 봇</b>\n\n당신의 chat_id: <code>{chat_id}</code>\n\n"
         if user:
-            msg += (
+            # 연결된 사람 — 전체 가이드 (도움말 + 양식까지)
+            _send(chat_id, header + (
                 f"✅ 연결된 계정: <b>{user.display_name}</b>\n"
-                f"명령어 확인: /help"
-            )
+                "환영합니다! 아래 가이드를 한 번 훑어주세요 👇"
+            ))
+            _send(chat_id, _full_help_message(user))
+            _send(chat_id, FORM_TEMPLATE)
         else:
-            msg += (
-                "❌ 아직 웹사이트 계정과 연결 안 됨.\n"
-                "1) 웹 <code>/settings</code> 접속\n"
-                "2) 위 chat_id 를 텔레그램 chat_id 칸에 붙여넣고 저장\n"
-                "3) 돌아와서 /help"
-            )
-        _send(chat_id, msg)
+            _send(chat_id, header + (
+                "❌ 아직 웹사이트 계정과 연결 안 됨.\n\n"
+                "<b>연결 방법:</b>\n"
+                "1) 웹사이트 <code>/settings</code> 접속\n"
+                "2) 위 chat_id 를 '텔레그램 chat_id' 칸에 붙여넣고 저장\n"
+                "3) 다시 /start 또는 /help\n\n"
+                "<b>meetcute 봇으로 가능한 것:</b>\n"
+                "• 매물 등록 양식 받아서 한 번에 채우기\n"
+                "• 소개 요청 / 수락 / 거절 / 24h+ 미응답 알림 수신\n"
+                "• 웹사이트 접속 URL 변경 시 자동 알림"
+            ))
         return
 
     if cmd == "/help":
