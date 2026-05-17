@@ -84,16 +84,23 @@ def _events_for(session: Session, encounter_id: int) -> list[EncounterEvent]:
 def list_encounters(
     request: Request,
     person_id: Optional[int] = None,
-    outcome: Optional[EncounterOutcome] = None,
+    outcome: Optional[str] = None,  # "" 허용 (enum 검증 우회)
     session: Session = Depends(get_session),
 ):
+    outcome_enum: Optional[EncounterOutcome] = None
+    if outcome:
+        try:
+            outcome_enum = EncounterOutcome(outcome)
+        except ValueError:
+            outcome_enum = None
+
     stmt = select(Encounter).order_by(Encounter.met_on.desc(), Encounter.id.desc())
     if person_id:
         stmt = stmt.where(
             or_(Encounter.person_a_id == person_id, Encounter.person_b_id == person_id)
         )
-    if outcome:
-        stmt = stmt.where(Encounter.outcome == outcome)
+    if outcome_enum:
+        stmt = stmt.where(Encounter.outcome == outcome_enum)
     encounters = session.exec(stmt).all()
     persons = _resolve_persons(session, encounters)
     return templates.TemplateResponse(
@@ -103,7 +110,7 @@ def list_encounters(
             "encounters": encounters,
             "persons": persons,
             "person_id": person_id,
-            "outcome": outcome,
+            "outcome": outcome_enum,
             **_ctx_extras(),
         },
     )

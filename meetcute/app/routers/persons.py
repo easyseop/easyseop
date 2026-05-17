@@ -54,17 +54,26 @@ def _save_photo(person_id: int, upload: UploadFile) -> str:
 @router.get("", response_class=HTMLResponse)
 def list_persons(
     request: Request,
-    gender: Optional[Gender] = None,
+    gender: Optional[str] = None,    # "" 또는 None 또는 enum value
     q: Optional[str] = None,
     activity: Optional[str] = None,  # 'never' | 'dormant' | 'active' | None
-    owner: Optional[str] = None,     # 'mine' | 'others' | 'unassigned' | None (전체)
+    owner: Optional[str] = None,     # 'mine' | 'unassigned' | 'user:<id>' | 'others' | None
     sort: Optional[str] = None,      # 'recent_activity' | 'dormant' | 'created' (default)
     session: Session = Depends(get_session),
 ):
     current_user = get_current_user(request, session)
-    stmt = select(Person)
+
+    # gender 빈 문자열은 무시 (enum 검증 우회)
+    gender_enum: Optional[Gender] = None
     if gender:
-        stmt = stmt.where(Person.gender == gender)
+        try:
+            gender_enum = Gender(gender)
+        except ValueError:
+            gender_enum = None
+
+    stmt = select(Person)
+    if gender_enum:
+        stmt = stmt.where(Person.gender == gender_enum)
     if q:
         like = f"%{q}%"
         stmt = stmt.where(
@@ -79,11 +88,17 @@ def list_persons(
     if AUTH_ENABLED and current_user and current_user.id:
         if owner == "mine":
             persons = [p for p in persons if p.owner_user_id == current_user.id]
-        elif owner == "others":
+        elif owner == "others":  # 하위 호환
             persons = [p for p in persons
                        if p.owner_user_id and p.owner_user_id != current_user.id]
         elif owner == "unassigned":
             persons = [p for p in persons if p.owner_user_id is None]
+        elif owner and owner.startswith("user:"):
+            try:
+                target_uid = int(owner.split(":", 1)[1])
+                persons = [p for p in persons if p.owner_user_id == target_uid]
+            except ValueError:
+                pass
 
     # owner 정보 매핑 (목록 카드에 표시)
     owner_map: dict[int, User] = {}
@@ -124,6 +139,13 @@ def list_persons(
     else:
         persons.sort(key=lambda p: p.created_at, reverse=True)
 
+    # 필터 드롭다운에 보여줄 admin 목록 (AUTH=on 만)
+    admin_list: list[User] = []
+    if AUTH_ENABLED:
+        admin_list = session.exec(
+            select(User).where(User.is_admin == True).order_by(User.email)  # noqa: E712
+        ).all()
+
     return templates.TemplateResponse(
         request,
         "persons/list.html",
@@ -133,9 +155,10 @@ def list_persons(
             "stats": stats,
             "owner_map": owner_map,
             "current_user": current_user,
+            "admin_list": admin_list,
             "status_label": status_label,
             "status_badge_class": status_badge_class,
-            "gender": gender,
+            "gender": gender or "",
             "q": q or "",
             "activity": activity or "",
             "owner": owner or "",

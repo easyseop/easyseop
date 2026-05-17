@@ -12,9 +12,9 @@
            class="flex-1 min-w-[180px] px-3 py-1.5 border border-neutral-300 rounded-lg text-sm" />
     <select name="gender" class="px-3 py-1.5 border border-neutral-300 rounded-lg text-sm">
       <option value="">전체 성별</option>
-      <option value="M" {% if gender and gender.value == 'M' %}selected{% endif %}>M</option>
-      <option value="F" {% if gender and gender.value == 'F' %}selected{% endif %}>F</option>
-      <option value="OTHER" {% if gender and gender.value == 'OTHER' %}selected{% endif %}>OTHER</option>
+      <option value="M" {% if gender == 'M' %}selected{% endif %}>M</option>
+      <option value="F" {% if gender == 'F' %}selected{% endif %}>F</option>
+      <option value="OTHER" {% if gender == 'OTHER' %}selected{% endif %}>OTHER</option>
     </select>
     <select name="activity" class="px-3 py-1.5 border border-neutral-300 rounded-lg text-sm">
       <option value="">활동 무관</option>
@@ -26,8 +26,17 @@
     <select name="owner" class="px-3 py-1.5 border border-neutral-300 rounded-lg text-sm">
       <option value="">전체 매물</option>
       <option value="mine" {% if owner == 'mine' %}selected{% endif %}>내 매물</option>
-      <option value="others" {% if owner == 'others' %}selected{% endif %}>다른 admin</option>
       <option value="unassigned" {% if owner == 'unassigned' %}selected{% endif %}>미지정</option>
+      {% set other_admins = admin_list | rejectattr('id', 'equalto', current_user.id) | list if current_user else admin_list %}
+      {% if other_admins %}
+      <optgroup label="다른 admin 별">
+        {% for a in other_admins %}
+        <option value="user:{{ a.id }}" {% if owner == 'user:' ~ a.id %}selected{% endif %}>
+          👤 {{ a.email }}
+        </option>
+        {% endfor %}
+      </optgroup>
+      {% endif %}
     </select>
     {% endif %}
     <select name="sort" class="px-3 py-1.5 border border-neutral-300 rounded-lg text-sm">
