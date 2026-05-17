@@ -24,9 +24,36 @@
     input, select, textarea { font-size: 16px; }
     /* 좌우 스크롤 영역 표시 */
     .scroll-x { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+    /* 부드러운 페이지 전환 (Chrome/Edge: View Transitions API) */
+    @view-transition { navigation: auto; }
+    ::view-transition-old(root) { animation: mc-fade-out 0.15s ease-out both; }
+    ::view-transition-new(root) { animation: mc-fade-in 0.2s ease-in both; }
+    @keyframes mc-fade-out { to { opacity: 0; transform: translateY(-4px); } }
+    @keyframes mc-fade-in { from { opacity: 0; transform: translateY(6px); } }
+
+    /* 로딩 진행바 */
+    #mc-progress {
+      position: fixed; top: 0; left: 0; height: 2px;
+      background: linear-gradient(90deg, #ec4899, #a78bfa);
+      z-index: 100; width: 0; opacity: 0;
+      transition: width .3s ease-out, opacity .25s;
+      pointer-events: none;
+    }
+    #mc-progress.mc-loading { opacity: 1; }
+
+    /* 부드러운 호버 / 클릭 피드백 (전반적으로) */
+    a, button { transition: background-color .15s, color .15s, border-color .15s, transform .1s; }
+    a:active, button:active { transform: scale(.98); }
+
+    /* 카드/리스트 항목 페이드인 */
+    @media (prefers-reduced-motion: no-preference) {
+      main > *:not(:has(form)) { animation: mc-fade-in .25s ease-out both; }
+    }
   </style>
 </head>
-<body class="bg-neutral-50 text-neutral-900 min-h-screen">
+<body class="bg-neutral-50 text-neutral-900 min-h-screen" hx-boost="true">
+  <div id="mc-progress"></div>
   {% set sess = request.session %}
   {% set logged_in = sess.get('user_id') %}
   {% set is_admin = sess.get('is_admin') %}
@@ -163,5 +190,29 @@
     }, 3500);
   </script>
   {% endif %}
+
+  <!-- htmx 글로벌 설정: View Transitions API + 로딩 진행바 -->
+  <script>
+    if (typeof htmx !== 'undefined') {
+      htmx.config.globalViewTransitions = true;
+      htmx.config.scrollIntoViewOnBoost = false;
+      // 진행바
+      const bar = document.getElementById('mc-progress');
+      let timer;
+      document.body.addEventListener('htmx:beforeRequest', () => {
+        clearTimeout(timer);
+        if (bar) { bar.style.width = '0%'; bar.classList.add('mc-loading');
+          requestAnimationFrame(() => bar.style.width = '70%'); }
+      });
+      document.body.addEventListener('htmx:afterRequest', () => {
+        if (bar) { bar.style.width = '100%';
+          timer = setTimeout(() => { bar.classList.remove('mc-loading'); bar.style.width = '0%'; }, 250); }
+      });
+      // 페이지 전환 후 상단으로 스크롤
+      document.body.addEventListener('htmx:afterSettle', () => {
+        window.scrollTo({ top: 0, behavior: 'instant' });
+      });
+    }
+  </script>
 </body>
 </html>

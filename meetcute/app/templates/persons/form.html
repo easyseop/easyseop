@@ -9,6 +9,7 @@
   <form method="post"
         action="{% if person %}/persons/{{ person.id }}{% else %}/persons{% endif %}"
         enctype="multipart/form-data"
+        hx-boost="false"
         class="bg-white border border-neutral-200 rounded-xl p-6 space-y-4">
 
     {% if not person %}
