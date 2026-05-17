@@ -29,6 +29,7 @@ from ..services.activity import (
     activity_for_person,
     activity_for_persons,
 )
+from ..services.activity_log import log_activity
 from ..services.revisions import (
     diff_against,
     diff_between,
@@ -369,6 +370,12 @@ async def create_person(
 
     # 새 매물 등록 알림 — 공개 범위 안의 다른 마담뚜 들에게 (등록자 제외)
     actor = get_current_user(request, session)
+    log_activity(
+        session, actor, "person.create",
+        target_type="person", target_id=person.id,
+        summary=f"{person.public_id} ({person.gender.label} {person.age}세) 등록",
+    )
+    session.commit()
     background_tasks.add_task(
         notify_new_person, person.id, actor.id if actor and actor.id else None
     )
@@ -513,9 +520,14 @@ async def update_person(
         or person.notes != notes
         or person.alias != alias
     )
+    actor = get_current_user(request, session)
     if text_changed:
-        actor = get_current_user(request, session)
         record_revision(session, person, actor)
+        log_activity(
+            session, actor, "person.update",
+            target_type="person", target_id=person.id,
+            summary=f"{person.public_id} 정보 수정",
+        )
 
     person.age = age
     person.location = location
@@ -534,7 +546,6 @@ async def update_person(
             person.owner_user_id = None
 
         # visibility 변경은 owner (또는 책임자) 만 가능
-        actor = get_current_user(request, session)
         can_change_vis = bool(actor and (actor.is_owner or person.owner_user_id == actor.id))
         if can_change_vis:
             try:
@@ -624,7 +635,14 @@ def delete_person(person_id: int, request: Request, session: Session = Depends(g
         session.delete(paa)
 
     person_dir = UPLOAD_DIR / str(person.id)
+    actor = get_current_user(request, session)
+    public_id_snap = person.public_id
     session.delete(person)
+    log_activity(
+        session, actor, "person.delete",
+        target_type="person", target_id=person_id,
+        summary=f"{public_id_snap} 삭제",
+    )
     session.commit()
 
     if person_dir.exists():

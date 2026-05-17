@@ -30,6 +30,7 @@ from ..models import (
     User,
 )
 from ..notifications import send_telegram, telegram_enabled
+from ..services.activity_log import log_activity
 from ..templating import templates
 
 router = APIRouter(prefix="/requests", tags=["requests"])
@@ -213,6 +214,12 @@ def create_request(
     session.add(req)
     session.commit()
     session.refresh(req)
+    log_activity(
+        session, current_user, "request.send",
+        target_type="request", target_id=req.id,
+        summary=f"{my_p.public_id} → {their_p.public_id}",
+    )
+    session.commit()
 
     # 알림
     to_user = session.get(User, their_p.owner_user_id)
@@ -287,6 +294,11 @@ def accept_request(
     req.resolved_encounter_id = enc.id
     req.updated_at = datetime.utcnow()
     session.add(req)
+    log_activity(
+        session, current_user, "request.accept",
+        target_type="request", target_id=req.id,
+        summary=f"#{req.id} 수락 → 만남 #{enc.id} 자동 생성",
+    )
     session.commit()
 
     # 발신자에게 알림
@@ -321,6 +333,11 @@ def decline_request(
     req.response_note = response_note.strip()
     req.updated_at = datetime.utcnow()
     session.add(req)
+    log_activity(
+        session, current_user, "request.decline",
+        target_type="request", target_id=req.id,
+        summary=f"#{req.id} 거절",
+    )
     session.commit()
 
     from_user = session.get(User, req.from_user_id)
@@ -351,6 +368,11 @@ def withdraw_request(
     req.status = IntroRequestStatus.WITHDRAWN
     req.updated_at = datetime.utcnow()
     session.add(req)
+    log_activity(
+        session, current_user, "request.withdraw",
+        target_type="request", target_id=req.id,
+        summary=f"#{req.id} 취소",
+    )
     session.commit()
 
     to_user = session.get(User, req.to_user_id)

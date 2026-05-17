@@ -9,6 +9,7 @@ from sqlalchemy.orm import defer
 from ..auth import get_current_user
 from ..database import get_session
 from ..models import Encounter, EncounterEvent, EncounterOutcome, Person, User
+from ..services.activity_log import log_activity
 from ..templating import templates
 
 router = APIRouter(prefix="/encounters", tags=["encounters"])
@@ -177,6 +178,11 @@ def create_encounter(
     # 초기 outcome 이벤트 기록
     actor = get_current_user(request, session)
     _log_event(session, enc, outcome, "최초 등록", actor)
+    log_activity(
+        session, actor, "encounter.create",
+        target_type="encounter", target_id=enc.id,
+        summary=f"{a.public_id} × {b.public_id} 만남 기록",
+    )
     session.commit()
 
     return RedirectResponse(f"/encounters/{enc.id}", status_code=303)
@@ -222,13 +228,22 @@ def update_encounter(
     if outcome_changed:
         actor = get_current_user(request, session)
         _log_event(session, enc, outcome, transition_note.strip(), actor)
+        log_activity(
+            session, actor, "encounter.update",
+            target_type="encounter", target_id=enc.id,
+            summary=f"#{enc.id} 상태: {OUTCOME_LABEL.get(outcome, outcome.value)}",
+        )
 
     session.commit()
     return RedirectResponse(f"/encounters/{enc.id}", status_code=303)
 
 
 @router.post("/{encounter_id}/delete")
-def delete_encounter(encounter_id: int, session: Session = Depends(get_session)):
+def delete_encounter(
+    encounter_id: int,
+    request: Request,
+    session: Session = Depends(get_session),
+):
     """Encounter 자체는 보통 보존하지만, 잘못 입력했을 때 삭제용.
     Encounter를 지우면 그 만남의 outcome 변화 이력(EncounterEvent)도 같이 사라짐.
     """
@@ -243,6 +258,13 @@ def delete_encounter(encounter_id: int, session: Session = Depends(get_session))
     for ev in events:
         session.delete(ev)
 
+    actor = get_current_user(request, session)
+    enc_snap = f"#{enc.id} ({enc.person_a_snapshot} × {enc.person_b_snapshot})"
     session.delete(enc)
+    log_activity(
+        session, actor, "encounter.delete",
+        target_type="encounter", target_id=encounter_id,
+        summary=f"{enc_snap} 삭제",
+    )
     session.commit()
     return RedirectResponse("/encounters", status_code=303)

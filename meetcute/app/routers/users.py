@@ -6,6 +6,7 @@ from sqlmodel import Session, select
 from ..auth import require_owner
 from ..database import get_session
 from ..models import User
+from ..services.activity_log import log_activity
 from ..templating import templates
 
 router = APIRouter(prefix="/users", tags=["users"])
@@ -47,6 +48,11 @@ def toggle_admin(
 
     target.is_admin = not target.is_admin
     session.add(target)
+    log_activity(
+        session, current_user, "user.promote",
+        target_type="user", target_id=target.id,
+        summary=f"{target.display_name} → 마담뚜 {'활성화' if target.is_admin else '강등'}",
+    )
     session.commit()
     return RedirectResponse("/users", status_code=303)
 
@@ -68,6 +74,13 @@ def delete_user(
         )
         if admin_count <= 1:
             raise HTTPException(400, "마지막 마담뚜는 삭제할 수 없습니다")
+    target_id = target.id
+    target_name = target.display_name
     session.delete(target)
+    log_activity(
+        session, current_user, "user.delete",
+        target_type="user", target_id=target_id,
+        summary=f"{target_name} 삭제",
+    )
     session.commit()
     return RedirectResponse("/users", status_code=303)

@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}활동 로그 · meetcute{% endblock %}
+{% block content %}
+<div class="space-y-4">
+  <div class="flex items-center justify-between gap-2 flex-wrap">
+    <h1 class="text-2xl font-bold">📜 활동 로그</h1>
+    <p class="text-xs text-neutral-500">책임자 전용 · 최신 {{ rows|length }}건 (페이지 {{ page }})</p>
+  </div>
+
+  <form method="get" class="bg-white border border-neutral-200 rounded-xl p-3 flex flex-wrap gap-2 items-center">
+    <select name="actor" class="px-3 py-1.5 border border-neutral-300 rounded-lg text-sm">
+      <option value="">전체 마담뚜</option>
+      {% for u in all_users %}
+      <option value="{{ u.id }}" {% if actor == u.id %}selected{% endif %}>
+        👤 {{ u.display_name }}{% if u.is_owner %} (책임자){% endif %}
+      </option>
+      {% endfor %}
+    </select>
+    <select name="action" class="px-3 py-1.5 border border-neutral-300 rounded-lg text-sm">
+      <option value="">전체 액션</option>
+      {% for key, label in ACTION_LABEL.items() %}
+      <option value="{{ key }}" {% if action == key %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    <button class="px-4 py-1.5 bg-neutral-800 text-white rounded-lg text-sm">적용</button>
+    {% if actor or action %}
+    <a href="/activity" class="text-xs text-neutral-500 underline">초기화</a>
+    {% endif %}
+  </form>
+
+  {% if rows %}
+  <div class="bg-white border border-neutral-200 rounded-xl overflow-hidden">
+    <ul class="divide-y divide-neutral-100">
+      {% for r in rows %}
+      <li class="px-3 py-2.5 flex items-start gap-3 hover:bg-neutral-50">
+        <div class="shrink-0 text-xs text-neutral-400 w-20 pt-0.5" title="{{ r.created_at.strftime('%Y-%m-%d %H:%M:%S') }}">
+          {{ r.created_at|human_time }}
+        </div>
+        <div class="shrink-0 text-sm w-36 truncate">
+          {% set u = actors_map.get(r.actor_user_id) %}
+          {% if u %}
+            <a href="/activity?actor={{ u.id }}" class="hover:text-pink-600">
+              👤 {{ u.display_name }}{% if u.is_owner %}<span class="text-pink-500"> 👑</span>{% endif %}
+            </a>
+          {% else %}
+            <span class="text-neutral-400">{{ r.actor_display or "(삭제됨)" }}</span>
+          {% endif %}
+        </div>
+        <div class="shrink-0 text-sm">
+          <a href="/activity?action={{ r.action }}" class="hover:text-pink-600">{{ action_label(r.action) }}</a>
+        </div>
+        <div class="flex-1 min-w-0 text-sm text-neutral-600 truncate">
+          {% if r.summary %}{{ r.summary }}{% endif %}
+          {% if r.target_type == 'person' and r.target_id %}
+            <a href="/persons/{{ r.target_id }}" class="text-pink-600 hover:underline ml-1">매물 →</a>
+          {% elif r.target_type == 'encounter' and r.target_id %}
+            <a href="/encounters/{{ r.target_id }}" class="text-pink-600 hover:underline ml-1">만남 →</a>
+          {% elif r.target_type == 'user' and r.target_id %}
+            <a href="/users" class="text-pink-600 hover:underline ml-1">유저 →</a>
+          {% elif r.target_type == 'request' and r.target_id %}
+            <a href="/requests" class="text-pink-600 hover:underline ml-1">요청 →</a>
+          {% endif %}
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+
+  <div class="flex items-center justify-between text-sm">
+    {% set _qs = [] %}
+    {% if actor %}{% set _ = _qs.append('actor=' ~ actor) %}{% endif %}
+    {% if action %}{% set _ = _qs.append('action=' ~ action) %}{% endif %}
+    {% set _qsstr = _qs | join('&') %}
+    {% if page > 1 %}
+    <a href="/activity?{{ _qsstr }}{% if _qsstr %}&{% endif %}page={{ page - 1 }}"
+       class="px-3 py-1.5 border border-neutral-300 rounded-lg hover:bg-neutral-50">← 이전</a>
+    {% else %}
+    <span></span>
+    {% endif %}
+    <span class="text-neutral-400 text-xs">페이지 {{ page }}</span>
+    {% if has_next %}
+    <a href="/activity?{{ _qsstr }}{% if _qsstr %}&{% endif %}page={{ page + 1 }}"
+       class="px-3 py-1.5 border border-neutral-300 rounded-lg hover:bg-neutral-50">다음 →</a>
+    {% else %}
+    <span></span>
+    {% endif %}
+  </div>
+
+  {% else %}
+  <div class="bg-white rounded-xl border border-dashed border-neutral-300 p-12 text-center">
+    <div class="text-5xl mb-3">📭</div>
+    <p class="text-neutral-500">기록된 활동이 없어요.</p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

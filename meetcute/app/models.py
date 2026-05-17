@@ -200,6 +200,26 @@ class IntroductionRequest(SQLModel, table=True):
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
 
+class ActivityLog(SQLModel, table=True):
+    """마담뚜 활동 통합 로그. 책임자가 누가-언제-뭘 했는지 한눈에 보려고.
+
+    - PersonRevision (필드 diff) / EncounterEvent (outcome 변화) 와 별개로
+      엔드포인트 단위 행동을 잡아놓는 광역 audit log.
+    - actor_user_id: nullable (시스템/익명 액션 대비). actor_display 는 유저가
+      삭제돼도 누가 했는지 남기려고 따로 박아둠.
+    - action: 'login' | 'person.create' | 'request.accept' 같은 도트표기.
+    - summary: 사람이 읽을 한 줄 요약 (선택). LegacyEncryptedText — 평문 저장.
+    """
+    id: Optional[int] = Field(default=None, primary_key=True)
+    actor_user_id: Optional[int] = Field(default=None, foreign_key="user.id", index=True)
+    actor_display: str = Field(default="", max_length=128)
+    action: str = Field(max_length=64, index=True)
+    target_type: str = Field(default="", max_length=32)
+    target_id: Optional[int] = Field(default=None)
+    summary: str = Field(default="", sa_column=_legacy_enc_text_col())
+    created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
+
+
 class EncounterEvent(SQLModel, table=True):
     """만남 한 건의 outcome 변화 이력.
 

@@ -18,6 +18,7 @@ from ..nicknames import random_nickname
 from ..config import AUTH_ENABLED
 from ..database import get_session
 from ..models import User
+from ..services.activity_log import log_activity
 from ..templating import templates
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -68,6 +69,8 @@ def login(
         )
     reset_login_failures(request)
     login_user(request, user)
+    log_activity(session, user, "login")
+    session.commit()
     return RedirectResponse("/", status_code=303)
 
 
@@ -127,6 +130,12 @@ def register(
     session.commit()
     session.refresh(user)
     login_user(request, user)
+    log_activity(
+        session, user, "user.register",
+        target_type="user", target_id=user.id,
+        summary=f"신규 가입{'(첫 가입자 → 책임자 자동승격)' if is_first else ''}",
+    )
+    session.commit()
 
     # 신규 가입자 알림 — 책임자들에게 텔레그램 푸시 (첫 가입자는 제외 — 본인이라)
     if not is_first:
@@ -171,7 +180,11 @@ def _notify_owners_new_signup(session: Session, new_user: User) -> None:
 
 
 @router.post("/logout")
-def logout(request: Request):
+def logout(request: Request, session: Session = Depends(get_session)):
+    user = get_current_user(request, session)
+    if user and user.id:
+        log_activity(session, user, "logout")
+        session.commit()
     logout_user(request)
     return RedirectResponse("/auth/login", status_code=303)
 
