@@ -4,6 +4,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlmodel import Session, select, or_
+from sqlalchemy.orm import defer
 
 from ..auth import get_current_user
 from ..database import get_session
@@ -95,7 +96,12 @@ def list_encounters(
         except ValueError:
             outcome_enum = None
 
-    stmt = select(Encounter).order_by(Encounter.met_on.desc(), Encounter.id.desc())
+    # 목록 view 에선 notes 안 보여줌 → defer
+    stmt = (
+        select(Encounter)
+        .options(defer(Encounter.notes))
+        .order_by(Encounter.met_on.desc(), Encounter.id.desc())
+    )
     if person_id:
         stmt = stmt.where(
             or_(Encounter.person_a_id == person_id, Encounter.person_b_id == person_id)

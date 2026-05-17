@@ -7,6 +7,7 @@ from typing import Optional
 from fastapi import APIRouter, BackgroundTasks, Depends, Form, HTTPException, Request, UploadFile, File
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlmodel import Session, select
+from sqlalchemy.orm import defer
 
 from ..auth import get_current_user
 from ..config import AUTH_ENABLED, UPLOAD_DIR
@@ -105,7 +106,9 @@ def list_persons(
         except ValueError:
             gender_enum = None
 
-    stmt = select(Person)
+    # 목록 view 에선 ideal_type / notes (둘 다 암호화·긴 텍스트) 안 보여줌 → defer 로
+    # SELECT 에서 빼서 row 당 복호화 비용 절감
+    stmt = select(Person).options(defer(Person.ideal_type), defer(Person.notes))
     if gender_enum:
         stmt = stmt.where(Person.gender == gender_enum)
     if q:

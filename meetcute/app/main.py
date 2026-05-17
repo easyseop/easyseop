@@ -7,6 +7,7 @@ from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from sqlmodel import Session, select
+from sqlalchemy.orm import defer
 from starlette.middleware.sessions import SessionMiddleware
 
 from .auth import require_admin
@@ -109,7 +110,10 @@ def index(
     current_user: User = Depends(require_admin),
     session: Session = Depends(get_session),
 ):
-    all_persons = session.exec(select(Person)).all()
+    # 대시보드는 ideal_type/notes 안 씀 → defer 로 복호화 비용 절감
+    all_persons = session.exec(
+        select(Person).options(defer(Person.ideal_type), defer(Person.notes))
+    ).all()
     statuses = statuses_for_persons(session, all_persons)
     activities = activity_for_persons(session, all_persons)
 

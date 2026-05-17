@@ -42,14 +42,8 @@
     }
     #mc-progress.mc-loading { opacity: 1; }
 
-    /* 부드러운 호버 / 클릭 피드백 (전반적으로) */
-    a, button { transition: background-color .15s, color .15s, border-color .15s, transform .1s; }
-    a:active, button:active { transform: scale(.98); }
-
-    /* 카드/리스트 항목 페이드인 */
-    @media (prefers-reduced-motion: no-preference) {
-      main > *:not(:has(form)) { animation: mc-fade-in .25s ease-out both; }
-    }
+    /* 클릭 시 미세 피드백만 (transition 전역 적용은 카드 많은 화면에서 무거워서 제외) */
+    a:active, button:active { transform: scale(.98); transition: transform .08s; }
   </style>
 </head>
 <body class="bg-neutral-50 text-neutral-900 min-h-screen" hx-boost="true">
