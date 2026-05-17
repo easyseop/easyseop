@@ -7,7 +7,11 @@
   - 첫 가입자(=DB의 첫 User)는 자동으로 is_admin=True (부트스트랩).
   - AUTH_ENABLED=False 이면 모든 보호 의존성이 합성 'local' 관리자를 돌려주고
     인증 검사를 건너뜀. 토글은 config.AUTH_ENABLED 한 줄.
+  - 로그인 무차별 대입: 동일 IP 가 LOGIN_LOCKOUT_THRESHOLD 회 실패하면
+    LOGIN_LOCKOUT_WINDOW 초 동안 잠금. 인메모리 (재시작 시 리셋).
 """
+import time
+from collections import defaultdict
 from datetime import datetime
 from typing import Optional
 
@@ -43,6 +47,36 @@ def verify_password(password: str, password_hash: str) -> bool:
 
 def user_count(session: Session) -> int:
     return session.exec(select(func.count()).select_from(User)).one()
+
+
+# ─── 로그인 무차별 대입 차단 (in-memory) ────────────────────────────────────
+LOGIN_LOCKOUT_THRESHOLD = 5
+LOGIN_LOCKOUT_WINDOW = 600  # 초 (10분)
+_failed_attempts: dict[str, list[float]] = defaultdict(list)
+
+
+def _client_ip(request: Request) -> str:
+    """cloudflared 같은 프록시 뒤에서도 진짜 IP 잡기."""
+    fwd = request.headers.get("x-forwarded-for") or ""
+    if fwd:
+        return fwd.split(",")[0].strip()
+    return request.client.host if request.client else "?"
+
+
+def login_is_locked(request: Request) -> bool:
+    ip = _client_ip(request)
+    now = time.time()
+    fresh = [t for t in _failed_attempts[ip] if now - t < LOGIN_LOCKOUT_WINDOW]
+    _failed_attempts[ip] = fresh
+    return len(fresh) >= LOGIN_LOCKOUT_THRESHOLD
+
+
+def record_login_failure(request: Request) -> None:
+    _failed_attempts[_client_ip(request)].append(time.time())
+
+
+def reset_login_failures(request: Request) -> None:
+    _failed_attempts.pop(_client_ip(request), None)
 
 
 def get_current_user(

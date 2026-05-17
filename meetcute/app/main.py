@@ -1,9 +1,9 @@
 import logging
 from contextlib import asynccontextmanager
+from pathlib import Path as _Path
 
-from fastapi import Depends, FastAPI, Request
-from fastapi.responses import HTMLResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi.responses import FileResponse, HTMLResponse
 from sqlmodel import Session, select
 from starlette.middleware.sessions import SessionMiddleware
 
@@ -43,7 +43,22 @@ app.add_middleware(
     https_only=PUBLIC_MODE,  # 외부 노출 시 자동 HTTPS-only 쿠키
     max_age=60 * 60 * 24 * 14,  # 2주
 )
-app.mount("/uploads", StaticFiles(directory=str(UPLOAD_DIR)), name="uploads")
+_UPLOAD_ROOT = UPLOAD_DIR.resolve()
+
+
+@app.get("/uploads/{rest:path}")
+def serve_upload(rest: str, current_user=Depends(require_admin)):
+    """업로드된 사진은 로그인된 관리자만 접근 가능 (URL 추측 + 유출 방어).
+    AUTH=off 모드면 require_admin 이 LOCAL_ADMIN 으로 통과시킴."""
+    # path traversal 방어
+    target = (UPLOAD_DIR / rest).resolve()
+    try:
+        target.relative_to(_UPLOAD_ROOT)
+    except ValueError:
+        raise HTTPException(404)
+    if not target.is_file():
+        raise HTTPException(404)
+    return FileResponse(target)
 
 # 인증 / 매뉴얼은 누구나 접근 가능
 app.include_router(auth.router)

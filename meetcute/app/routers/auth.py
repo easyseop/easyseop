@@ -5,8 +5,11 @@ from sqlmodel import Session, select
 from ..auth import (
     get_current_user,
     hash_password,
+    login_is_locked,
     login_user,
     logout_user,
+    record_login_failure,
+    reset_login_failures,
     user_count,
     verify_password,
 )
@@ -48,13 +51,20 @@ def login(
 ):
     if (resp := _bypass_if_disabled()) is not None:
         return resp
+    if login_is_locked(request):
+        return RedirectResponse(
+            "/auth/login?error=시도+너무+많음.+10분+후+다시.",
+            status_code=303,
+        )
     email = email.strip().lower()
     user = session.exec(select(User).where(User.email == email)).first()
     if not user or not verify_password(password, user.password_hash):
+        record_login_failure(request)
         return RedirectResponse(
             "/auth/login?error=이메일+또는+비밀번호가+일치하지+않습니다",
             status_code=303,
         )
+    reset_login_failures(request)
     login_user(request, user)
     return RedirectResponse("/", status_code=303)
 
