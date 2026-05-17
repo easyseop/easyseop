@@ -51,6 +51,18 @@ def user_count(session: Session) -> int:
     return session.exec(select(func.count()).select_from(User)).one()
 
 
+def find_user_by_email(session: Session, email: str) -> Optional[User]:
+    """이메일로 유저 찾기. email 컬럼은 Fernet 으로 암호화돼 있어 (비결정적)
+    DB WHERE 가 못 쓰니, 전체 스캔 후 복호화-비교. 마담뚜 수가 작아 비용 무시."""
+    norm = email.strip().lower()
+    if not norm:
+        return None
+    for u in session.exec(select(User)).all():
+        if (u.email or "").strip().lower() == norm:
+            return u
+    return None
+
+
 # ─── 로그인 무차별 대입 차단 (in-memory) ────────────────────────────────────
 LOGIN_LOCKOUT_THRESHOLD = 5
 LOGIN_LOCKOUT_WINDOW = 600  # 초 (10분)

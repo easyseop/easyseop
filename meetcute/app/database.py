@@ -92,11 +92,43 @@ def _backfill_nicknames_and_owner() -> None:
             s.commit()
 
 
+def _encrypt_legacy_user_credentials() -> None:
+    """이메일/비밀번호 암호화 도입 전에 평문으로 저장된 user 행들을 일괄 재암호화.
+    raw SQL 로 enc1: prefix 검사 → 없는 행만 평문→enc1: 토큰으로 직접 UPDATE.
+    한 번 돌고 나면 모든 user 행이 enc1: 이라 idempotent."""
+    from sqlalchemy import inspect, text
+
+    from .crypto import encrypt_str
+
+    insp = inspect(engine)
+    if "user" not in set(insp.get_table_names()):
+        return
+
+    with engine.connect() as conn:
+        rows = conn.execute(
+            text("SELECT id, email, password_hash FROM user")
+        ).fetchall()
+        updates = []
+        for uid, email, pw in rows:
+            new_email = email if (email or "").startswith("enc1:") else encrypt_str(email or "")
+            new_pw = pw if (pw or "").startswith("enc1:") else encrypt_str(pw or "")
+            if new_email != email or new_pw != pw:
+                updates.append((uid, new_email, new_pw))
+        for uid, new_email, new_pw in updates:
+            conn.execute(
+                text("UPDATE user SET email=:e, password_hash=:p WHERE id=:i"),
+                {"e": new_email, "p": new_pw, "i": uid},
+            )
+        if updates:
+            conn.commit()
+
+
 def init_db() -> None:
     _ensure_database_exists(DATABASE_URL)
     SQLModel.metadata.create_all(engine)
     _ensure_columns()
     _backfill_nicknames_and_owner()
+    _encrypt_legacy_user_credentials()
 
 
 def get_session():

@@ -192,7 +192,7 @@ def list_persons(
     admin_list: list[User] = []
     if AUTH_ENABLED:
         admin_list = session.exec(
-            select(User).where(User.is_admin == True).order_by(User.email)  # noqa: E712
+            select(User).where(User.is_admin == True).order_by(User.created_at)  # email 은 암호화돼 정렬키 못 씀  # noqa: E712
         ).all()
 
     return templates.TemplateResponse(

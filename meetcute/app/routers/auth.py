@@ -3,6 +3,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlmodel import Session, select
 
 from ..auth import (
+    find_user_by_email,
     get_current_user,
     hash_password,
     login_is_locked,
@@ -58,7 +59,7 @@ def login(
             status_code=303,
         )
     email = email.strip().lower()
-    user = session.exec(select(User).where(User.email == email)).first()
+    user = find_user_by_email(session, email)
     if not user or not verify_password(password, user.password_hash):
         record_login_failure(request)
         return RedirectResponse(
@@ -108,7 +109,7 @@ def register(
             "/auth/register?error=비밀번호+확인이+일치하지+않습니다", status_code=303
         )
 
-    existing = session.exec(select(User).where(User.email == email)).first()
+    existing = find_user_by_email(session, email)
     if existing:
         return RedirectResponse(
             "/auth/register?error=이미+가입된+이메일입니다", status_code=303

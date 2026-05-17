@@ -70,8 +70,12 @@ class PersonVisibility(str, Enum):
 
 class User(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
-    email: str = Field(index=True, unique=True, max_length=255)
-    password_hash: str = Field(max_length=255)
+    # 이메일/비밀번호는 암호화 저장. Fernet 은 비결정적이라 DB unique/index 무의미.
+    # 중복 체크는 app 단에서 scan + decrypt 로 (find_user_by_email 헬퍼).
+    email: str = Field(sa_column=Column(EncryptedText(), nullable=False))
+    # bcrypt 해시를 한 번 더 Fernet 으로. DB 만 털리고 .encryption_key 안 털린
+    # 경우 오프라인 bcrypt 크래킹 차단 (defense-in-depth).
+    password_hash: str = Field(sa_column=Column(EncryptedText(), nullable=False))
     nickname: str = Field(default="", max_length=64)  # 다른 마담뚜 한테 표시되는 이름
     is_admin: bool = False
     is_owner: bool = False   # 책임자 (배포자). 첫 가입자 자동 부여. 다른 마담뚜의 민감정보(텔레그램 chat_id 등) 열람 가능.
@@ -98,7 +102,7 @@ class Person(SQLModel, table=True):
     # 암호화 대상: 거주지/직장/나이 (실제로 사람 식별에 도움 되는 PII)
     age: int = Field(sa_column=Column(IntEncryptedText(), nullable=False))
     location: str = Field(default="", sa_column=_enc_text_col())
-    workplace: str = Field(default="", sa_column=_enc_text_col())
+    workplace: str = Field(default="", sa_column=_legacy_enc_text_col())
     height_cm: int
     # 메모/취향 — 평문 + 옛 enc1: 데이터는 자동 복호화 (점진 마이그레이션)
     ideal_type: str = Field(default="", sa_column=_legacy_enc_text_col())
