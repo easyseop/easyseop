@@ -29,20 +29,44 @@
 
     <details class="bg-neutral-50 rounded-lg p-3 text-sm">
       <summary class="cursor-pointer font-medium">📖 chat_id 어떻게 받지?</summary>
-      <ol class="list-decimal list-inside mt-2 space-y-1 text-neutral-600">
-        <li>텔레그램에서 <strong>@userinfobot</strong> 검색 → 시작</li>
-        <li>봇이 답장으로 보내준 <code class="bg-neutral-200 px-1 rounded">Id: 12345678</code> 의 숫자가 본인 chat_id</li>
-        <li>그 숫자를 아래에 붙여넣고 저장</li>
-        <li>그리고 본 서비스 봇 (관리자가 알려준 봇)에 <code class="bg-neutral-200 px-1 rounded">/start</code> 한 번 보내야 봇이 본인한테 메시지 가능</li>
-      </ol>
+      <div class="mt-2 space-y-2 text-neutral-600">
+        <p><strong>방법 1 (추천):</strong> 본인이 만든 봇에 텔레그램에서 아무 메시지(<code class="bg-neutral-200 px-1 rounded">/start</code> 또는 "hi" 등)나 보낸 후 → 아래 <strong>🔍 자동 감지</strong> 버튼.</p>
+        <p><strong>방법 2:</strong> 텔레그램에서 <strong>@get_id_bot</strong> 검색 → /start → 답장에서 chat_id 확인 → 직접 입력.</p>
+        <p><strong>방법 3:</strong> 브라우저에서 <code class="bg-neutral-200 px-1 rounded">https://api.telegram.org/bot&lt;TOKEN&gt;/getUpdates</code> → JSON 에서 <code>"chat":{"id":...}</code> 찾기.</p>
+      </div>
     </details>
+
+    {% if detect_attempted %}
+      {% if detect_error %}
+      <div class="bg-red-50 border border-red-200 text-red-700 rounded-lg p-3 text-sm">⚠️ 자동 감지 실패: {{ detect_error }}</div>
+      {% elif detected_chats %}
+      <div class="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-sm space-y-2">
+        <div class="font-medium text-emerald-800">🔍 봇에 메시지 보낸 사람들 ({{ detected_chats | length }})</div>
+        <p class="text-emerald-700 text-xs">아래에서 본인 chat_id 옆 [채우기] 클릭 → 입력란에 자동 채워짐 → <strong>저장</strong> 누르기.</p>
+        <ul class="space-y-1">
+          {% for c in detected_chats %}
+          <li class="flex items-center gap-2 text-emerald-900">
+            <code class="bg-white px-2 py-0.5 rounded font-mono">{{ c.id }}</code>
+            <span class="flex-1 truncate">{{ c.name }}</span>
+            <button type="button" onclick="document.querySelector('input[name=chat_id]').value='{{ c.id }}'"
+                    class="text-xs px-2 py-1 bg-emerald-600 text-white rounded hover:bg-emerald-700">채우기</button>
+          </li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% else %}
+      <div class="bg-amber-50 border border-amber-200 text-amber-800 rounded-lg p-3 text-sm">
+        봇에 메시지 보낸 사람이 없습니다. 텔레그램에서 본인 봇한테 먼저 <code class="bg-amber-100 px-1 rounded">/start</code> 한 번 보낸 뒤 다시 시도.
+      </div>
+      {% endif %}
+    {% endif %}
 
     <form method="post" action="/settings/telegram" class="space-y-2">
       <label class="block text-sm font-medium">텔레그램 chat_id</label>
       <input type="text" name="chat_id" value="{{ current_user.telegram_chat_id }}"
              placeholder="예: 12345678"
              class="w-full px-3 py-2 border border-neutral-300 rounded-lg" />
-      <div class="flex gap-2">
+      <div class="flex gap-2 flex-wrap">
         <button class="px-4 py-2 bg-pink-600 text-white rounded-lg text-sm hover:bg-pink-700">저장</button>
         {% if current_user.telegram_chat_id %}
         <button formaction="/settings/telegram/test"
@@ -50,6 +74,10 @@
           🧪 테스트 메시지 보내기
         </button>
         {% endif %}
+        <a href="/settings?detect=1"
+           class="px-4 py-2 border border-neutral-300 rounded-lg text-sm hover:bg-neutral-50 ml-auto">
+          🔍 자동 감지
+        </a>
       </div>
     </form>
   </div>

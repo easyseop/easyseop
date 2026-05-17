@@ -1,4 +1,9 @@
 """유저 개인 설정 (텔레그램 chat_id 등록 등)."""
+import json
+import os
+import urllib.error
+import urllib.request
+
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlmodel import Session
@@ -7,10 +12,52 @@ from ..auth import require_login
 from ..config import AUTH_ENABLED
 from ..database import get_session
 from ..models import User
-from ..notifications import send_telegram, telegram_enabled
+from ..notifications import BOT_TOKEN, send_telegram, telegram_enabled
 from ..templating import templates
 
 router = APIRouter(prefix="/settings", tags=["settings"])
+
+
+def _detect_chats() -> tuple[list[dict], str]:
+    """봇 getUpdates 호출해서 봇에 메시지 보낸 사람들의 chat 정보 모음.
+
+    Returns:
+        (chats, error). chats: [{"id": "...", "name": "..."}, ...] (중복 제거)
+        error: 실패 시 사용자 친화 메시지, 성공 시 빈 문자열.
+    """
+    if not BOT_TOKEN:
+        return [], "MEETCUTE_TELEGRAM_BOT_TOKEN 환경변수가 설정되지 않았습니다."
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/getUpdates"
+    try:
+        with urllib.request.urlopen(url, timeout=5) as resp:
+            data = json.loads(resp.read())
+    except urllib.error.HTTPError as e:
+        return [], f"Telegram HTTP {e.code} — 토큰이 잘못됐을 수 있습니다."
+    except urllib.error.URLError as e:
+        return [], f"네트워크 오류: {e}"
+    except Exception as e:
+        return [], f"오류: {e}"
+
+    if not data.get("ok"):
+        return [], f"Telegram API 거부: {data.get('description', '?')}"
+
+    seen: dict[str, str] = {}
+    for upd in data.get("result", []):
+        msg = upd.get("message") or upd.get("edited_message") or upd.get("channel_post") or {}
+        chat = msg.get("chat") or {}
+        cid = chat.get("id")
+        if cid is None:
+            continue
+        sid = str(cid)
+        if sid in seen:
+            continue
+        name = chat.get("first_name") or chat.get("username") or chat.get("title") or "(이름 없음)"
+        if chat.get("last_name"):
+            name = f"{name} {chat['last_name']}"
+        if chat.get("username"):
+            name = f"{name} (@{chat['username']})"
+        seen[sid] = name
+    return [{"id": k, "name": v} for k, v in seen.items()], ""
 
 
 @router.get("", response_class=HTMLResponse)
@@ -20,18 +67,27 @@ def settings_page(
     flash: str = "",
     ok: str = "",
     err: str = "",
+    detect: int = 0,
     session: Session = Depends(get_session),
 ):
     if not AUTH_ENABLED:
         return RedirectResponse("/", status_code=303)
-    # session 에서 다시 가져옴 (DB 최신 값 반영)
     user = session.get(User, current_user.id) or current_user
+
+    detected_chats: list[dict] = []
+    detect_error = ""
+    if detect:
+        detected_chats, detect_error = _detect_chats()
+
     return templates.TemplateResponse(
         request,
         "settings.html",
         {
             "current_user": user,
             "telegram_enabled_globally": telegram_enabled(),
+            "detected_chats": detected_chats,
+            "detect_error": detect_error,
+            "detect_attempted": bool(detect),
             "flash": flash,
             "ok": ok,
             "err": err,
