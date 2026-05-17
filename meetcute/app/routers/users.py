@@ -35,14 +35,14 @@ def toggle_admin(
     if not target:
         raise HTTPException(404, "User not found")
 
-    # 마지막 관리자가 자기 자신을 강등하면 시스템에 관리자 0명 → 차단
+    # 마지막 마담뚜가 자기 자신을 강등하면 시스템에 관리자 0명 → 차단
     if target.is_admin and target.id == current_user.id:
         admin_count = len(
             session.exec(select(User).where(User.is_admin == True)).all()  # noqa: E712
         )
         if admin_count <= 1:
             raise HTTPException(
-                400, "마지막 관리자는 강등할 수 없습니다 (먼저 다른 사람을 관리자로)"
+                400, "마지막 마담뚜는 강등할 수 없습니다 (먼저 다른 사람을 관리자로)"
             )
 
     target.is_admin = not target.is_admin
@@ -67,7 +67,7 @@ def delete_user(
             session.exec(select(User).where(User.is_admin == True)).all()  # noqa: E712
         )
         if admin_count <= 1:
-            raise HTTPException(400, "마지막 관리자는 삭제할 수 없습니다")
+            raise HTTPException(400, "마지막 마담뚜는 삭제할 수 없습니다")
     session.delete(target)
     session.commit()
     return RedirectResponse("/users", status_code=303)

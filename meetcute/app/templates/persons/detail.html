@@ -21,7 +21,7 @@
       {% if person.alias and can_edit %}<div class="text-sm text-neutral-500 mt-1">이름: {{ person.alias }}</div>{% endif %}
       {% if AUTH_ENABLED %}
       <div class="text-sm text-neutral-500 mt-1">
-        관리자:
+        마담뚜:
         {% if owner %}
           {% if current_user and owner.id == current_user.id %}
             <span class="text-pink-600 font-medium">👤 나 ({{ owner.display_name }})</span>
@@ -48,7 +48,7 @@
       {% if can_edit %}
       <a href="/persons/{{ person.id }}/edit" class="px-3 py-1.5 border border-neutral-300 rounded-lg text-sm hover:bg-neutral-100">✏️ 수정</a>
       {% else %}
-      <span class="text-xs text-neutral-400 self-center">🔒 등록한 관리자만 수정 가능</span>
+      <span class="text-xs text-neutral-400 self-center">🔒 등록한 마담뚜만 수정 가능</span>
       {% endif %}
     </div>
   </div>
@@ -159,15 +159,9 @@
 
   <div class="bg-white border border-neutral-200 rounded-xl p-5 space-y-3">
     {% if can_edit %}
-    <div class="flex items-center justify-between -mt-1 -mr-1">
-      <div class="text-xs text-neutral-400">
-        등록 {{ person.created_at | human_time }}
-        {% if person.updated_at != person.created_at %} · 수정 {{ person.updated_at | human_time }}{% endif %}
-      </div>
-      <a href="/persons/{{ person.id }}/edit"
-         class="text-xs px-2 py-1 text-neutral-500 hover:text-pink-600 hover:bg-pink-50 rounded-lg">
-        ✏️ 정보 수정
-      </a>
+    <div class="text-xs text-neutral-400 -mt-1">
+      등록 {{ person.created_at | human_time }}
+      {% if person.updated_at != person.created_at %} · 수정 {{ person.updated_at | human_time }}{% endif %}
     </div>
     {% endif %}
     <div class="grid grid-cols-2 gap-3 text-sm">

@@ -17,7 +17,7 @@ class PersonStatus(str, Enum):
 
 
 _LABEL = {
-    PersonStatus.AVAILABLE: "사용 가능",
+    PersonStatus.AVAILABLE: "소개 가능",
     PersonStatus.IN_PROGRESS: "진행 중",
     PersonStatus.MATCHED: "매칭됨",
 }

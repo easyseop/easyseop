@@ -21,7 +21,7 @@
       <div class="text-xs text-neutral-400 mt-1">M {{ stats.male }} · F {{ stats.female }}{% if stats.other %} · X {{ stats.other }}{% endif %}</div>
     </div>
     <div class="bg-emerald-50 rounded-xl border border-emerald-100 p-4">
-      <div class="text-xs text-emerald-700">사용 가능</div>
+      <div class="text-xs text-emerald-700">소개 가능</div>
       <div class="text-2xl font-bold mt-1 text-emerald-800">{{ stats.available }}</div>
     </div>
     <div class="bg-amber-50 rounded-xl border border-amber-100 p-4">
@@ -110,7 +110,7 @@
 
   <div class="bg-white rounded-xl border border-neutral-200 p-5">
     <div class="flex items-center justify-between mb-3">
-      <h2 class="font-semibold">😴 오래 잠자는 매물 <span class="text-xs font-normal text-neutral-500">({{ dormant_threshold }}일+ 미활동 · 사용 가능 · 등록 {{ new_threshold_days }}일 초과)</span></h2>
+      <h2 class="font-semibold">😴 오래 잠자는 매물 <span class="text-xs font-normal text-neutral-500">({{ dormant_threshold }}일+ 미활동 · 소개 가능 · 등록 {{ new_threshold_days }}일 초과)</span></h2>
       <a href="/persons?activity=dormant&sort=dormant" class="text-xs text-pink-600 hover:underline">전체 보기</a>
     </div>
     {% if dormant_persons %}
@@ -140,7 +140,7 @@
     <a href="/encounters/new" class="px-4 py-2 border border-neutral-300 rounded-lg text-sm hover:bg-neutral-50">+ 만남 기록</a>
     <a href="/compatibility" class="px-4 py-2 border border-neutral-300 rounded-lg text-sm hover:bg-neutral-50">호환성 체크</a>
     {% if AUTH_ENABLED %}
-    <a href="/users" class="px-4 py-2 border border-neutral-300 rounded-lg text-sm hover:bg-neutral-50">유저 관리</a>
+    <a href="/users" class="px-4 py-2 border border-neutral-300 rounded-lg text-sm hover:bg-neutral-50">마담뚜 관리</a>
     {% endif %}
     <a href="/manual" class="px-4 py-2 border border-neutral-300 rounded-lg text-sm hover:bg-neutral-50 ml-auto">📖 사용 매뉴얼</a>
   </div>

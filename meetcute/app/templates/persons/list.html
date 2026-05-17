@@ -39,7 +39,7 @@
       <option value="unassigned" {% if owner == 'unassigned' %}selected{% endif %}>미지정</option>
       {% set other_admins = admin_list | rejectattr('id', 'equalto', current_user.id) | list if current_user else admin_list %}
       {% if other_admins %}
-      <optgroup label="다른 admin 별">
+      <optgroup label="다른 마담뚜 별">
         {% for a in other_admins %}
         <option value="user:{{ a.id }}" {% if owner == 'user:' ~ a.id %}selected{% endif %}>
           👤 {{ a.display_name }}
@@ -90,7 +90,7 @@
           <span class="text-neutral-500">· {{ p.location }}</span>
         </div>
         <div class="text-neutral-500 text-xs mt-0.5 truncate">{{ p.workplace }} · {{ p.height_cm }}cm</div>
-        {# 이름(alias) 은 owner 본인 또는 책임자에게만 노출 (다른 admin 한테 안 보이게) #}
+        {# 이름(alias) 은 owner 본인 또는 책임자에게만 노출 (다른 마담뚜한테 안 보이게) #}
         {% set _is_mine = current_user and (current_user.is_owner or p.owner_user_id == current_user.id) %}
         {% if p.alias and (not AUTH_ENABLED or _is_mine) %}
         <div class="text-xs text-neutral-400 mt-1">({{ p.alias }})</div>

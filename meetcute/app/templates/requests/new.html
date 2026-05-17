@@ -5,13 +5,13 @@
   <h1 class="text-2xl font-bold">📨 소개 요청 보내기</h1>
 
   <div class="bg-white border border-neutral-200 rounded-xl p-5">
-    <div class="text-xs text-neutral-500 mb-1">상대 매물 (다른 admin 소유)</div>
+    <div class="text-xs text-neutral-500 mb-1">상대 매물 (다른 마담뚜 소유)</div>
     <a href="/persons/{{ their_person.id }}" class="font-mono text-lg font-bold hover:text-pink-600">{{ their_person.public_id }}</a>
     <div class="text-sm text-neutral-600 mt-1">
       {{ their_person.gender.label }} · {{ their_person.age }}세 · {{ their_person.height_cm }}cm · {{ their_person.location }}
     </div>
     {% if their_owner %}
-    <div class="text-xs text-neutral-500 mt-1">관리자: 👤 {{ their_owner.display_name }}</div>
+    <div class="text-xs text-neutral-500 mt-1">마담뚜: 👤 {{ their_owner.display_name }}</div>
     {% endif %}
   </div>
 

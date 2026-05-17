@@ -1,7 +1,7 @@
 """소개 요청 (IntroductionRequest) 워크플로.
 
 흐름:
-    A: 다른 admin (B) 소유의 매물 M-042 상세 → '📨 소개 요청' 클릭
+    A: 다른 마담뚜 (B) 소유의 매물 M-042 상세 → '📨 소개 요청' 클릭
        → 내 매물 중에서 누구로 소개? 선택 + 메모 → 보내기
     B: /requests 에서 받은 요청 확인 → IRL로 M-042 한테 물어봄
        → 수락 (응답 메모와 함께) → Encounter 자동 생성
@@ -132,7 +132,7 @@ def new_request_form(
     if not their_person:
         raise HTTPException(404, "상대 매물을 찾을 수 없습니다")
     if not their_person.owner_user_id:
-        raise HTTPException(400, "이 매물은 관리자가 지정되지 않아 요청을 보낼 수 없습니다")
+        raise HTTPException(400, "이 매물은 마담뚜가 지정되지 않아 요청을 보낼 수 없습니다")
     if their_person.owner_user_id == current_user.id:
         raise HTTPException(400, "본인이 관리하는 매물에는 요청을 보낼 수 없습니다 (직접 만남 기록 만드세요)")
 
@@ -199,7 +199,7 @@ def create_request(
     if my_p.owner_user_id != current_user.id:
         raise HTTPException(403, "본인 매물이 아닙니다")
     if not their_p.owner_user_id:
-        raise HTTPException(400, "상대 매물에 관리자가 없습니다")
+        raise HTTPException(400, "상대 매물에 마담뚜가 없습니다")
     if their_p.owner_user_id == current_user.id:
         raise HTTPException(400, "본인 매물에는 요청을 보낼 수 없습니다")
 

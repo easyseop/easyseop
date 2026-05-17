@@ -273,7 +273,7 @@ def _can_edit_person(person: Person, user: Optional[User]) -> bool:
 def _require_edit(person: Person, request: Request, session: Session) -> None:
     user = get_current_user(request, session)
     if not _can_edit_person(person, user):
-        raise HTTPException(403, "이 매물은 등록한 관리자만 수정할 수 있습니다")
+        raise HTTPException(403, "이 매물은 등록한 마담뚜만 수정할 수 있습니다")
 
 
 @router.get("/new", response_class=HTMLResponse)
@@ -341,7 +341,7 @@ async def create_person(
         session.add(Photo(person_id=person.id, filename=rel, order=i))
     session.commit()
 
-    # 새 매물 등록 알림 — 공개 범위 안의 다른 admin 들에게 (등록자 제외)
+    # 새 매물 등록 알림 — 공개 범위 안의 다른 마담뚜 들에게 (등록자 제외)
     actor = get_current_user(request, session)
     background_tasks.add_task(
         notify_new_person, person.id, actor.id if actor and actor.id else None
@@ -370,7 +370,7 @@ def person_detail(
         AUTH_ENABLED and current_user and current_user.id
         and person.owner_user_id == current_user.id
     )
-    # "내 매물 → 다른 admin 소유의 매물에 소개 요청 보내기" CTA 노출 조건
+    # "내 매물 → 다른 마담뚜 소유의 매물에 소개 요청 보내기" CTA 노출 조건
     can_send_intro_request = bool(
         AUTH_ENABLED and current_user and current_user.id
         and person.owner_user_id

@@ -210,7 +210,7 @@ def _full_help_message(user: User) -> str:
             return f'<a href="{base}{path}">{path}</a>'
         return f"<code>{path}</code>"
 
-    role = "👑 책임자" if user.is_owner else ("관리자" if user.is_admin else "일반 유저")
+    role = "👑 책임자" if user.is_owner else ("마담뚜" if user.is_admin else "일반 가입자")
     msg = (
         f"🤖 <b>meetcute 도움말</b>\n"
         f"본인: <b>{user.display_name}</b> · {role}\n\n"
@@ -234,7 +234,7 @@ def _full_help_message(user: User) -> str:
         f"• 매물 관리 — 등록/수정/삭제, 사진 5장, 변경 이력 자동 기록\n"
         f"• 만남 기록 — 두 매물 매칭, 결과 변화 이력 자동 기록\n"
         f"• 호환성 체크 — 두 매물 비교, 이전 만남 표시\n"
-        f"• 소개 요청 — 다른 admin 매물에 소개 요청 → 수락 시 만남 자동 생성\n"
+        f"• 소개 요청 — 다른 마담뚜의 매물에 소개 요청 → 수락 시 만남 자동 생성\n"
         f"• 활동 통계 — 매물별 만남 횟수 / 매칭 성공 / 잠자는 매물 알림\n"
         f"• 유저 관리 — 가입자 권한 토글 (책임자만)\n"
         f"• 닉네임 / 텔레그램 / DB 상태 — 내정보 페이지\n\n"
@@ -284,7 +284,7 @@ def _handle_command(chat_id: str, cmd: str, user: Optional[User]) -> None:
                 "/start 로 본인 chat_id 확인 가능.\n\n"
                 "<b>meetcute 는?</b>\n"
                 "소개팅 주선용 관리 도구. 매물·만남·매칭 기록을 한 곳에서.\n"
-                "여러 admin 이 같이 쓸 수 있고, 다른 admin 매물에 소개 요청 보내기 가능."
+                "여러 마담뚜 이 같이 쓸 수 있고, 다른 마담뚜의 매물에 소개 요청 보내기 가능."
             ))
             return
         _send(chat_id, _full_help_message(user))
@@ -295,7 +295,7 @@ def _handle_command(chat_id: str, cmd: str, user: Optional[User]) -> None:
         return
 
     if cmd == "/me":
-        role = "👑 책임자" if user.is_owner else ("관리자" if user.is_admin else "일반 유저")
+        role = "👑 책임자" if user.is_owner else ("마담뚜" if user.is_admin else "일반 가입자")
         _send(chat_id, f"<b>{user.display_name}</b>\n권한: {role}")
         return
 
@@ -310,7 +310,7 @@ def _handle_command(chat_id: str, cmd: str, user: Optional[User]) -> None:
 
     if cmd in ("/register", "/form"):
         if not user.is_admin:
-            _send(chat_id, "❌ 관리자만 매물 등록 가능합니다. 책임자에게 승급 요청하세요.")
+            _send(chat_id, "❌ 마담뚜만 매물 등록 가능합니다. 책임자에게 승급 요청하세요.")
             return
         _sessions[chat_id] = {
             "state": STATE_FORM_FILL,

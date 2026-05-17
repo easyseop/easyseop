@@ -17,8 +17,8 @@
   <div class="bg-white border border-neutral-200 rounded-xl p-6 space-y-3">
     <h2 class="font-semibold">🪪 닉네임</h2>
     <p class="text-sm text-neutral-600">
-      다른 admin 한테 표시되는 이름입니다. <strong>이메일은 절대 노출되지 않아요.</strong>
-      비워두면 <code class="bg-neutral-100 px-1 rounded">admin-{{ current_user.id }}</code> 로 표시됩니다.
+      다른 마담뚜한테 표시되는 이름입니다. <strong>이메일은 절대 노출되지 않아요.</strong>
+      비워두면 <code class="bg-neutral-100 px-1 rounded">마담뚜-{{ current_user.id }}</code> 로 표시됩니다.
     </p>
     <form method="post" action="/settings/nickname" class="flex gap-2 flex-wrap">
       <input type="text" name="nickname" value="{{ current_user.nickname }}" maxlength="64"
@@ -165,8 +165,8 @@
     <div class="text-sm text-neutral-600">이메일: <code>{{ current_user.email }}</code></div>
     <div class="text-sm text-neutral-600">권한:
       {% if current_user.is_owner %}👑 책임자
-      {% elif current_user.is_admin %}관리자
-      {% else %}일반 유저{% endif %}
+      {% elif current_user.is_admin %}마담뚜
+      {% else %}일반 가입자{% endif %}
     </div>
     <div class="text-sm text-neutral-400">가입일: {{ current_user.created_at.strftime('%Y-%m-%d') }}</div>
 
@@ -184,7 +184,7 @@
       <a href="/compatibility" class="px-3 py-2 border border-neutral-200 rounded-lg hover:bg-neutral-50 text-center">🔀 호환성 체크</a>
       <a href="/manual" class="px-3 py-2 border border-neutral-200 rounded-lg hover:bg-neutral-50 text-center">📖 매뉴얼</a>
       {% if current_user.is_owner %}
-      <a href="/users" class="px-3 py-2 border border-pink-200 bg-pink-50 text-pink-700 rounded-lg hover:bg-pink-100 text-center">👑 유저 관리 (책임자만)</a>
+      <a href="/users" class="px-3 py-2 border border-pink-200 bg-pink-50 text-pink-700 rounded-lg hover:bg-pink-100 text-center">👑 마담뚜 관리 (책임자만)</a>
       {% endif %}
       <a href="/persons/new" class="px-3 py-2 border border-pink-200 bg-pink-50 text-pink-700 rounded-lg hover:bg-pink-100 text-center">+ 새 매물</a>
     </div>

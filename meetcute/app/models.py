@@ -63,22 +63,22 @@ class User(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     email: str = Field(index=True, unique=True, max_length=255)
     password_hash: str = Field(max_length=255)
-    nickname: str = Field(default="", max_length=64)  # 다른 admin 한테 표시되는 이름
+    nickname: str = Field(default="", max_length=64)  # 다른 마담뚜 한테 표시되는 이름
     is_admin: bool = False
-    is_owner: bool = False   # 책임자 (배포자). 첫 가입자 자동 부여. 다른 admin의 민감정보(텔레그램 chat_id 등) 열람 가능.
+    is_owner: bool = False   # 책임자 (배포자). 첫 가입자 자동 부여. 다른 마담뚜의 민감정보(텔레그램 chat_id 등) 열람 가능.
     telegram_chat_id: str = Field(default="", max_length=64)
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
     @property
     def display_name(self) -> str:
-        """다른 admin 한테 보여지는 안전한 이름. 이메일 절대 노출 안 함.
+        """다른 마담뚜 한테 보여지는 안전한 이름. 이메일 절대 노출 안 함.
         nickname 이 이메일 형태면 (자동완성/실수로 들어간 경우) 폴백."""
         nick = self.nickname.strip() if self.nickname else ""
         if not nick:
-            return f"admin-{self.id}"
+            return f"마담뚜-{self.id}"
         # 이메일 패턴 차단: a@b.c
         if "@" in nick and "." in nick.split("@", 1)[-1]:
-            return f"admin-{self.id}"
+            return f"마담뚜-{self.id}"
         return nick
 
 
