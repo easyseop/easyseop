@@ -17,7 +17,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlmodel import Session, or_, select
 
 from ..auth import require_admin
-from ..config import AUTH_ENABLED
+from ..config import AUTH_ENABLED, PUBLIC_URL
 from ..database import get_session
 from ..models import (
     Encounter,
@@ -169,6 +169,13 @@ def _person_summary(p: Optional[Person]) -> str:
     return " · ".join(bits)
 
 
+def _requests_link(text: str = "/requests 에서 응답") -> str:
+    """텔레그램 HTML 메시지용. PUBLIC_URL 설정 시 클릭 가능 링크."""
+    if PUBLIC_URL:
+        return f'<a href="{PUBLIC_URL}/requests">{text}</a>'
+    return text
+
+
 @router.post("")
 def create_request(
     request: Request,
@@ -208,14 +215,14 @@ def create_request(
     # 알림
     to_user = session.get(User, their_p.owner_user_id)
     msg_text = (
-        f"📨 <b>새 소개 요청</b>\n"
-        f"<b>From:</b> {current_user.display_name}\n"
-        f"<b>너네 매물:</b> {_person_summary(their_p)}\n"
-        f"<b>소개하려는 매물:</b> {_person_summary(my_p)}\n"
+        f"📨 <b>새 소개 요청 도착</b>\n"
+        f"<b>보낸 분:</b> {current_user.display_name}\n\n"
+        f"<b>내 매물:</b> {_person_summary(their_p)}\n"
+        f"<b>소개 매물:</b> {_person_summary(my_p)}\n"
     )
     if req.message:
-        msg_text += f"<b>메모:</b> {req.message}\n"
-    msg_text += f"\n→ /requests 에서 응답"
+        msg_text += f"\n<i>{req.message}</i>\n"
+    msg_text += f"\n→ {_requests_link()}"
     _notify(to_user, msg_text)
 
     return RedirectResponse("/requests", status_code=303)
@@ -284,12 +291,14 @@ def accept_request(
     from_user = session.get(User, req.from_user_id)
     msg = (
         f"✅ <b>소개 요청 수락됨</b>\n"
-        f"<b>By:</b> {current_user.display_name}\n"
-        f"<b>매칭:</b> {_person_summary(my_p)} × {_person_summary(their_p)}\n"
+        f"<b>응답한 분:</b> {current_user.display_name}\n\n"
+        f"<b>내 매물:</b> {_person_summary(my_p)}\n"
+        f"<b>상대 매물:</b> {_person_summary(their_p)}\n"
     )
     if response_note:
-        msg += f"<b>응답 메모:</b> {response_note}\n"
-    msg += f"\n→ 만남 기록 자동 생성 (#{enc.id})"
+        msg += f"\n<i>{response_note}</i>\n"
+    enc_link = f'<a href="{PUBLIC_URL}/encounters/{enc.id}">#{enc.id}</a>' if PUBLIC_URL else f"#{enc.id}"
+    msg += f"\n→ 만남 기록 자동 생성 {enc_link}"
     _notify(from_user, msg)
 
     return RedirectResponse(f"/encounters/{enc.id}", status_code=303)
@@ -316,11 +325,12 @@ def decline_request(
     their_p = session.get(Person, req.their_person_id)
     msg = (
         f"❌ <b>소개 요청 거절됨</b>\n"
-        f"<b>By:</b> {current_user.display_name}\n"
-        f"<b>매칭:</b> {_person_summary(my_p)} × {_person_summary(their_p)}\n"
+        f"<b>응답한 분:</b> {current_user.display_name}\n\n"
+        f"<b>내 매물:</b> {_person_summary(my_p)}\n"
+        f"<b>상대 매물:</b> {_person_summary(their_p)}\n"
     )
     if response_note:
-        msg += f"<b>사유:</b> {response_note}\n"
+        msg += f"\n<i>사유: {response_note}</i>\n"
     _notify(from_user, msg)
 
     return RedirectResponse("/requests", status_code=303)
@@ -345,8 +355,9 @@ def withdraw_request(
     their_p = session.get(Person, req.their_person_id)
     msg = (
         f"↩️ <b>소개 요청 취소됨</b>\n"
-        f"<b>By:</b> {current_user.display_name}\n"
-        f"<b>매칭:</b> {_person_summary(my_p)} × {_person_summary(their_p)}\n"
+        f"<b>취소한 분:</b> {current_user.display_name}\n\n"
+        f"<b>내 매물:</b> {_person_summary(their_p)}\n"
+        f"<b>취소된 소개:</b> {_person_summary(my_p)}\n"
     )
     _notify(to_user, msg)
 

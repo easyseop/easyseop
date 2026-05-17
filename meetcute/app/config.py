@@ -31,5 +31,9 @@ PUBLIC_MODE = os.getenv("MEETCUTE_PUBLIC", "").strip().lower() in ("on", "1", "t
 if PUBLIC_MODE:
     AUTH_ENABLED = True  # 공개 모드면 인증 강제
 
+# 외부에서 접근하는 절대 URL (예: https://meetcute.yourdomain.com).
+# 텔레그램 알림에 클릭 가능한 링크 박을 때 사용. 비워두면 상대경로만.
+PUBLIC_URL = os.getenv("MEETCUTE_PUBLIC_URL", "").strip().rstrip("/")
+
 DATA_DIR.mkdir(exist_ok=True)
 UPLOAD_DIR.mkdir(exist_ok=True)

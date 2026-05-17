@@ -33,11 +33,15 @@
       <a href="/requests/new?their={{ person.id }}"
          class="px-3 py-1.5 bg-pink-600 text-white rounded-lg text-sm hover:bg-pink-700">📨 소개 요청</a>
       {% endif %}
+      {% if can_edit %}
       <a href="/persons/{{ person.id }}/edit" class="px-3 py-1.5 border border-neutral-300 rounded-lg text-sm hover:bg-neutral-100">수정</a>
       <form method="post" action="/persons/{{ person.id }}/delete"
             onsubmit="return confirm('정말 삭제? 사진까지 모두 삭제됩니다. (만남 기록은 보존)')">
         <button class="px-3 py-1.5 border border-red-300 text-red-600 rounded-lg text-sm hover:bg-red-50">삭제</button>
       </form>
+      {% else %}
+      <span class="text-xs text-neutral-400 self-center">🔒 등록한 관리자만 수정 가능</span>
+      {% endif %}
     </div>
   </div>
 

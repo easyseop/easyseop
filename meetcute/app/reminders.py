@@ -14,7 +14,7 @@ from datetime import datetime, timedelta
 
 from sqlmodel import Session, select
 
-from .config import AUTH_ENABLED
+from .config import AUTH_ENABLED, PUBLIC_URL
 from .database import engine
 from .models import IntroductionRequest, IntroRequestStatus, Person, User
 from .notifications import send_telegram, telegram_enabled
@@ -54,15 +54,16 @@ def _send_pending_reminders() -> int:
             sender_name = sender.display_name if sender else "(?)"
             days_open = max(1, (now - r.created_at).days)
             msg = (
-                f"⏰ <b>대기 중인 소개 요청 (#{r.id})</b>\n"
+                f"⏰ <b>대기 중인 소개 요청</b> (#{r.id})\n"
                 f"{days_open}일째 답변 대기 중\n\n"
-                f"<b>From:</b> {sender_name}\n"
-                f"<b>너네 매물:</b> {_person_summary(their_p)}\n"
-                f"<b>소개하려는 매물:</b> {_person_summary(my_p)}\n"
+                f"<b>보낸 분:</b> {sender_name}\n"
+                f"<b>내 매물:</b> {_person_summary(their_p)}\n"
+                f"<b>소개 매물:</b> {_person_summary(my_p)}\n"
             )
             if r.message:
-                msg += f"<b>메모:</b> {r.message}\n"
-            msg += "\n→ /requests 에서 응답 (수락/거절)"
+                msg += f"\n<i>{r.message}</i>\n"
+            link = f'<a href="{PUBLIC_URL}/requests">/requests</a>' if PUBLIC_URL else "/requests"
+            msg += f"\n→ {link} 에서 응답 (수락/거절)"
             ok, _ = send_telegram(recipient.telegram_chat_id, msg)
             if ok:
                 r.last_reminded_at = now

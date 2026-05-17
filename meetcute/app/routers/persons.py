@@ -171,6 +171,26 @@ def _admins(session: Session) -> list[User]:
     return session.exec(select(User).where(User.is_admin == True).order_by(User.email)).all()  # noqa: E712
 
 
+def _can_edit_person(person: Person, user: Optional[User]) -> bool:
+    """등록한 owner 만 수정 가능. 책임자(is_owner) 는 모든 매물 수정 가능.
+    미지정 매물은 누구나 (담아가게). AUTH=off (로컬) 면 항상 허용."""
+    if not AUTH_ENABLED:
+        return True
+    if not user or not user.id:
+        return False
+    if user.is_owner:
+        return True  # 책임자는 무제한
+    if person.owner_user_id is None:
+        return True  # 미지정 매물은 어느 admin 이나 (담아가게)
+    return person.owner_user_id == user.id
+
+
+def _require_edit(person: Person, request: Request, session: Session) -> None:
+    user = get_current_user(request, session)
+    if not _can_edit_person(person, user):
+        raise HTTPException(403, "이 매물은 등록한 관리자만 수정할 수 있습니다")
+
+
 @router.get("/new", response_class=HTMLResponse)
 def new_person_form(request: Request, session: Session = Depends(get_session)):
     current_user = get_current_user(request, session)
@@ -203,17 +223,14 @@ async def create_person(
 ):
     public_id = next_public_id(session, gender)
 
-    # owner 결정: AUTH 켜져있고 폼에서 값이 오면 그대로, 비어있으면 현재 유저, AUTH 꺼져있으면 None
+    # owner 결정: 폼 select 에서 명시적으로 "— 미지정 —" (value="") 고르면 None 으로 저장.
+    # 폼 기본값이 current_user 라 그냥 등록 누르면 current_user 가 들어옴.
     resolved_owner_id: Optional[int] = None
-    if AUTH_ENABLED:
-        if owner_user_id.strip():
-            try:
-                resolved_owner_id = int(owner_user_id)
-            except ValueError:
-                resolved_owner_id = None
-        else:
-            cu = get_current_user(request, session)
-            resolved_owner_id = cu.id if cu and cu.id else None
+    if AUTH_ENABLED and owner_user_id.strip():
+        try:
+            resolved_owner_id = int(owner_user_id)
+        except ValueError:
+            resolved_owner_id = None
 
     person = Person(
         public_id=public_id,
@@ -266,6 +283,7 @@ def person_detail(
         and person.owner_user_id
         and person.owner_user_id != current_user.id
     )
+    can_edit = _can_edit_person(person, current_user)
 
     # Revision diff 계산: 최신 revision은 현재 person과 비교,
     # 이전 것들은 그 다음 revision과 비교 (revisions는 desc 정렬)
@@ -303,6 +321,7 @@ def person_detail(
             "current_user": current_user,
             "is_my_person": is_my_person,
             "can_send_intro_request": can_send_intro_request,
+            "can_edit": can_edit,
             "status_label": status_label,
             "status_badge_class": status_badge_class,
             "OUTCOME_LABEL": OUTCOME_LABEL,
@@ -318,6 +337,7 @@ def edit_person_form(
     person = session.get(Person, person_id)
     if not person:
         raise HTTPException(404, "Person not found")
+    _require_edit(person, request, session)
     current_user = get_current_user(request, session)
     return templates.TemplateResponse(
         request,
@@ -349,6 +369,7 @@ async def update_person(
     person = session.get(Person, person_id)
     if not person:
         raise HTTPException(404, "Person not found")
+    _require_edit(person, request, session)
 
     # 변경이 있을 때만 revision 기록 (사진만 추가하는 경우는 스킵)
     text_changed = (
@@ -395,7 +416,7 @@ async def update_person(
 
 
 @router.post("/{person_id}/delete")
-def delete_person(person_id: int, session: Session = Depends(get_session)):
+def delete_person(person_id: int, request: Request, session: Session = Depends(get_session)):
     """하드 삭제: Person + Photo + 디스크 파일 + PersonRevision 모두 제거.
     Encounter는 보존하되, 이 사람이 등장한 행은 FK를 NULL로 끊고
     public_id 스냅샷 + (deleted) 표시를 박아 이력 가독성을 유지한다.
@@ -405,6 +426,7 @@ def delete_person(person_id: int, session: Session = Depends(get_session)):
     person = session.get(Person, person_id)
     if not person:
         raise HTTPException(404, "Person not found")
+    _require_edit(person, request, session)
 
     snapshot = f"{person.public_id} (deleted)"
     related = session.exec(
@@ -450,11 +472,14 @@ def delete_person(person_id: int, session: Session = Depends(get_session)):
 
 @router.post("/{person_id}/photos/{photo_id}/delete")
 def delete_photo(
-    person_id: int, photo_id: int, session: Session = Depends(get_session)
+    person_id: int, photo_id: int, request: Request, session: Session = Depends(get_session)
 ):
     photo = session.get(Photo, photo_id)
     if not photo or photo.person_id != person_id:
         raise HTTPException(404, "Photo not found")
+    person = session.get(Person, person_id)
+    if person:
+        _require_edit(person, request, session)
     file_path = UPLOAD_DIR / photo.filename
     session.delete(photo)
     session.commit()

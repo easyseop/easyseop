@@ -51,8 +51,15 @@ class User(SQLModel, table=True):
 
     @property
     def display_name(self) -> str:
-        """다른 admin 한테 보여지는 안전한 이름. 이메일 절대 노출 안 함."""
-        return self.nickname.strip() if self.nickname else f"admin-{self.id}"
+        """다른 admin 한테 보여지는 안전한 이름. 이메일 절대 노출 안 함.
+        nickname 이 이메일 형태면 (자동완성/실수로 들어간 경우) 폴백."""
+        nick = self.nickname.strip() if self.nickname else ""
+        if not nick:
+            return f"admin-{self.id}"
+        # 이메일 패턴 차단: a@b.c
+        if "@" in nick and "." in nick.split("@", 1)[-1]:
+            return f"admin-{self.id}"
+        return nick
 
 
 class Person(SQLModel, table=True):
