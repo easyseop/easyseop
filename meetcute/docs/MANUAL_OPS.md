@@ -126,11 +126,27 @@ crontab -e
 0 2 * * * rsync -a ~/easyseop/meetcute/data ~/easyseop/meetcute/uploads ~/Dropbox/meetcute-backup/
 ```
 
+### 방법 C — 백업 명령 (⭐ 추천, 키 파일까지 같이 묶임)
+한 줄로 `data/` + `uploads/` + `.encryption_key` + `.secret` 모두를 timestamped `.tar.gz` 로:
+```bash
+cd ~/easyseop/meetcute
+python -m app.backup                              # → BASE_DIR/backups/meetcute-YYYYMMDD-HHMMSS.tar.gz
+python -m app.backup --out ~/Dropbox/meetcute-bk  # 다른 폴더로
+python -m app.backup --keep 30                    # 최신 30개만 유지 (기본 14)
+```
+환경변수 `MEETCUTE_BACKUP_DIR=~/Dropbox/meetcute-bk` 로 기본 출력 폴더 지정 가능. cron 예:
+```bash
+0 2 * * * cd ~/easyseop/meetcute && /usr/bin/python -m app.backup --quiet
+```
+
 ### 복구
 ```bash
 Ctrl+C
+# 방법 A/B (폴더 백업)
 cp -R ~/Dropbox/meetcute-backup/data/* data/
 cp -R ~/Dropbox/meetcute-backup/uploads/* uploads/
+# 방법 C (tar.gz 백업)
+tar xzf ~/Dropbox/meetcute-bk/meetcute-2026XXXX-XXXXXX.tar.gz -C ~/easyseop/meetcute/
 ./dev.sh
 ```
 
