@@ -127,7 +127,46 @@ def register(
     session.refresh(user)
     login_user(request, user)
 
+    # 신규 가입자 알림 — 책임자들에게 텔레그램 푸시 (첫 가입자는 제외 — 본인이라)
+    if not is_first:
+        _notify_owners_new_signup(session, user)
+
     return RedirectResponse("/" if is_first else "/auth/pending", status_code=303)
+
+
+def _notify_owners_new_signup(session: Session, new_user: User) -> None:
+    try:
+        from ..notifications import send_telegram, telegram_enabled
+        from ..url_watcher import current_public_url
+        if not telegram_enabled():
+            return
+        owners = session.exec(
+            select(User).where(
+                User.is_owner == True,  # noqa: E712
+                User.telegram_chat_id != "",  # noqa: E712
+            )
+        ).all()
+        if not owners:
+            return
+        url = current_public_url()
+        link = (
+            f"\n→ <a href=\"{url}/users\">/users 에서 승인</a>"
+            if url else "\n→ /users 에서 승인"
+        )
+        msg = (
+            f"🆕 <b>신규 가입 — 승인 필요</b>\n\n"
+            f"<b>닉네임:</b> {new_user.display_name}\n"
+            f"<b>이메일:</b> {new_user.email}\n"
+            f"<b>가입 시각:</b> {new_user.created_at.strftime('%Y-%m-%d %H:%M')}"
+            f"{link}"
+        )
+        for o in owners:
+            try:
+                send_telegram(o.telegram_chat_id, msg)
+            except Exception:
+                pass
+    except Exception:
+        pass  # 알림 실패는 가입 흐름 막지 않음
 
 
 @router.post("/logout")

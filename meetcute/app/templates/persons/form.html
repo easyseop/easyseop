@@ -76,6 +76,50 @@
       </select>
       <div class="text-xs text-neutral-500 mt-1">소개 요청은 이 사람한테 갑니다. 기본값: 본인.</div>
     </div>
+
+    {# visibility — 편집 모드 + 책임자/owner 인 경우만 노출 #}
+    {% if person and current_user and (current_user.is_owner or person.owner_user_id == current_user.id) %}
+    <div class="border border-neutral-200 rounded-lg p-3 space-y-3">
+      <label class="block text-sm font-medium">🔒 공개 범위</label>
+      <div class="space-y-2 text-sm">
+        <label class="flex items-start gap-2 cursor-pointer">
+          <input type="radio" name="visibility" value="PUBLIC"
+                 {% if person.visibility.value == 'PUBLIC' %}checked{% endif %}
+                 onchange="document.getElementById('mc-allowed-list').classList.add('hidden')"
+                 class="mt-1" />
+          <span>
+            <strong>모두 공개</strong> — 모든 관리자가 볼 수 있음 (기본)
+          </span>
+        </label>
+        <label class="flex items-start gap-2 cursor-pointer">
+          <input type="radio" name="visibility" value="RESTRICTED"
+                 {% if person.visibility.value == 'RESTRICTED' %}checked{% endif %}
+                 onchange="document.getElementById('mc-allowed-list').classList.remove('hidden')"
+                 class="mt-1" />
+          <span>
+            <strong>특정 관리자만</strong> — 선택한 사람 + 나 + 책임자만 볼 수 있음
+          </span>
+        </label>
+      </div>
+      <div id="mc-allowed-list" class="{% if person.visibility.value != 'RESTRICTED' %}hidden{% endif %} pl-5 pt-2 space-y-1.5 border-t border-neutral-100">
+        <div class="text-xs text-neutral-500 mb-1">접근 허용할 관리자 (본인 + 책임자는 자동 포함)</div>
+        {% set _shown_any = false %}
+        {% for a in admins %}
+        {% if a.id != person.owner_user_id and not a.is_owner %}
+          {% set _shown_any = true %}
+          <label class="flex items-center gap-2 text-sm cursor-pointer">
+            <input type="checkbox" name="allowed_admins" value="{{ a.id }}"
+                   {% if a.id in allowed_admin_ids %}checked{% endif %} />
+            <span>{{ a.display_name }}</span>
+          </label>
+        {% endif %}
+        {% endfor %}
+        {% if not _shown_any %}
+        <div class="text-xs text-neutral-400">다른 관리자가 없어요. 가입 + 승급 후 표시됩니다.</div>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
     {% endif %}
 
     {% if person %}

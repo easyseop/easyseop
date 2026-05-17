@@ -47,9 +47,10 @@
       <a href="/" class="font-bold text-lg tracking-tight whitespace-nowrap">💘 meetcute</a>
 
       <!-- 데스크탑 메뉴 (sm 이상) -->
-      <div class="hidden sm:flex items-center gap-4 text-sm">
+      <div class="hidden sm:flex items-center gap-3 text-sm">
         {% if effective_admin %}
-          <a href="/persons" class="hover:text-pink-600">매물</a>
+          <a href="/persons?owner=mine" class="hover:text-pink-600 font-medium text-pink-600">📋 내 매물</a>
+          <a href="/persons" class="hover:text-pink-600">전체 매물</a>
           <a href="/encounters" class="hover:text-pink-600">만남</a>
           <a href="/compatibility" class="hover:text-pink-600">호환성</a>
           {% if AUTH_ENABLED %}
@@ -75,17 +76,42 @@
         {% endif %}
       </div>
 
-      <!-- 모바일: 햄버거 없음. 하단 탭바 + /내정보 페이지 빠른 링크로 모든 메뉴 접근 -->
-      {% if not effective_admin and not logged_in %}
-      <div class="sm:hidden flex items-center gap-2 text-sm">
-        <a href="/auth/login" class="hover:text-pink-600">로그인</a>
-        <a href="/auth/register" class="px-3 py-1.5 bg-pink-600 text-white rounded-full text-xs">가입</a>
+      <!-- 모바일 햄버거 -->
+      <button class="sm:hidden p-2 -m-2 text-2xl leading-none"
+              onclick="document.getElementById('mobile-menu').classList.toggle('hidden')"
+              aria-label="메뉴">☰</button>
+    </div>
+
+    <!-- 모바일 햄버거 메뉴 펼침 -->
+    <div id="mobile-menu" class="hidden sm:hidden border-t border-neutral-100 bg-white">
+      <div class="max-w-5xl mx-auto px-4 py-2 flex flex-col text-sm">
+        {% if effective_admin %}
+          <a href="/persons?owner=mine" class="py-2.5 border-b border-neutral-50 hover:text-pink-600 text-pink-600 font-medium">📋 내 매물 관리</a>
+          <a href="/persons" class="py-2.5 border-b border-neutral-50 hover:text-pink-600">👥 전체 매물</a>
+          <a href="/encounters" class="py-2.5 border-b border-neutral-50 hover:text-pink-600">💞 만남 기록</a>
+          <a href="/compatibility" class="py-2.5 border-b border-neutral-50 hover:text-pink-600">🔀 호환성 체크</a>
+          {% if AUTH_ENABLED %}
+          <a href="/requests" class="py-2.5 border-b border-neutral-50 hover:text-pink-600">📨 소개 요청</a>
+          <a href="/users" class="py-2.5 border-b border-neutral-50 hover:text-pink-600">👥 유저 관리</a>
+          <a href="/settings" class="py-2.5 border-b border-neutral-50 hover:text-pink-600">👤 내정보</a>
+          {% endif %}
+          <a href="/manual" class="py-2.5 border-b border-neutral-50 hover:text-pink-600">📖 매뉴얼</a>
+          {% if AUTH_ENABLED %}
+          <form method="post" action="/auth/logout">
+            <button class="w-full text-left py-2.5 text-red-600 hover:text-red-700">로그아웃</button>
+          </form>
+          {% endif %}
+        {% elif logged_in %}
+          <a href="/manual" class="py-2.5 border-b border-neutral-50 hover:text-pink-600">📖 매뉴얼</a>
+          <form method="post" action="/auth/logout">
+            <button class="w-full text-left py-2.5 text-red-600 hover:text-red-700">로그아웃</button>
+          </form>
+        {% else %}
+          <a href="/auth/login" class="py-2.5 border-b border-neutral-50 hover:text-pink-600">로그인</a>
+          <a href="/auth/register" class="py-2.5 border-b border-neutral-50 text-pink-600 font-semibold">+ 가입</a>
+          <a href="/manual" class="py-2.5 hover:text-pink-600">📖 매뉴얼</a>
+        {% endif %}
       </div>
-      {% elif not effective_admin and logged_in %}
-      <form method="post" action="/auth/logout" class="sm:hidden inline">
-        <button class="px-3 py-1.5 border border-neutral-300 rounded-full text-xs">로그아웃</button>
-      </form>
-      {% endif %}
     </div>
   </nav>
 
@@ -98,13 +124,13 @@
   <nav class="sm:hidden fixed bottom-0 inset-x-0 z-30 bg-white border-t border-neutral-200 grid grid-cols-5 text-xs"
        style="padding-bottom: env(safe-area-inset-bottom);">
     <a href="/" class="py-2 text-center hover:bg-neutral-50">🏠<br><span class="text-[10px]">홈</span></a>
-    <a href="/persons" class="py-2 text-center hover:bg-neutral-50">👥<br><span class="text-[10px]">매물</span></a>
-    <a href="/encounters" class="py-2 text-center hover:bg-neutral-50">💞<br><span class="text-[10px]">만남</span></a>
+    <a href="/persons?owner=mine" class="py-2 text-center hover:bg-neutral-50">📋<br><span class="text-[10px]">내 매물</span></a>
+    <a href="/persons" class="py-2 text-center hover:bg-neutral-50">👥<br><span class="text-[10px]">전체</span></a>
     {% if AUTH_ENABLED %}
     <a href="/requests" class="py-2 text-center hover:bg-neutral-50">📨<br><span class="text-[10px]">요청</span></a>
     <a href="/settings" class="py-2 text-center hover:bg-neutral-50">👤<br><span class="text-[10px]">내정보</span></a>
     {% else %}
-    <a href="/compatibility" class="py-2 text-center hover:bg-neutral-50">🔀<br><span class="text-[10px]">호환성</span></a>
+    <a href="/encounters" class="py-2 text-center hover:bg-neutral-50">💞<br><span class="text-[10px]">만남</span></a>
     <a href="/manual" class="py-2 text-center hover:bg-neutral-50">📖<br><span class="text-[10px]">매뉴얼</span></a>
     {% endif %}
   </nav>

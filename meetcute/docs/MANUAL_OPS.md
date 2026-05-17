@@ -95,9 +95,13 @@ python -m app.seed --force      # 다 지우고 다시
 
 ## 5. 백업 (Dropbox / iCloud)
 
-데이터는 두 폴더에만 있음:
+데이터는 두 폴더 + **두 키 파일**에만 있음:
 - `meetcute/data/meetcute.db` — DB
 - `meetcute/uploads/` — 사진
+- `meetcute/.secret` — 세션 쿠키 서명 키 (사라지면 모든 사용자 다시 로그인)
+- `meetcute/.encryption_key` — **DB 필드 암호화 키** (사라지면 이름/이상형/메모/응답메모 등 모두 복구 불가)
+
+⚠️ **.encryption_key 가 가장 중요.** 이 파일 잃으면 암호화된 텍스트 영구 복구 불가. 백업 폴더에 꼭 같이 복사하세요.
 
 ### 방법 A — 심볼릭 링크 자동 (1회 셋업, ⭐ 추천)
 ```bash
@@ -134,6 +138,11 @@ cp -R ~/Dropbox/meetcute-backup/uploads/* uploads/
 
 ### 자동 적용
 - 세션 쿠키 서명 (`.secret` 자동 생성, chmod 600)
+- **DB 필드 암호화** (`.encryption_key` 자동 생성, Fernet/AES-128-CBC + HMAC)
+  - 암호화 대상: 이름(alias), 이상형, 주선자 메모, 만남 메모, 변경 이력, 요청/응답 메모
+  - 비암호화 (필터/검색 필요): public_id, 성별, 나이, 키, 거주지, 직장, 이메일/닉네임/텔레그램
+  - 백워드 호환: 기존 평문 데이터는 그대로 읽힘 (write 시점에 암호화됨)
+- 매물 공개 범위 (PUBLIC / RESTRICTED): RESTRICTED 매물은 owner + 책임자 + 허락된 admin 만 접근
 - bcrypt 비밀번호 해싱
 - SameSite=Lax 쿠키 (CSRF 차단)
 - 사진 URL 인증 게이트 (로그인 안 한 사람은 못 봄)

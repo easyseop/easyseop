@@ -4,14 +4,25 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Form, HTTPException, Request, UploadFile, File
+from fastapi import APIRouter, BackgroundTasks, Depends, Form, HTTPException, Request, UploadFile, File
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlmodel import Session, select
 
 from ..auth import get_current_user
 from ..config import AUTH_ENABLED, UPLOAD_DIR
 from ..database import get_session, next_public_id
-from ..models import Encounter, Gender, IntroRequestStatus, IntroductionRequest, Person, Photo, User
+from ..person_events import notify_new_person
+from ..models import (
+    Encounter,
+    Gender,
+    IntroRequestStatus,
+    IntroductionRequest,
+    Person,
+    PersonAllowedAdmin,
+    PersonVisibility,
+    Photo,
+    User,
+)
 from ..services.activity import (
     ActivityStats,
     activity_for_person,
@@ -97,13 +108,18 @@ def list_persons(
         stmt = stmt.where(Person.gender == gender_enum)
     if q:
         like = f"%{q}%"
+        # alias 는 암호화 저장이라 DB LIKE 가 안 됨. 검색은 public_id/location/workplace 만.
         stmt = stmt.where(
             (Person.public_id.like(like))
-            | (Person.alias.like(like))
             | (Person.location.like(like))
             | (Person.workplace.like(like))
         )
     persons = session.exec(stmt).all()
+
+    # 공개범위 필터: 책임자가 아니라면 RESTRICTED 매물 중 허락 안 된 것 제외
+    if AUTH_ENABLED and current_user and current_user.id and not current_user.is_owner:
+        allowed_set = _allowed_person_ids_for_user(session, current_user.id)
+        persons = [p for p in persons if _can_see_person(p, current_user, allowed_set)]
 
     # owner 필터 (AUTH=on 일 때만 의미)
     if AUTH_ENABLED and current_user and current_user.id:
@@ -195,6 +211,51 @@ def _admins(session: Session) -> list[User]:
     return session.exec(select(User).where(User.is_admin == True).order_by(User.email)).all()  # noqa: E712
 
 
+def _allowed_person_ids_for_user(session: Session, user_id: int) -> set[int]:
+    rows = session.exec(
+        select(PersonAllowedAdmin.person_id).where(PersonAllowedAdmin.user_id == user_id)
+    ).all()
+    return set(rows)
+
+
+def _can_see_person(
+    person: Person,
+    user: Optional[User],
+    allowed_set: Optional[set[int]] = None,
+    session: Optional[Session] = None,
+) -> bool:
+    """RESTRICTED 매물은 owner + 책임자 + 허용된 admin 만 볼 수 있음.
+    PUBLIC 은 모든 admin. AUTH=off 면 항상 허용."""
+    if not AUTH_ENABLED:
+        return True
+    if not user or not user.id:
+        return False
+    if user.is_owner:
+        return True
+    if person.owner_user_id == user.id:
+        return True
+    if person.visibility == PersonVisibility.PUBLIC:
+        return True
+    # RESTRICTED
+    if allowed_set is not None:
+        return person.id in allowed_set
+    if session is None:
+        return False
+    paa = session.exec(
+        select(PersonAllowedAdmin).where(
+            PersonAllowedAdmin.person_id == person.id,
+            PersonAllowedAdmin.user_id == user.id,
+        )
+    ).first()
+    return paa is not None
+
+
+def _require_view(person: Person, request: Request, session: Session) -> None:
+    user = get_current_user(request, session)
+    if not _can_see_person(person, user, session=session):
+        raise HTTPException(403, "이 매물을 볼 권한이 없습니다 (비공개 설정)")
+
+
 def _can_edit_person(person: Person, user: Optional[User]) -> bool:
     """등록한 owner 만 수정 가능. 책임자(is_owner) 는 모든 매물 수정 가능.
     미지정 매물은 누구나 (담아가게). AUTH=off (로컬) 면 항상 허용."""
@@ -233,6 +294,7 @@ def new_person_form(request: Request, session: Session = Depends(get_session)):
 @router.post("")
 async def create_person(
     request: Request,
+    background_tasks: BackgroundTasks,
     gender: Gender = Form(...),
     age: int = Form(...),
     location: str = Form(...),
@@ -279,6 +341,12 @@ async def create_person(
         session.add(Photo(person_id=person.id, filename=rel, order=i))
     session.commit()
 
+    # 새 매물 등록 알림 — 공개 범위 안의 다른 admin 들에게 (등록자 제외)
+    actor = get_current_user(request, session)
+    background_tasks.add_task(
+        notify_new_person, person.id, actor.id if actor and actor.id else None
+    )
+
     return RedirectResponse(f"/persons/{person.id}", status_code=303)
 
 
@@ -289,6 +357,7 @@ def person_detail(
     person = session.get(Person, person_id)
     if not person:
         raise HTTPException(404, "Person not found")
+    _require_view(person, request, session)
     photos = sorted(person.photos, key=lambda p: p.order)
     encs = encounters_for_person(session, person.id)
     status = derive_status(encs)
@@ -363,13 +432,24 @@ def edit_person_form(
         raise HTTPException(404, "Person not found")
     _require_edit(person, request, session)
     current_user = get_current_user(request, session)
+
+    # 현재 허용된 admin id 집합 (visibility 폼 채울 용)
+    allowed_admin_ids: set[int] = set()
+    if AUTH_ENABLED:
+        rows = session.exec(
+            select(PersonAllowedAdmin.user_id).where(PersonAllowedAdmin.person_id == person.id)
+        ).all()
+        allowed_admin_ids = set(rows)
+
     return templates.TemplateResponse(
         request,
         "persons/form.html",
         {
             "person": person,
             "Gender": Gender,
+            "PersonVisibility": PersonVisibility,
             "admins": _admins(session) if AUTH_ENABLED else [],
+            "allowed_admin_ids": allowed_admin_ids,
             "current_user": current_user,
         },
     )
@@ -387,6 +467,8 @@ async def update_person(
     notes: str = Form(""),
     alias: str = Form(""),
     owner_user_id: str = Form(""),
+    visibility: str = Form("PUBLIC"),
+    allowed_admins: list[int] = Form(default=[]),
     photos: list[UploadFile] = File(default=[]),
     session: Session = Depends(get_session),
 ):
@@ -424,6 +506,29 @@ async def update_person(
                 person.owner_user_id = None
         else:
             person.owner_user_id = None
+
+        # visibility 변경은 owner (또는 책임자) 만 가능
+        actor = get_current_user(request, session)
+        can_change_vis = bool(actor and (actor.is_owner or person.owner_user_id == actor.id))
+        if can_change_vis:
+            try:
+                new_vis = PersonVisibility(visibility)
+            except ValueError:
+                new_vis = PersonVisibility.PUBLIC
+            person.visibility = new_vis
+            # 기존 허용 목록 비우고 다시 채움
+            old = session.exec(
+                select(PersonAllowedAdmin).where(PersonAllowedAdmin.person_id == person.id)
+            ).all()
+            for paa in old:
+                session.delete(paa)
+            if new_vis == PersonVisibility.RESTRICTED:
+                for uid in allowed_admins:
+                    try:
+                        session.add(PersonAllowedAdmin(person_id=person.id, user_id=int(uid)))
+                    except (ValueError, TypeError):
+                        pass
+
     person.updated_at = datetime.utcnow()
     session.add(person)
 
@@ -484,6 +589,13 @@ def delete_person(person_id: int, request: Request, session: Session = Depends(g
     ).all()
     for r in reqs:
         session.delete(r)
+
+    # PersonAllowedAdmin (visibility allowlist) 정리
+    paas = session.exec(
+        select(PersonAllowedAdmin).where(PersonAllowedAdmin.person_id == person.id)
+    ).all()
+    for paa in paas:
+        session.delete(paa)
 
     person_dir = UPLOAD_DIR / str(person.id)
     session.delete(person)

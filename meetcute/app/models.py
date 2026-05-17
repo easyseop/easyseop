@@ -5,6 +5,8 @@ from typing import Optional
 from sqlalchemy import Column, Enum as SAEnum, Text
 from sqlmodel import Field, Relationship, SQLModel
 
+from .crypto import EncryptedText
+
 
 # ─── 긴 텍스트는 명시적으로 TEXT 컬럼 (MySQL의 VARCHAR-without-length 회피) ────
 def _text_col() -> Column:
@@ -13,6 +15,15 @@ def _text_col() -> Column:
 
 def _text_col_required() -> Column:
     return Column(Text, nullable=False)
+
+
+# ─── 암호화된 텍스트 컬럼 (개인정보/메모 등 민감한 필드)
+def _enc_text_col() -> Column:
+    return Column(EncryptedText(), nullable=False, default="")
+
+
+def _enc_text_col_required() -> Column:
+    return Column(EncryptedText(), nullable=False)
 
 
 # ─── enum 컬럼: SQLAlchemy ENUM 으로 (MySQL: ENUM 타입, SQLite: VARCHAR + CHECK)
@@ -41,6 +52,11 @@ class EncounterOutcome(str, Enum):
     @property
     def is_active(self) -> bool:
         return self in (EncounterOutcome.PENDING, EncounterOutcome.CONTINUING)
+
+
+class PersonVisibility(str, Enum):
+    PUBLIC = "PUBLIC"          # 모든 admin 에게 보임 (기본)
+    RESTRICTED = "RESTRICTED"  # owner + 책임자 + 명시된 admin 만
 
 
 class User(SQLModel, table=True):
@@ -74,10 +90,14 @@ class Person(SQLModel, table=True):
     location: str = Field(max_length=255)
     workplace: str = Field(max_length=255)
     height_cm: int
-    ideal_type: str = Field(default="", sa_column=_text_col())
-    notes: str = Field(default="", sa_column=_text_col())
-    alias: str = Field(default="", max_length=255)
+    ideal_type: str = Field(default="", sa_column=_enc_text_col())
+    notes: str = Field(default="", sa_column=_enc_text_col())
+    alias: str = Field(default="", sa_column=_enc_text_col())
     owner_user_id: Optional[int] = Field(default=None, foreign_key="user.id", index=True)
+    visibility: PersonVisibility = Field(
+        default=PersonVisibility.PUBLIC,
+        sa_column=_enum_col(PersonVisibility),
+    )
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
@@ -95,6 +115,12 @@ class Photo(SQLModel, table=True):
     person: Optional[Person] = Relationship(back_populates="photos")
 
 
+class PersonAllowedAdmin(SQLModel, table=True):
+    """visibility=RESTRICTED 인 매물에 대한 허용 admin 목록 (many-to-many)."""
+    person_id: int = Field(foreign_key="person.id", primary_key=True)
+    user_id: int = Field(foreign_key="user.id", primary_key=True)
+
+
 class Encounter(SQLModel, table=True):
     """소개팅 기록. Person 삭제 시 FK는 NULL, 스냅샷은 보존."""
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -107,7 +133,7 @@ class Encounter(SQLModel, table=True):
         default=EncounterOutcome.PENDING,
         sa_column=_enum_col(EncounterOutcome),
     )
-    notes: str = Field(default="", sa_column=_text_col())
+    notes: str = Field(default="", sa_column=_enc_text_col())
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
@@ -120,7 +146,7 @@ class PersonRevision(SQLModel, table=True):
     """
     id: Optional[int] = Field(default=None, primary_key=True)
     person_id: int = Field(foreign_key="person.id", index=True)
-    snapshot_json: str = Field(sa_column=_text_col_required())
+    snapshot_json: str = Field(sa_column=_enc_text_col_required())
     changed_by_user_id: Optional[int] = Field(default=None, foreign_key="user.id")
     changed_by_email: str = Field(default="", max_length=255)
     changed_at: datetime = Field(default_factory=datetime.utcnow)
@@ -147,12 +173,12 @@ class IntroductionRequest(SQLModel, table=True):
     to_user_id: int = Field(foreign_key="user.id", index=True)
     my_person_id: int = Field(foreign_key="person.id", index=True)
     their_person_id: int = Field(foreign_key="person.id", index=True)
-    message: str = Field(default="", sa_column=_text_col())
+    message: str = Field(default="", sa_column=_enc_text_col())
     status: IntroRequestStatus = Field(
         default=IntroRequestStatus.PENDING,
         sa_column=_enum_col(IntroRequestStatus),
     )
-    response_note: str = Field(default="", sa_column=_text_col())
+    response_note: str = Field(default="", sa_column=_enc_text_col())
     resolved_encounter_id: Optional[int] = Field(default=None, foreign_key="encounter.id")
     last_reminded_at: Optional[datetime] = Field(default=None)  # 마지막 재알림 시각 (없으면 한 번도 안 보냄)
     created_at: datetime = Field(default_factory=datetime.utcnow)
@@ -169,7 +195,7 @@ class EncounterEvent(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     encounter_id: int = Field(foreign_key="encounter.id", index=True)
     outcome: EncounterOutcome = Field(sa_column=_enum_col(EncounterOutcome))
-    note: str = Field(default="", sa_column=_text_col())
+    note: str = Field(default="", sa_column=_enc_text_col())
     changed_by_user_id: Optional[int] = Field(default=None, foreign_key="user.id")
     changed_by_email: str = Field(default="", max_length=255)
     created_at: datetime = Field(default_factory=datetime.utcnow)

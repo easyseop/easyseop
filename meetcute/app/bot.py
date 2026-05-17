@@ -483,6 +483,13 @@ def _finalize_registration(chat_id: str) -> None:
                 f"사진 {len(photo_paths)}장.\n"
                 f"웹에서 확인: /persons/{person.id}"
             ))
+
+        # 공개 대상 admin 들에게 알림 (등록자 제외)
+        try:
+            from .person_events import notify_new_person
+            notify_new_person(person.id, user_id)
+        except Exception as e:
+            logger.warning(f"new-person notify failed: {e}")
     except Exception as e:
         logger.exception("registration finalize failed")
         _send(chat_id, f"❌ 등록 실패: {e}")

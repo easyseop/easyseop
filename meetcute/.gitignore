@@ -3,6 +3,7 @@ __pycache__/
 .venv/
 .env
 .secret
+.encryption_key
 .public_url
 .last_known_url
 data/

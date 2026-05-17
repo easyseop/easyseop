@@ -11,6 +11,11 @@
         <span class="px-2 py-0.5 rounded-full text-xs font-medium border {{ status_badge_class(status) }}">
           {{ status_label(status) }}
         </span>
+        {% if person.visibility.value == 'RESTRICTED' and can_edit %}
+        <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700" title="비공개 매물 — 허용된 admin 만 볼 수 있음">
+          🔒 비공개
+        </span>
+        {% endif %}
       </h1>
       {# 이름(alias) 은 owner 본인 또는 책임자에게만 노출 #}
       {% if person.alias and can_edit %}<div class="text-sm text-neutral-500 mt-1">이름: {{ person.alias }}</div>{% endif %}
