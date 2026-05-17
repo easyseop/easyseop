@@ -10,6 +10,7 @@ from sqlmodel import Session, select
 from starlette.middleware.sessions import SessionMiddleware
 
 from .auth import require_admin
+from .bot import bot_poll_loop
 from .config import AUTH_ENABLED, BASE_DIR, PUBLIC_MODE, SECRET_IS_DEFAULT, SECRET_KEY, UPLOAD_DIR
 from .reminders import reminder_loop
 from .database import get_session, init_db
@@ -36,14 +37,16 @@ async def lifespan(app: FastAPI):
             "운영 시 반드시 강한 임의값으로 지정하세요."
         )
     reminder_task = asyncio.create_task(reminder_loop())
+    bot_task = asyncio.create_task(bot_poll_loop())
     try:
         yield
     finally:
-        reminder_task.cancel()
-        try:
-            await reminder_task
-        except asyncio.CancelledError:
-            pass
+        for t in (reminder_task, bot_task):
+            t.cancel()
+            try:
+                await t
+            except asyncio.CancelledError:
+                pass
 
 
 app = FastAPI(title="meetcute", lifespan=lifespan)
