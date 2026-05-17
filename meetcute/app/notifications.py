@@ -8,13 +8,26 @@
 """
 import logging
 import os
+import ssl
 import urllib.error
 import urllib.parse
 import urllib.request
 
+import certifi
+
 logger = logging.getLogger("meetcute.notifications")
 
 BOT_TOKEN = os.getenv("MEETCUTE_TELEGRAM_BOT_TOKEN", "").strip()
+
+# macOS python.org 빌드 등에서 시스템 인증서 못 찾아 SSL 검증 실패하는 케이스 우회.
+# certifi 가 제공하는 CA 번들을 명시적으로 사용.
+SSL_CONTEXT = ssl.create_default_context(cafile=certifi.where())
+
+
+def _open(url: str, *, data: bytes | None = None, timeout: int = 5):
+    method = "POST" if data is not None else "GET"
+    req = urllib.request.Request(url, data=data, method=method)
+    return urllib.request.urlopen(req, timeout=timeout, context=SSL_CONTEXT)
 
 
 def telegram_enabled() -> bool:
@@ -42,8 +55,7 @@ def send_telegram(chat_id: str, text: str) -> tuple[bool, str]:
         }
     ).encode("utf-8")
     try:
-        req = urllib.request.Request(url, data=data, method="POST")
-        with urllib.request.urlopen(req, timeout=5) as resp:
+        with _open(url, data=data) as resp:
             if resp.status == 200:
                 return True, ""
             return False, f"Telegram API HTTP {resp.status}"

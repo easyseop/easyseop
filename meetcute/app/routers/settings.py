@@ -1,6 +1,5 @@
 """유저 개인 설정 (텔레그램 chat_id 등록 등)."""
 import json
-import os
 import urllib.error
 import urllib.request
 
@@ -12,7 +11,7 @@ from ..auth import require_login
 from ..config import AUTH_ENABLED
 from ..database import get_session
 from ..models import User
-from ..notifications import BOT_TOKEN, send_telegram, telegram_enabled
+from ..notifications import BOT_TOKEN, SSL_CONTEXT, send_telegram, telegram_enabled
 from ..templating import templates
 
 router = APIRouter(prefix="/settings", tags=["settings"])
@@ -24,7 +23,7 @@ def _bot_info() -> tuple[str, str]:
         return "", "토큰 없음"
     try:
         url = f"https://api.telegram.org/bot{BOT_TOKEN}/getMe"
-        with urllib.request.urlopen(url, timeout=5) as resp:
+        with urllib.request.urlopen(url, timeout=5, context=SSL_CONTEXT) as resp:
             data = json.loads(resp.read())
         if not data.get("ok"):
             return "", data.get("description", "거부됨")
@@ -46,7 +45,7 @@ def _detect_chats() -> tuple[list[dict], str]:
         return [], "MEETCUTE_TELEGRAM_BOT_TOKEN 환경변수가 설정되지 않았습니다."
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/getUpdates"
     try:
-        with urllib.request.urlopen(url, timeout=5) as resp:
+        with urllib.request.urlopen(url, timeout=5, context=SSL_CONTEXT) as resp:
             data = json.loads(resp.read())
     except urllib.error.HTTPError as e:
         return [], f"Telegram HTTP {e.code} — 토큰이 잘못됐을 수 있습니다."

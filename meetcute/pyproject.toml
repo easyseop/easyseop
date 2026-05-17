@@ -15,6 +15,7 @@ dependencies = [
     "itsdangerous>=2.2",
     "pymysql>=1.1",
     "cryptography>=43",
+    "certifi>=2024.7",
 ]
 
 # 런타임에 data/ 와 uploads/ 폴더가 생기는데 setuptools 자동 탐지가
