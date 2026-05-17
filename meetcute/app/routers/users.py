@@ -1,9 +1,9 @@
-"""관리자 전용 유저 관리. 라우터 레벨에서 require_admin 적용됨."""
+"""책임자 (is_owner) 전용 유저 관리. 권한 토글 및 사용자 삭제."""
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlmodel import Session, select
 
-from ..auth import require_admin
+from ..auth import require_owner
 from ..database import get_session
 from ..models import User
 from ..templating import templates
@@ -14,7 +14,7 @@ router = APIRouter(prefix="/users", tags=["users"])
 @router.get("", response_class=HTMLResponse)
 def list_users(
     request: Request,
-    current_user: User = Depends(require_admin),
+    current_user: User = Depends(require_owner),
     session: Session = Depends(get_session),
 ):
     users = session.exec(select(User).order_by(User.created_at)).all()
@@ -28,7 +28,7 @@ def list_users(
 @router.post("/{user_id}/toggle-admin")
 def toggle_admin(
     user_id: int,
-    current_user: User = Depends(require_admin),
+    current_user: User = Depends(require_owner),
     session: Session = Depends(get_session),
 ):
     target = session.get(User, user_id)
@@ -54,7 +54,7 @@ def toggle_admin(
 @router.post("/{user_id}/delete")
 def delete_user(
     user_id: int,
-    current_user: User = Depends(require_admin),
+    current_user: User = Depends(require_owner),
     session: Session = Depends(get_session),
 ):
     target = session.get(User, user_id)

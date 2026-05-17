@@ -93,6 +93,9 @@ def get_current_user(
     if not user:
         request.session.clear()
         return None
+    # 세션 캐시된 권한 정보를 매 요청마다 최신화 (책임자가 권한 바꿔도 즉시 반영)
+    request.session["is_admin"] = user.is_admin
+    request.session["is_owner"] = user.is_owner
     return user
 
 
@@ -123,10 +126,24 @@ def require_admin(user: User = Depends(require_login)) -> User:
     return user
 
 
+def require_owner(user: User = Depends(require_admin)) -> User:
+    """책임자 전용 페이지 (유저 관리 등). AUTH=off 면 LOCAL_ADMIN 항상 통과."""
+    if not AUTH_ENABLED:
+        return LOCAL_ADMIN
+    if not user.is_owner:
+        raise HTTPException(
+            status_code=303,
+            detail="책임자 권한 필요",
+            headers={"Location": "/?err=책임자만+접근+가능합니다"},
+        )
+    return user
+
+
 def login_user(request: Request, user: User) -> None:
     request.session["user_id"] = user.id
     request.session["user_email"] = user.email
     request.session["is_admin"] = user.is_admin
+    request.session["is_owner"] = user.is_owner
 
 
 def logout_user(request: Request) -> None:

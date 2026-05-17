@@ -30,7 +30,9 @@
   {% set sess = request.session %}
   {% set logged_in = sess.get('user_id') %}
   {% set is_admin = sess.get('is_admin') %}
+  {% set is_owner = sess.get('is_owner') %}
   {% set effective_admin = (not AUTH_ENABLED) or is_admin %}
+  {% set effective_owner = (not AUTH_ENABLED) or is_owner %}
 
   {% if PUBLIC_MODE %}
   <div class="bg-pink-600 text-white text-xs text-center py-1 px-2">
@@ -55,7 +57,9 @@
           <a href="/compatibility" class="hover:text-pink-600">호환성</a>
           {% if AUTH_ENABLED %}
           <a href="/requests" class="hover:text-pink-600">📨 요청</a>
-          <a href="/users" class="hover:text-pink-600">유저</a>
+          {% if effective_owner %}
+          <a href="/users" class="hover:text-pink-600">👑 유저</a>
+          {% endif %}
           <a href="/settings" class="hover:text-pink-600">내정보</a>
           {% endif %}
           <a href="/manual" class="hover:text-pink-600 text-neutral-500">매뉴얼</a>
@@ -92,7 +96,9 @@
           <a href="/compatibility" class="py-2.5 border-b border-neutral-50 hover:text-pink-600">🔀 호환성 체크</a>
           {% if AUTH_ENABLED %}
           <a href="/requests" class="py-2.5 border-b border-neutral-50 hover:text-pink-600">📨 소개 요청</a>
-          <a href="/users" class="py-2.5 border-b border-neutral-50 hover:text-pink-600">👥 유저 관리</a>
+          {% if effective_owner %}
+          <a href="/users" class="py-2.5 border-b border-neutral-50 hover:text-pink-600">👑 유저 관리 (책임자만)</a>
+          {% endif %}
           <a href="/settings" class="py-2.5 border-b border-neutral-50 hover:text-pink-600">👤 내정보</a>
           {% endif %}
           <a href="/manual" class="py-2.5 border-b border-neutral-50 hover:text-pink-600">📖 매뉴얼</a>
