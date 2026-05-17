@@ -48,10 +48,16 @@ router = APIRouter(prefix="/persons", tags=["persons"])
 
 ALLOWED_EXT = {".jpg", ".jpeg", ".png", ".webp", ".heic"}
 MAX_PHOTOS = 5
+# 모바일 원본 사진(5–10MB) 그대로 두면 카드 그리드가 무거움.
+# 긴 변 기준 리사이즈 + JPEG quality 압축 → 보통 1/10 이하로 줄어듦.
+PHOTO_MAX_DIM = 1600
+PHOTO_JPEG_QUALITY = 85
+PHOTO_WEBP_QUALITY = 85
 
 
 def _save_photo(person_id: int, upload: UploadFile) -> str:
-    """사진 저장. EXIF orientation 자동 보정 (모바일 사진이 거꾸로/옆으로 뜨는 거 방지)."""
+    """사진 저장. EXIF orientation 자동 보정 + 긴 변 1600px 리사이즈 + 압축.
+    HEIC 는 PIL 기본 미지원 → 원본 복사."""
     from PIL import Image, ImageOps
 
     ext = Path(upload.filename or "").suffix.lower()
@@ -62,20 +68,29 @@ def _save_photo(person_id: int, upload: UploadFile) -> str:
     name = f"{uuid.uuid4().hex}{ext}"
     dest = person_dir / name
 
-    # heic 는 PIL 기본 미지원 → 원본 그대로 저장
     if ext == ".heic":
         with dest.open("wb") as f:
             shutil.copyfileobj(upload.file, f)
         return f"{person_id}/{name}"
 
-    # 그 외는 PIL 로 열어서 EXIF 회전 적용 후 저장
     try:
         img = Image.open(upload.file)
         img = ImageOps.exif_transpose(img)
+        # 긴 변이 PHOTO_MAX_DIM 보다 크면 비율 유지 축소
+        w, h = img.size
+        if max(w, h) > PHOTO_MAX_DIM:
+            img.thumbnail((PHOTO_MAX_DIM, PHOTO_MAX_DIM), Image.LANCZOS)
         # JPEG 는 RGBA 지원 X — 변환
         if ext in (".jpg", ".jpeg") and img.mode in ("RGBA", "P"):
             img = img.convert("RGB")
-        img.save(dest)
+        save_kwargs: dict = {}
+        if ext in (".jpg", ".jpeg"):
+            save_kwargs = {"quality": PHOTO_JPEG_QUALITY, "optimize": True, "progressive": True}
+        elif ext == ".webp":
+            save_kwargs = {"quality": PHOTO_WEBP_QUALITY, "method": 6}
+        elif ext == ".png":
+            save_kwargs = {"optimize": True}
+        img.save(dest, **save_kwargs)
     except Exception:
         # 파싱 실패 시 원본 그대로
         upload.file.seek(0)
