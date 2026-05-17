@@ -1,6 +1,7 @@
 __pycache__/
 *.pyc
 .venv/
+uv.lock
 .env
 .secret
 .encryption_key
