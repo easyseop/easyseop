@@ -1,0 +1,75 @@
+name: Sync meetcute/ to easyseop/meetcute
+
+# 이 워크플로우는 meetcute/ 폴더에 변경이 push 될 때마다 자동 실행돼,
+# meetcute/ 폴더 내용을 별개 비공개 레포 easyseop/meetcute:main 으로 동기화.
+#
+# 흐름:
+#   easyseop/easyseop:meetcute/  →  easyseop/meetcute:main
+#
+# 필요한 secret: MEETCUTE_PAT (repo 권한 PAT, easyseop/easyseop 의 Settings →
+# Secrets → Actions 에 등록됨)
+
+on:
+  push:
+    paths:
+      - 'meetcute/**'
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source (easyseop/easyseop)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Configure git
+        run: |
+          git config --global user.email "actions@github.com"
+          git config --global user.name "GitHub Actions (sync)"
+
+      - name: Clone target (easyseop/meetcute) with PAT
+        run: |
+          git clone --depth=1 \
+            https://x-access-token:${{ secrets.MEETCUTE_PAT }}@github.com/easyseop/meetcute.git target
+
+      - name: Sync meetcute/ → target root
+        run: |
+          # 데이터/키 파일/캐시는 절대 동기화 안 함 (이미 gitignore 처리 돼있긴 하지만 이중 안전).
+          # --delete: 원본에서 사라진 파일은 타겟에서도 삭제 (히스토리 깨끗).
+          rsync -av \
+            --delete \
+            --exclude='.git/' \
+            --exclude='data/' \
+            --exclude='uploads/' \
+            --exclude='backups/' \
+            --exclude='.encryption_key' \
+            --exclude='.secret' \
+            --exclude='.env' \
+            --exclude='.public_url' \
+            --exclude='.last_known_url' \
+            --exclude='__pycache__/' \
+            --exclude='*.pyc' \
+            --exclude='.venv/' \
+            --exclude='*.egg-info/' \
+            --exclude='.ruff_cache/' \
+            --exclude='.DS_Store' \
+            --exclude='uv.lock' \
+            meetcute/ target/
+
+      - name: Commit and push to target
+        run: |
+          cd target
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "✅ 변경 없음 — 동기화 건너뜀"
+            exit 0
+          fi
+          echo "변경 사항:"
+          git status --short
+          git add -A
+          git commit -m "sync from easyseop/easyseop@${GITHUB_SHA::7}
+
+          source: ${{ github.event.head_commit.message }}"
+          git push
+          echo "✅ 동기화 완료"
