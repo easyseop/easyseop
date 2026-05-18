@@ -7,6 +7,7 @@ from sqlmodel import Session, select, or_, and_
 
 from ..database import get_session
 from ..models import Encounter, Person
+from ..routers.blacklist import is_blacklisted
 from ..services.status import (
     derive_status,
     encounters_for_person,
@@ -49,6 +50,12 @@ def compatibility(
         shared = _shared_encounters(session, person_a.id, person_b.id)
         a_status = derive_status(encounters_for_person(session, person_a.id))
         b_status = derive_status(encounters_for_person(session, person_b.id))
+
+        if is_blacklisted(session, person_a.id, person_b.id):
+            notes.append({
+                "level": "warn",
+                "text": "🚫 블랙리스트 페어 — 절대 매칭 금지로 마킹됨.",
+            })
 
         if shared:
             notes.append({

@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}블랙리스트 · meetcute{% endblock %}
+{% block content %}
+<div class="space-y-4">
+  <div class="flex items-center justify-between gap-2 flex-wrap">
+    <div>
+      <h1 class="text-2xl font-bold">🚫 블랙리스트</h1>
+      <p class="text-sm text-neutral-500 mt-1">"이 둘은 절대 매칭 안 됨" 페어. 호환성 페이지 + 만남/요청 생성 시 자동 경고.</p>
+    </div>
+  </div>
+
+  <!-- 추가 폼 -->
+  <details class="bg-white border border-neutral-200 rounded-xl" {% if not pairs %}open{% endif %}>
+    <summary class="cursor-pointer p-3 text-sm font-medium hover:bg-neutral-50 rounded-xl">
+      + 새 블랙리스트 페어 추가
+    </summary>
+    <form method="post" action="/blacklist" class="p-3 pt-0 space-y-2">
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <select name="person_a_id" required class="px-3 py-2 border border-neutral-300 rounded-lg text-sm">
+          <option value="">-- 매물 A 선택 --</option>
+          {% for p in all_persons %}
+          <option value="{{ p.id }}">{{ p.public_id }} ({{ p.gender.value }} {{ p.age }}세 · {{ p.location }})</option>
+          {% endfor %}
+        </select>
+        <select name="person_b_id" required class="px-3 py-2 border border-neutral-300 rounded-lg text-sm">
+          <option value="">-- 매물 B 선택 --</option>
+          {% for p in all_persons %}
+          <option value="{{ p.id }}">{{ p.public_id }} ({{ p.gender.value }} {{ p.age }}세 · {{ p.location }})</option>
+          {% endfor %}
+        </select>
+      </div>
+      <input type="text" name="reason" placeholder="이유 (선택) — 예: 이미 한 번 만나 안 됐음 / 서로 아는 사이"
+             class="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm" />
+      <button class="px-4 py-2 bg-neutral-800 text-white rounded-lg text-sm">추가</button>
+    </form>
+  </details>
+
+  {% if pairs %}
+  <div class="bg-white border border-neutral-200 rounded-xl overflow-hidden">
+    <ul class="divide-y divide-neutral-100">
+      {% for pair in pairs %}
+      {% set a = persons.get(pair.person_a_id) %}
+      {% set b = persons.get(pair.person_b_id) %}
+      <li class="px-3 py-3 flex items-center gap-3 hover:bg-neutral-50">
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2 text-sm flex-wrap">
+            {% if a %}
+            <a href="/persons/{{ a.id }}" class="font-mono font-semibold hover:text-pink-600">{{ a.public_id }}</a>
+            <span class="text-xs text-neutral-400">{{ a.gender.label }} · {{ a.age }}세</span>
+            {% else %}
+            <span class="text-neutral-400">#{{ pair.person_a_id }} (삭제됨)</span>
+            {% endif %}
+            <span class="text-red-500 font-bold">✕</span>
+            {% if b %}
+            <a href="/persons/{{ b.id }}" class="font-mono font-semibold hover:text-pink-600">{{ b.public_id }}</a>
+            <span class="text-xs text-neutral-400">{{ b.gender.label }} · {{ b.age }}세</span>
+            {% else %}
+            <span class="text-neutral-400">#{{ pair.person_b_id }} (삭제됨)</span>
+            {% endif %}
+          </div>
+          {% if pair.reason %}
+          <div class="text-xs text-neutral-600 mt-1">{{ pair.reason }}</div>
+          {% endif %}
+          <div class="text-xs text-neutral-400 mt-1">
+            {{ pair.created_by_display or "(?)" }} · {{ pair.created_at|human_time }}
+          </div>
+        </div>
+        <form method="post" action="/blacklist/{{ pair.person_a_id }}_{{ pair.person_b_id }}/delete">
+          <button type="submit" class="px-3 py-1.5 text-xs text-red-600 border border-neutral-300 rounded-lg hover:bg-red-50"
+                  onclick="return confirm('이 페어 블랙리스트에서 해제할까요?')">
+            해제
+          </button>
+        </form>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% else %}
+  <div class="bg-white rounded-xl border border-dashed border-neutral-300 p-12 text-center">
+    <div class="text-5xl mb-3">📭</div>
+    <p class="text-neutral-500">블랙리스트가 비어있어요.</p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

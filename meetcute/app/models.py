@@ -203,6 +203,18 @@ class IntroductionRequest(SQLModel, table=True):
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
 
+class BlacklistedPair(SQLModel, table=True):
+    """A와 B는 절대 매칭하지 말 것 마킹. 호환성 페이지에서 자동 제외, 만남/요청
+    생성 시 경고. 페어는 canonical 형태로 저장 (min(id), max(id)) — 양방향
+    중복 행 방지."""
+    person_a_id: int = Field(foreign_key="person.id", primary_key=True)
+    person_b_id: int = Field(foreign_key="person.id", primary_key=True)
+    reason: str = Field(default="", sa_column=_legacy_enc_text_col())
+    created_by_user_id: Optional[int] = Field(default=None, foreign_key="user.id")
+    created_by_display: str = Field(default="", max_length=128)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
 class ActivityLog(SQLModel, table=True):
     """마담뚜 활동 통합 로그. 책임자가 누가-언제-뭘 했는지 한눈에 보려고.
 
