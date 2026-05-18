@@ -209,21 +209,17 @@ def save_nickname(
     return RedirectResponse("/settings?flash=닉네임+저장됨", status_code=303)
 
 
-@router.post("/nickname/reroll")
-def reroll_nickname(
+@router.get("/nickname/random")
+def random_nickname_preview(
     current_user: User = Depends(require_login),
-    session: Session = Depends(get_session),
 ):
+    """랜덤 닉네임 미리보기 (저장 안 함, JSON 반환).
+    프론트에서 '🎲 새로 뽑기' 누르면 이 endpoint 호출 → input 에만 채움.
+    실제 저장은 '저장' 버튼으로만."""
     if not AUTH_ENABLED:
-        return RedirectResponse("/", status_code=303)
-    user = session.get(User, current_user.id)
-    if not user:
-        return RedirectResponse("/", status_code=303)
+        return {"nickname": ""}
     from ..nicknames import random_nickname
-    user.nickname = random_nickname()
-    session.add(user)
-    session.commit()
-    return RedirectResponse(f"/settings?flash=새+닉네임+'{user.nickname}'", status_code=303)
+    return {"nickname": random_nickname()}
 
 
 # 흔한 약한 비밀번호 차단 (대소문자 무관). 실제로 자주 시도되는 것들.
