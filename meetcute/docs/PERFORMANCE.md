@@ -244,6 +244,38 @@ SessionMiddleware 보다 나중에 add → 응답 체인에서 outermost, 세션
 
 ---
 
+## 9. gzip 적용 후에도 탭 전환이 끈적함 — View Transitions + 전체 body swap
+
+### 원인
+8번 (gzip) 으로 HTML 전송 자체는 17ms 로 줄였는데도 탭 전환이 살짝 느린
+체감. 두 가지 누적:
+
+1. **View Transitions API 페이드** — `@view-transition { navigation: auto }` +
+   `mc-fade-out 0.15s` + `mc-fade-in 0.2s` = 매 전환마다 강제 350ms 애니메이션.
+   응답이 빠르든 늦든 350ms 페이드는 무조건 보임.
+2. **htmx-boost 가 body 전체 swap** — 기본 `hx-target` 이 body 라 base.html 의
+   inline `<script>` (htmx config, progress bar, 글로벌 핸들러 등) 도 매번
+   재실행. 큰 비용은 아니지만 0이 아님.
+
+### 해결
+1. `@view-transition { navigation: none }` + `htmx.config.globalViewTransitions = false`
+   로 View Transitions 완전 끔. 진행바 cleanup 시간도 250ms → 100ms 로 단축.
+   `window.scrollTo({top:0, behavior:'instant'})` 가 iOS Safari 에서 미흡할
+   때 있어 sync `scrollTo(0, 0)` 로 변경.
+2. `<body hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML">`
+   — htmx 가 `<main>` 만 교체. nav/스크립트는 그대로 유지.
+
+### 효과
+- 전환 페이드 350ms → 0ms (지각상 가장 큰 개선)
+- main-only swap: body 재실행 비용 제거 (정량 측정 어렵지만 매 전환마다
+  base.html 의 inline JS 가 다시 안 돌아가는 효과)
+- 백엔드 응답 측정 (gzip + main only):
+  `GET /persons?owner=mine` median 56ms, 10.7KB gzip
+
+탭 클릭 → 즉시 새 콘텐츠 표시 느낌. 사진은 캐시 hit 라 0ms.
+
+---
+
 ## 부록 A. 진단해본 다른 후보 (병목 아님으로 확인)
 
 ### 필드 암호화 (`enc1:` Fernet)
