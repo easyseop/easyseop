@@ -157,27 +157,35 @@ URL-encode.
 
 ---
 
-## 7-bis. (회귀) 6번 적용 후 슬라이드 자체가 안 됨
+## 7-bis. (회귀) 6번 적용 후 슬라이드 자체가 안 됨 → 6번 롤백
 
 ### 원인
 6번에서 두 번째 사진부터 `src` 대신 `data-src` 로만 들고 있게 했는데,
 `<img>` 가 src 없으면 **layout box 가 0폭으로 무너짐**. 가로로 스와이프할
-공간 자체가 사라져서 첫 장만 표시되는 슬라이드 한 칸으로 변함. 사용자
-입장에서 "옆으로 넘겨도 아무 것도 안 일어남" = 슬라이드가 망가진 걸로 보임.
+공간 자체가 사라져서 첫 장만 표시되는 슬라이드 한 칸으로 변함.
 
-### 해결 (`<다음 커밋>`)
-4:3 비율의 투명 SVG 데이터 URL 을 자리표시자 `src` 로 박음:
-```html
-<img src="data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 4 3'%3E%3C/svg%3E"
-     data-src="/uploads/.../photo_thumb.jpg" />
-```
-이러면 img 가 정상 layout 잡고 (`w-full h-full` 적용됨), 손가락 대면
-hydrate() 가 진짜 URL 로 src 교체. bg-neutral-100 으로 회색 자리표시
-색깔만 보이다 진짜 사진으로 교체됨.
+### 1차 시도 (실패): 투명 SVG 자리표시자
+4:3 비율의 빈 SVG 를 src 로 박아 자리 확보 시도. 하지만 viewBox 만 있고
+width/height 가 없는 SVG 는 intrinsic 크기가 0 으로 잡히고, flex 컨테이너
+안에서 모든 img 가 같은 자리에 겹쳐서 여전히 슬라이드 안 됨. 사용자
+"1/3 인데 다음 사진으로 안 넘어간다" 로 확인.
+
+### 2차 해결 — 6번을 그냥 롤백 (`b4d37f5` 이후)
+모든 사진을 즉시 로드하는 원래 방식으로 복귀. 작은 썸네일 (~10KB) 이라
+30 카드 × 3장 = 90 요청 × 10KB ≈ 900KB. HTTP/2 멀티플렉싱 + Cache-Control 1일
+캐시 (`Cache-Control: private, max-age=86400, immutable`) 로 첫 방문만 비용
+지불, 그 후로는 캐시 히트.
+
+### 진짜 lazy 가 필요해지면 (나중에)
+- IntersectionObserver 로 strip 이 viewport 진입 시 hydrate
+- OR width/height attribute 명시한 placeholder img (intrinsic 크기 강제)
+- OR background-image 로 미리 그리고 진짜 img 는 hydrate 시 만듦
+지금은 슬라이드 안정성이 더 중요해서 미룸.
 
 ### 교훈
-빈 src 의 img 는 layout 잡지 못함. 자리표시자 (data URL 또는 width/height
-attr) 가 반드시 필요.
+- 빈 src 의 img 는 layout 잡지 못함.
+- viewBox-only SVG 도 intrinsic 크기가 0.
+- flex 안에선 w-full 만으로는 부족 — 실제 컨텐츠가 있어야 자리가 잡힘.
 
 ---
 

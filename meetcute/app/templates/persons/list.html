@@ -139,20 +139,13 @@
         {% set _photos = p.photos | sort(attribute='order') | list %}
         {% if _photos %}
           {% if _photos|length > 1 %}
-          {# 여러 장: 첫 장만 즉시 로드, 나머지는 4:3 투명 SVG 자리표시자 + data-src.
-             자리표시자가 있어야 slide 가능한 공간이 잡힘 (이전엔 src 없어서 0폭으로 무너짐).
-             사용자가 손가락 대면 (touchstart/scroll/mouseenter) 진짜 사진 URL 로 교체. #}
-          {% set _ph_placeholder = "data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 4 3'%3E%3C/svg%3E" %}
+          {# 여러 장: 작은 썸네일 (~10KB) 이라 모두 즉시 로드해도 큰 부담 아님.
+             자리표시자 + data-src 방식은 빈 src img 의 layout 문제 때문에 슬라이드가
+             무너지는 회귀가 있었음 — PERFORMANCE.md §7-bis 참고. #}
           <div class="mc-photo-strip absolute inset-0 overflow-x-auto snap-x snap-mandatory flex scroll-smooth">
             {% for ph in _photos %}
-            {% if loop.first %}
             <img loading="lazy" decoding="async" src="/uploads/{{ ph.filename|thumb_url }}"
-                 class="snap-center shrink-0 w-full h-full object-cover" />
-            {% else %}
-            <img loading="lazy" decoding="async" src="{{ _ph_placeholder }}"
-                 data-src="/uploads/{{ ph.filename|thumb_url }}"
                  class="snap-center shrink-0 w-full h-full object-cover bg-neutral-100" />
-            {% endif %}
             {% endfor %}
           </div>
           <span class="mc-photo-counter absolute bottom-2 right-2 bg-black/60 text-white text-[11px] px-2 py-0.5 rounded-full pointer-events-none font-medium">
@@ -242,14 +235,6 @@
 </style>
 <script>
   (function() {
-    function hydrate(strip) {
-      // 두 번째 사진부터는 data-src 로 lazy. 사용자가 interaction 시작하면 모두 로드.
-      strip.querySelectorAll('img[data-src]').forEach(img => {
-        img.src = img.dataset.src;
-        img.removeAttribute('data-src');
-      });
-    }
-
     function attach(strip) {
       const parent = strip.parentElement;
       const counter = parent.querySelector('.mc-photo-counter');
@@ -269,7 +254,6 @@
       strip.addEventListener('scroll', () => {
         cancelAnimationFrame(raf);
         raf = requestAnimationFrame(update);
-        if (strip.scrollLeft > 5) hydrate(strip);  // 스와이프 시작 → 나머지 사진 hydrate
       }, { passive: true });
 
       // 카드 전체가 <a> 로 감싸여 있어 swipe 가 click 으로 인식되면 매물 상세로 튕김.
@@ -279,7 +263,6 @@
         startX = e.touches[0].clientX;
         startY = e.touches[0].clientY;
         moved = false;
-        hydrate(strip);  // 카드 터치 시작과 동시에 hydrate (스크롤 더 부드러움)
       }, { passive: true });
       strip.addEventListener('touchmove', (e) => {
         const dx = Math.abs(e.touches[0].clientX - startX);
@@ -293,8 +276,6 @@
           moved = false;
         }
       }, { capture: true });
-      // 데스크탑: 마우스로 호버할 때 hydrate
-      strip.addEventListener('mouseenter', () => hydrate(strip), { once: true });
     }
     document.querySelectorAll('.mc-photo-strip').forEach(s => {
       if (!s.dataset.mcBound) { s.dataset.mcBound = '1'; attach(s); }
