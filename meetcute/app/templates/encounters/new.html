@@ -12,7 +12,7 @@
           <option value="">선택</option>
           {% for p in all_persons %}
           <option value="{{ p.id }}" {% if preset_a == p.id %}selected{% endif %}>
-            {{ p.public_id }} · {{ p.age }}세 · {{ p.location }}{% if p.alias %} ({{ p.alias }}){% endif %}
+            {{ p.public_id }} · {{ p.year_label }} · {{ p.location }}{% if p.alias %} ({{ p.alias }}){% endif %}
           </option>
           {% endfor %}
         </select>
@@ -23,7 +23,7 @@
           <option value="">선택</option>
           {% for p in all_persons %}
           <option value="{{ p.id }}" {% if preset_b == p.id %}selected{% endif %}>
-            {{ p.public_id }} · {{ p.age }}세 · {{ p.location }}{% if p.alias %} ({{ p.alias }}){% endif %}
+            {{ p.public_id }} · {{ p.year_label }} · {{ p.location }}{% if p.alias %} ({{ p.alias }}){% endif %}
           </option>
           {% endfor %}
         </select>

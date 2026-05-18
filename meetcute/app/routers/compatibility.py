@@ -71,10 +71,13 @@ def compatibility(
                 "text": f"같은 성별({person_a.gender.value}) — 동성 매칭 의도인지 확인.",
             })
 
-        age_diff = abs(person_a.age - person_b.age)
+        # 출생연도 차이 (같은 세기 가정). 50 보다 차이가 크면 세기 다른 경우라 100 빼서 보정.
+        yr_diff = abs(person_a.birth_year - person_b.birth_year)
+        if yr_diff > 50:
+            yr_diff = 100 - yr_diff
         notes.append({
-            "level": "info" if age_diff <= 5 else "warn",
-            "text": f"나이 차이 {age_diff}살.",
+            "level": "info" if yr_diff <= 5 else "warn",
+            "text": f"출생연도 차이 {yr_diff}년.",
         })
 
         height_diff = abs(person_a.height_cm - person_b.height_cm)

@@ -79,7 +79,7 @@ def notify_new_person(person_id: int, registered_by_user_id: Optional[int] = Non
 
         msg = (
             f"🆕 <b>새 매물 등록</b>\n\n"
-            f"<b>{person.public_id}</b> · {person.gender.label} · {person.age}세 · {person.height_cm}cm\n"
+            f"<b>{person.public_id}</b> · {person.gender.label} · {person.year_label} · {person.height_cm}cm\n"
             f"📍 {person.location}\n"
             f"💼 {person.workplace}"
             f"{alias_note}{ideal_note}\n"

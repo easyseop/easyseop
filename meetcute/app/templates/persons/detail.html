@@ -13,7 +13,7 @@
           </button>
         </form>
         {{ person.public_id }}
-        <span class="text-sm font-normal text-neutral-500">{{ person.gender.label }} · {{ person.age }}세</span>
+        <span class="text-sm font-normal text-neutral-500">{{ person.gender.label }} · {{ person.year_label }}</span>
         <span class="px-2 py-0.5 rounded-full text-xs font-medium border {{ status_badge_class(status) }}">
           {{ status_label(status) }}
         </span>
@@ -214,7 +214,7 @@
       <div><span class="text-neutral-500">거주지</span><div class="font-medium">{{ person.location }}</div></div>
       <div><span class="text-neutral-500">직장</span><div class="font-medium">{{ person.workplace }}</div></div>
       <div><span class="text-neutral-500">키</span><div class="font-medium">{{ person.height_cm }}cm</div></div>
-      <div><span class="text-neutral-500">나이</span><div class="font-medium">{{ person.age }}세</div></div>
+      <div><span class="text-neutral-500">나이</span><div class="font-medium">{{ person.year_label }}</div></div>
     </div>
     {% if person.ideal_type %}
     <div class="text-sm">
@@ -260,7 +260,7 @@
           <span class="text-neutral-400">→</span>
           {% if other %}
           <a href="/persons/{{ other.id }}" class="font-mono font-semibold hover:text-pink-600">{{ other.public_id }}</a>
-          <span class="text-neutral-500 text-xs">{{ other.age }}세 · {{ other.location }}</span>
+          <span class="text-neutral-500 text-xs">{{ other.year_label }} · {{ other.location }}</span>
           {% else %}
           <span class="font-mono text-neutral-400 line-through">{{ other_snap or '?' }}</span>
           {% endif %}

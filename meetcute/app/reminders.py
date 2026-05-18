@@ -39,7 +39,7 @@ ENCOUNTER_CONTINUING_DAYS = int(os.getenv("MEETCUTE_ENCOUNTER_CONTINUING_DAYS", 
 def _person_summary(p):
     if not p:
         return "(삭제됨)"
-    return f"{p.public_id} ({p.gender.value} {p.age}세 · {p.location})"
+    return f"{p.public_id} ({p.gender.value} {p.year_label} · {p.location})"
 
 
 def _send_pending_reminders() -> int:

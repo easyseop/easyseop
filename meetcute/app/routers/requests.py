@@ -165,7 +165,7 @@ def _notify(user: Optional[User], text: str) -> None:
 def _person_summary(p: Optional[Person]) -> str:
     if not p:
         return "(삭제된 매물)"
-    bits = [p.public_id, f"{p.gender.value}", f"{p.age}세", p.location]
+    bits = [p.public_id, f"{p.gender.value}", p.year_label, p.location]
     if p.workplace:
         bits.append(p.workplace)
     return " · ".join(bits)

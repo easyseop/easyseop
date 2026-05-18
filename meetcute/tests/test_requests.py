@@ -48,7 +48,7 @@ def two_admins(client, session):
     client.post(
         "/persons",
         data={
-            "gender": "M", "age": "30", "location": "서울",
+            "gender": "M", "birth_year": "95", "location": "서울",
             "workplace": "회사", "height_cm": "178",
             "owner_user_id": str(boss_id),
         },
@@ -58,7 +58,7 @@ def two_admins(client, session):
     client.post(
         "/persons",
         data={
-            "gender": "F", "age": "28", "location": "서울",
+            "gender": "F", "birth_year": "97", "location": "서울",
             "workplace": "회사", "height_cm": "165",
             "owner_user_id": str(noob_id),
         },

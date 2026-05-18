@@ -104,7 +104,7 @@
     <li>
       <a href="/persons/{{ p.id }}" class="flex items-center gap-3 px-3 py-2.5 hover:bg-neutral-50">
         <span class="font-mono font-semibold text-sm shrink-0">{% if p.is_starred %}<span class="text-yellow-500" title="즐겨찾기">⭐</span> {% endif %}{{ p.public_id }}</span>
-        <span class="text-xs text-neutral-500 shrink-0">{{ p.gender.label }} · {{ p.age }}세 · {{ p.height_cm }}cm</span>
+        <span class="text-xs text-neutral-500 shrink-0">{{ p.gender.label }} · {{ p.year_label }} · {{ p.height_cm }}cm</span>
         <span class="text-xs text-neutral-600 truncate flex-1 min-w-0">
           {{ p.location }} · {{ p.workplace }}
           {% if p.alias and (not AUTH_ENABLED or _is_mine) %}
@@ -187,7 +187,7 @@
       </div>
       <div class="p-3 text-sm">
         <div class="flex items-center gap-2">
-          <span class="font-semibold">{{ p.age }}세</span>
+          <span class="font-semibold">{{ p.year_label }}</span>
           <span class="text-neutral-500">· {{ p.location }}</span>
         </div>
         <div class="text-neutral-500 text-xs mt-0.5 truncate">{{ p.workplace }} · {{ p.height_cm }}cm</div>

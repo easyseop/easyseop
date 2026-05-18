@@ -53,7 +53,10 @@ _FIELD_MAP = {
     "지역": "location",
     "직장": "workplace",
     "회사": "workplace",
-    "나이": "age",
+    "출생연도": "birth_year",
+    "출생년도": "birth_year",
+    "년생": "birth_year",
+    "나이": "age",  # 옛 양식 호환 — 입력되면 birth_year 로 변환
     "키": "height_cm",
     "신장": "height_cm",
     "이상형": "ideal_type",
@@ -71,7 +74,7 @@ FORM_TEMPLATE = (
     "이름: \n"
     "사는곳: \n"
     "직장: \n"
-    "나이: \n"
+    "출생연도: (2자리, 예: 99 또는 03)\n"
     "키: \n"
     "</code>\n"
     "선택사항도 같이 넣을 수 있어요:\n"
@@ -158,13 +161,20 @@ def _validate_form(raw: dict[str, str]) -> tuple[dict, list[str]]:
     else:
         cleaned["gender"] = g
 
+    # 출생연도 우선, 없으면 옛 양식의 "나이" 입력값에서 추정
     try:
-        age = int(raw.get("age", "").strip())
-        if not (18 <= age <= 99):
-            raise ValueError
-        cleaned["age"] = age
+        by_raw = raw.get("birth_year", "").strip()
+        if by_raw:
+            by = int(by_raw) % 100
+            cleaned["birth_year"] = by
+        else:
+            age = int(raw.get("age", "").strip())
+            if not (18 <= age <= 99):
+                raise ValueError
+            from datetime import date as _date
+            cleaned["birth_year"] = (_date.today().year - age) % 100
     except (ValueError, AttributeError):
-        errors.append("나이: 18~99 사이 숫자로")
+        errors.append("출생연도: 2자리 숫자 (예: 99) / 또는 나이: 18~99")
 
     try:
         h = int(raw.get("height_cm", "").strip())
@@ -368,7 +378,7 @@ def _handle_text(chat_id: str, text: str, user: Optional[User]) -> None:
         sess["state"] = STATE_REG_PHOTOS
         summary = (
             f"✅ <b>입력 확인</b>\n"
-            f"성별: {cleaned['gender']} · 나이: {cleaned['age']} · 키: {cleaned['height_cm']}cm\n"
+            f"성별: {cleaned['gender']} · 출생연도: {cleaned['birth_year']:02d}년생 · 키: {cleaned['height_cm']}cm\n"
             f"사는곳: {cleaned['location']}\n"
             f"직장: {cleaned['workplace']}\n"
         )
@@ -445,7 +455,8 @@ def _finalize_registration(chat_id: str) -> None:
             person = Person(
                 public_id=pid,
                 gender=gender,
-                age=data["age"],
+                age=0,  # 레거시 — birth_year 가 메인
+                birth_year=data["birth_year"],
                 location=data["location"],
                 workplace=data["workplace"],
                 height_cm=data["height_cm"],

@@ -32,7 +32,7 @@ def test_activity_log_records_key_actions(client, session):
     client.post(
         "/persons",
         data={
-            "gender": "M", "age": "30", "location": "서울",
+            "gender": "M", "birth_year": "95", "location": "서울",
             "workplace": "회사", "height_cm": "178",
         },
         follow_redirects=False,

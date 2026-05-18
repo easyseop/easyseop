@@ -353,7 +353,7 @@ async def create_person(
     request: Request,
     background_tasks: BackgroundTasks,
     gender: Gender = Form(...),
-    age: int = Form(...),
+    birth_year: int = Form(...),  # 2자리 출생연도 (예: 99 = 1999년생)
     location: str = Form(...),
     workplace: str = Form(...),
     height_cm: int = Form(...),
@@ -365,6 +365,8 @@ async def create_person(
     session: Session = Depends(get_session),
 ):
     public_id = next_public_id(session, gender)
+    # 0-99 범위 강제
+    birth_year = max(0, min(99, int(birth_year)))
 
     # owner 결정: 폼 select 에서 명시적으로 "— 미지정 —" (value="") 고르면 None 으로 저장.
     # 폼 기본값이 current_user 라 그냥 등록 누르면 current_user 가 들어옴.
@@ -378,7 +380,8 @@ async def create_person(
     person = Person(
         public_id=public_id,
         gender=gender,
-        age=age,
+        age=0,  # 레거시 — 사용 안 함
+        birth_year=birth_year,
         location=location,
         workplace=workplace,
         height_cm=height_cm,
@@ -403,7 +406,7 @@ async def create_person(
     log_activity(
         session, actor, "person.create",
         target_type="person", target_id=person.id,
-        summary=f"{person.public_id} ({person.gender.label} {person.age}세) 등록",
+        summary=f"{person.public_id} ({person.gender.label} {person.year_label}) 등록",
     )
     session.commit()
     background_tasks.add_task(
@@ -522,7 +525,7 @@ def edit_person_form(
 async def update_person(
     request: Request,
     person_id: int,
-    age: int = Form(...),
+    birth_year: int = Form(...),
     location: str = Form(...),
     workplace: str = Form(...),
     height_cm: int = Form(...),
@@ -539,10 +542,11 @@ async def update_person(
     if not person:
         raise HTTPException(404, "Person not found")
     _require_edit(person, request, session)
+    birth_year = max(0, min(99, int(birth_year)))
 
     # 변경이 있을 때만 revision 기록 (사진만 추가하는 경우는 스킵)
     text_changed = (
-        person.age != age
+        person.birth_year != birth_year
         or person.location != location
         or person.workplace != workplace
         or person.height_cm != height_cm
@@ -559,7 +563,7 @@ async def update_person(
             summary=f"{person.public_id} 정보 수정",
         )
 
-    person.age = age
+    person.birth_year = birth_year
     person.location = location
     person.workplace = workplace
     person.height_cm = height_cm

@@ -55,6 +55,7 @@ def _ensure_columns() -> None:
         ("introductionrequest", "last_reminded_at", "DATETIME"),
         ("person", "visibility", "VARCHAR(16) NOT NULL DEFAULT 'PUBLIC'"),
         ("person", "is_starred", "BOOLEAN NOT NULL DEFAULT 0"),
+        ("person", "birth_year", "TEXT NOT NULL DEFAULT ''"),
         ("encounter", "last_reminded_at", "DATETIME"),
     ]
     insp = inspect(engine)
@@ -125,12 +126,36 @@ def _encrypt_legacy_user_credentials() -> None:
             conn.commit()
 
 
+def _migrate_age_to_birth_year() -> None:
+    """기존 매물의 age → birth_year 추정. (현재년 - age) % 100.
+    이미 birth_year 가 채워진 매물은 스킵 → idempotent.
+    50세 → '76년생' (1976), 25세 → '01년생' (2001) 식 (현재 2026 기준)."""
+    from datetime import date
+    from .models import Person
+
+    today_year = date.today().year
+    with Session(engine) as s:
+        persons = s.exec(select(Person)).all()
+        changed = 0
+        for p in persons:
+            if p.birth_year and p.birth_year > 0:
+                continue  # 이미 마이그레이션됨
+            if not p.age or p.age <= 0:
+                continue  # 데이터 없음
+            p.birth_year = (today_year - p.age) % 100
+            s.add(p)
+            changed += 1
+        if changed:
+            s.commit()
+
+
 def init_db() -> None:
     _ensure_database_exists(DATABASE_URL)
     SQLModel.metadata.create_all(engine)
     _ensure_columns()
     _backfill_nicknames_and_owner()
     _encrypt_legacy_user_credentials()
+    _migrate_age_to_birth_year()
 
 
 def get_session():

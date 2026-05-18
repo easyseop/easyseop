@@ -31,8 +31,8 @@
 
     <div class="grid grid-cols-2 gap-3">
       <div>
-        <label class="block text-sm font-medium mb-1">나이 <span class="text-pink-600">*</span></label>
-        <input type="number" name="age" min="18" max="99" required value="{{ person.age if person else '' }}"
+        <label class="block text-sm font-medium mb-1">출생연도 (2자리) <span class="text-pink-600">*</span> <span class="text-xs text-neutral-500 font-normal">예: 99 (1999년생), 03 (2003년생)</span></label>
+        <input type="number" name="birth_year" min="0" max="99" required value="{{ person.birth_year if person else '' }}"
                class="w-full px-3 py-2 border border-neutral-300 rounded-lg" />
       </div>
       <div>

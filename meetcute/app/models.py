@@ -100,7 +100,11 @@ class Person(SQLModel, table=True):
     public_id: str = Field(index=True, unique=True, max_length=16)
     gender: Gender = Field(sa_column=_enum_col(Gender))
     # 암호화 대상: 거주지/직장/나이 (실제로 사람 식별에 도움 되는 PII)
-    age: int = Field(sa_column=Column(IntEncryptedText(), nullable=False))
+    # age 는 레거시 — 출생연도 표시 도입 후엔 새 entry 에선 0 으로 둠.
+    # 기존 매물은 마이그레이션 시 birth_year 계산 후에도 값 유지 (히스토리 호환).
+    age: int = Field(default=0, sa_column=Column(IntEncryptedText(), nullable=False))
+    # 출생연도 2자리. 50-99 = 19xx, 00-49 = 20xx 로 해석. 새 entry 의 메인 필드.
+    birth_year: int = Field(default=0, sa_column=Column(IntEncryptedText(), nullable=False))
     location: str = Field(default="", sa_column=_enc_text_col())
     workplace: str = Field(default="", sa_column=_legacy_enc_text_col())
     height_cm: int
@@ -123,6 +127,25 @@ class Person(SQLModel, table=True):
         back_populates="person",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
+
+    @property
+    def year_label(self) -> str:
+        """'99년생' 같은 표시. birth_year 가 0 이면 (옛 데이터) age 폴백."""
+        if self.birth_year and self.birth_year > 0:
+            return f"{self.birth_year:02d}년생"
+        if self.age and self.age > 0:
+            return f"{self.age}세"  # 마이그레이션 전 옛 데이터 폴백
+        return "—"
+
+    @property
+    def years_old_approx(self) -> int:
+        """birth_year 에서 추정한 만 나이 (생일 모르니 ±1 오차). 호환성 등에 사용."""
+        if not self.birth_year:
+            return self.age or 0
+        from datetime import date
+        today = date.today()
+        full_year = 1900 + self.birth_year if self.birth_year >= 50 else 2000 + self.birth_year
+        return today.year - full_year
 
 
 class Photo(SQLModel, table=True):

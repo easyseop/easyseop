@@ -19,13 +19,13 @@
         <select name="person_a_id" required class="px-3 py-2 border border-neutral-300 rounded-lg text-sm">
           <option value="">-- 매물 A 선택 --</option>
           {% for p in all_persons %}
-          <option value="{{ p.id }}">{{ p.public_id }} ({{ p.gender.value }} {{ p.age }}세 · {{ p.location }})</option>
+          <option value="{{ p.id }}">{{ p.public_id }} ({{ p.gender.value }} {{ p.year_label }} · {{ p.location }})</option>
           {% endfor %}
         </select>
         <select name="person_b_id" required class="px-3 py-2 border border-neutral-300 rounded-lg text-sm">
           <option value="">-- 매물 B 선택 --</option>
           {% for p in all_persons %}
-          <option value="{{ p.id }}">{{ p.public_id }} ({{ p.gender.value }} {{ p.age }}세 · {{ p.location }})</option>
+          <option value="{{ p.id }}">{{ p.public_id }} ({{ p.gender.value }} {{ p.year_label }} · {{ p.location }})</option>
           {% endfor %}
         </select>
       </div>
@@ -46,14 +46,14 @@
           <div class="flex items-center gap-2 text-sm flex-wrap">
             {% if a %}
             <a href="/persons/{{ a.id }}" class="font-mono font-semibold hover:text-pink-600">{{ a.public_id }}</a>
-            <span class="text-xs text-neutral-400">{{ a.gender.label }} · {{ a.age }}세</span>
+            <span class="text-xs text-neutral-400">{{ a.gender.label }} · {{ a.year_label }}</span>
             {% else %}
             <span class="text-neutral-400">#{{ pair.person_a_id }} (삭제됨)</span>
             {% endif %}
             <span class="text-red-500 font-bold">✕</span>
             {% if b %}
             <a href="/persons/{{ b.id }}" class="font-mono font-semibold hover:text-pink-600">{{ b.public_id }}</a>
-            <span class="text-xs text-neutral-400">{{ b.gender.label }} · {{ b.age }}세</span>
+            <span class="text-xs text-neutral-400">{{ b.gender.label }} · {{ b.year_label }}</span>
             {% else %}
             <span class="text-neutral-400">#{{ pair.person_b_id }} (삭제됨)</span>
             {% endif %}

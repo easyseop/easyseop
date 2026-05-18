@@ -14,7 +14,7 @@ from sqlmodel import Session, select
 from ..models import Person, PersonRevision, User
 
 TRACKED_FIELDS = (
-    "age",
+    "birth_year",
     "location",
     "workplace",
     "height_cm",
@@ -24,7 +24,7 @@ TRACKED_FIELDS = (
 )
 
 FIELD_LABEL = {
-    "age": "나이",
+    "birth_year": "출생연도",
     "location": "거주지",
     "workplace": "직장",
     "height_cm": "키(cm)",

@@ -117,10 +117,13 @@ def _seed(session: Session, force: bool) -> None:
     # ── 매물 등록 ──
     persons: list[Person] = []
     print("👥 매물 등록 중...")
+    from datetime import date as _date
+    _cur_y = _date.today().year
     for (g, age, loc, work, h, ideal, notes, alias, photo_count) in PERSONAS:
         pid = next_public_id(session, g)
         p = Person(
             public_id=pid,
+            birth_year=(_cur_y - age) % 100,
             gender=g,
             age=age,
             location=loc,
@@ -144,7 +147,7 @@ def _seed(session: Session, force: bool) -> None:
     print("📝 매물 정보 수정 이력 데모 (2건)...")
     import json
     p = persons[0]  # F-001
-    snap = {f: getattr(p, f) for f in ("age", "location", "workplace", "height_cm",
+    snap = {f: getattr(p, f) for f in ("birth_year", "location", "workplace", "height_cm",
                                        "ideal_type", "notes", "alias")}
     session.add(PersonRevision(
         person_id=p.id, snapshot_json=json.dumps(snap, ensure_ascii=False),
@@ -152,11 +155,10 @@ def _seed(session: Session, force: bool) -> None:
         changed_at=datetime.utcnow() - timedelta(days=30),
     ))
     p.workplace = "스타트업 마케팅 팀장"  # 승진
-    p.age = 29
     session.add(p)
 
     p = persons[4]  # M-001
-    snap = {f: getattr(p, f) for f in ("age", "location", "workplace", "height_cm",
+    snap = {f: getattr(p, f) for f in ("birth_year", "location", "workplace", "height_cm",
                                        "ideal_type", "notes", "alias")}
     session.add(PersonRevision(
         person_id=p.id, snapshot_json=json.dumps(snap, ensure_ascii=False),

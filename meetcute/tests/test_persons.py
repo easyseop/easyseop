@@ -25,7 +25,7 @@ def test_create_person(logged_in_owner, session):
         "/persons",
         data={
             "gender": "M",
-            "age": "30",
+            "birth_year": "95",
             "location": "서울 강남",
             "workplace": "네이버",
             "height_cm": "178",
@@ -43,7 +43,8 @@ def test_create_person(logged_in_owner, session):
     p = ps[0]
     assert p.public_id == "M-001"
     assert p.gender == Gender.M
-    assert p.age == 30
+    assert p.birth_year == 95
+    assert p.year_label == "95년생"
     assert p.location == "서울 강남"
     assert p.workplace == "네이버"
     assert p.alias == "홍길동"
@@ -55,7 +56,7 @@ def test_public_id_sequence_per_gender(logged_in_owner):
             "/persons",
             data={
                 "gender": gender,
-                "age": "25",
+                "birth_year": "00",
                 "location": "서울",
                 "workplace": "기타",
                 "height_cm": "170",
@@ -88,7 +89,7 @@ def test_delete_person_preserves_encounter_snapshot(logged_in_owner, session):
         logged_in_owner.post(
             "/persons",
             data={
-                "gender": gender, "age": "30", "location": "서울",
+                "gender": gender, "birth_year": "95", "location": "서울",
                 "workplace": "기타", "height_cm": "170",
             },
             follow_redirects=False,
