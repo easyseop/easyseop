@@ -1,0 +1,354 @@
+"""유저 개인 설정 (텔레그램 chat_id 등록 등) + 시스템 정보 (DB/저장소)."""
+import json
+import urllib.error
+import urllib.request
+from pathlib import Path
+from typing import Optional
+
+from fastapi import APIRouter, Depends, Form, Request
+from fastapi.responses import HTMLResponse, RedirectResponse
+from sqlmodel import Session, func, select
+
+from ..auth import hash_password, require_admin, require_login, verify_password
+from ..config import AUTH_ENABLED, DATABASE_URL, UPLOAD_DIR
+from ..database import get_session
+from ..models import (
+    Encounter,
+    EncounterEvent,
+    IntroductionRequest,
+    Person,
+    PersonRevision,
+    Photo,
+    User,
+)
+from ..notifications import BOT_TOKEN, SSL_CONTEXT, send_telegram, telegram_enabled
+from ..services.activity_log import log_activity
+from ..templating import templates
+
+
+def _human_bytes(n: int) -> str:
+    f = float(n)
+    for unit in ("B", "KB", "MB", "GB"):
+        if f < 1024:
+            return f"{f:.1f} {unit}"
+        f /= 1024
+    return f"{f:.1f} TB"
+
+
+def _folder_stats(p: Path) -> tuple[int, int]:
+    if not p.exists():
+        return 0, 0
+    total = 0
+    count = 0
+    for f in p.rglob("*"):
+        if f.is_file():
+            total += f.stat().st_size
+            count += 1
+    return total, count
+
+
+def _db_stats(session: Session) -> dict:
+    counts = {
+        "User": session.exec(select(func.count()).select_from(User)).one(),
+        "Person": session.exec(select(func.count()).select_from(Person)).one(),
+        "Photo": session.exec(select(func.count()).select_from(Photo)).one(),
+        "Encounter": session.exec(select(func.count()).select_from(Encounter)).one(),
+        "EncounterEvent": session.exec(select(func.count()).select_from(EncounterEvent)).one(),
+        "PersonRevision": session.exec(select(func.count()).select_from(PersonRevision)).one(),
+        "IntroductionRequest": session.exec(select(func.count()).select_from(IntroductionRequest)).one(),
+    }
+    is_sqlite = DATABASE_URL.startswith("sqlite")
+    db_file_path = ""
+    db_file_size = 0
+    if is_sqlite:
+        prefix = "sqlite:///"
+        raw = DATABASE_URL[len(prefix):] if DATABASE_URL.startswith(prefix) else ""
+        if raw:
+            p = Path(raw)
+            db_file_path = str(p)
+            if p.exists():
+                db_file_size = p.stat().st_size
+
+    uploads_size, uploads_count = _folder_stats(UPLOAD_DIR)
+    return {
+        "kind": "SQLite" if is_sqlite else "외부 (MySQL/Postgres 등)",
+        "url_masked": DATABASE_URL if is_sqlite else DATABASE_URL.split("@", 1)[-1],
+        "counts": counts,
+        "db_file_path": db_file_path,
+        "db_file_size": db_file_size,
+        "db_file_size_h": _human_bytes(db_file_size) if db_file_size else "—",
+        "uploads_path": str(UPLOAD_DIR),
+        "uploads_size": uploads_size,
+        "uploads_size_h": _human_bytes(uploads_size),
+        "uploads_count": uploads_count,
+    }
+
+router = APIRouter(prefix="/settings", tags=["settings"])
+
+
+def _bot_info() -> tuple[str, str]:
+    """봇 username 조회 (getMe). 실패 시 빈 문자열."""
+    if not BOT_TOKEN:
+        return "", "토큰 없음"
+    try:
+        url = f"https://api.telegram.org/bot{BOT_TOKEN}/getMe"
+        with urllib.request.urlopen(url, timeout=5, context=SSL_CONTEXT) as resp:
+            data = json.loads(resp.read())
+        if not data.get("ok"):
+            return "", data.get("description", "거부됨")
+        return data["result"].get("username", ""), ""
+    except urllib.error.HTTPError as e:
+        return "", f"HTTP {e.code}"
+    except Exception as e:
+        return "", f"{e}"
+
+
+def _detect_chats() -> tuple[list[dict], str]:
+    """봇 getUpdates 호출해서 봇에 메시지 보낸 사람들의 chat 정보 모음.
+
+    Returns:
+        (chats, error). chats: [{"id": "...", "name": "..."}, ...] (중복 제거)
+        error: 실패 시 사용자 친화 메시지, 성공 시 빈 문자열.
+    """
+    if not BOT_TOKEN:
+        return [], "MEETCUTE_TELEGRAM_BOT_TOKEN 환경변수가 설정되지 않았습니다."
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/getUpdates"
+    try:
+        with urllib.request.urlopen(url, timeout=5, context=SSL_CONTEXT) as resp:
+            data = json.loads(resp.read())
+    except urllib.error.HTTPError as e:
+        return [], f"Telegram HTTP {e.code} — 토큰이 잘못됐을 수 있습니다."
+    except urllib.error.URLError as e:
+        return [], f"네트워크 오류: {e}"
+    except Exception as e:
+        return [], f"오류: {e}"
+
+    if not data.get("ok"):
+        return [], f"Telegram API 거부: {data.get('description', '?')}"
+
+    seen: dict[str, str] = {}
+    for upd in data.get("result", []):
+        msg = upd.get("message") or upd.get("edited_message") or upd.get("channel_post") or {}
+        chat = msg.get("chat") or {}
+        cid = chat.get("id")
+        if cid is None:
+            continue
+        sid = str(cid)
+        if sid in seen:
+            continue
+        name = chat.get("first_name") or chat.get("username") or chat.get("title") or "(이름 없음)"
+        if chat.get("last_name"):
+            name = f"{name} {chat['last_name']}"
+        if chat.get("username"):
+            name = f"{name} (@{chat['username']})"
+        seen[sid] = name
+    return [{"id": k, "name": v} for k, v in seen.items()], ""
+
+
+@router.get("", response_class=HTMLResponse)
+def settings_page(
+    request: Request,
+    current_user: User = Depends(require_login),
+    flash: str = "",
+    ok: str = "",
+    err: str = "",
+    detect: int = 0,
+    session: Session = Depends(get_session),
+):
+    if not AUTH_ENABLED:
+        return RedirectResponse("/", status_code=303)
+    user = session.get(User, current_user.id) or current_user
+
+    detected_chats: list[dict] = []
+    detect_error = ""
+    bot_username = ""
+    bot_error = ""
+    if telegram_enabled():
+        bot_username, bot_error = _bot_info()
+    if detect:
+        detected_chats, detect_error = _detect_chats()
+
+    db_info = _db_stats(session) if user.is_admin else None
+
+    return templates.TemplateResponse(
+        request,
+        "settings.html",
+        {
+            "current_user": user,
+            "telegram_enabled_globally": telegram_enabled(),
+            "bot_username": bot_username,
+            "bot_error": bot_error,
+            "detected_chats": detected_chats,
+            "detect_error": detect_error,
+            "detect_attempted": bool(detect),
+            "db_info": db_info,
+            "flash": flash,
+            "ok": ok,
+            "err": err,
+        },
+    )
+
+
+@router.post("/nickname")
+def save_nickname(
+    nickname: str = Form(""),
+    current_user: User = Depends(require_login),
+    session: Session = Depends(get_session),
+):
+    if not AUTH_ENABLED:
+        return RedirectResponse("/", status_code=303)
+    user = session.get(User, current_user.id)
+    if not user:
+        return RedirectResponse("/", status_code=303)
+    nick = nickname.strip()[:64]
+    # 비워서 저장하면 새 랜덤 닉네임으로
+    from ..nicknames import random_nickname
+    user.nickname = nick or random_nickname()
+    session.add(user)
+    session.commit()
+    return RedirectResponse("/settings?flash=닉네임+저장됨", status_code=303)
+
+
+@router.post("/nickname/reroll")
+def reroll_nickname(
+    current_user: User = Depends(require_login),
+    session: Session = Depends(get_session),
+):
+    if not AUTH_ENABLED:
+        return RedirectResponse("/", status_code=303)
+    user = session.get(User, current_user.id)
+    if not user:
+        return RedirectResponse("/", status_code=303)
+    from ..nicknames import random_nickname
+    user.nickname = random_nickname()
+    session.add(user)
+    session.commit()
+    return RedirectResponse(f"/settings?flash=새+닉네임+'{user.nickname}'", status_code=303)
+
+
+# 흔한 약한 비밀번호 차단 (대소문자 무관). 실제로 자주 시도되는 것들.
+_COMMON_WEAK_PASSWORDS = {
+    "password", "12345678", "qwerty12", "qwerty123", "abcd1234", "1q2w3e4r",
+    "password1", "password123", "admin1234", "iloveyou", "1234567890",
+    "qwertyuiop", "letmein123", "welcome1", "p@ssw0rd",
+}
+
+
+def _validate_new_password(pw: str, email: str = "") -> Optional[str]:
+    """새 비밀번호 검증. 통과 시 None, 실패 시 사용자 친화 메시지 반환.
+    규칙: 10자+, 숫자+영문 혼합, 흔한 비밀번호/이메일 일부 포함 X."""
+    if len(pw) < 10:
+        return "비밀번호는 10자 이상이어야 합니다"
+    has_letter = any(c.isalpha() for c in pw)
+    has_digit = any(c.isdigit() for c in pw)
+    if not (has_letter and has_digit):
+        return "비밀번호에 영문과 숫자를 모두 포함해야 합니다"
+    if pw.lower() in _COMMON_WEAK_PASSWORDS:
+        return "너무 흔한 비밀번호입니다"
+    if email:
+        # 이메일 로컬파트 (@ 앞) 가 비밀번호에 그대로 들어있으면 거부
+        local = email.split("@", 1)[0].lower()
+        if local and len(local) >= 4 and local in pw.lower():
+            return "이메일이 그대로 들어간 비밀번호는 피해주세요"
+    return None
+
+
+@router.post("/password")
+def change_password(
+    request: Request,
+    old_password: str = Form(...),
+    new_password: str = Form(...),
+    new_password_confirm: str = Form(...),
+    current_user: User = Depends(require_login),
+    session: Session = Depends(get_session),
+):
+    if not AUTH_ENABLED:
+        return RedirectResponse("/", status_code=303)
+    user = session.get(User, current_user.id)
+    if not user:
+        return RedirectResponse("/auth/login", status_code=303)
+
+    from urllib.parse import quote
+
+    # 1) 현재 비밀번호 확인
+    if not verify_password(old_password, user.password_hash):
+        return RedirectResponse(
+            "/settings?err=" + quote("현재 비밀번호가 맞지 않습니다"),
+            status_code=303,
+        )
+    # 2) 새 비밀번호 두 칸 일치
+    if new_password != new_password_confirm:
+        return RedirectResponse(
+            "/settings?err=" + quote("새 비밀번호 확인이 일치하지 않습니다"),
+            status_code=303,
+        )
+    # 3) 옛것 = 새것 거부
+    if new_password == old_password:
+        return RedirectResponse(
+            "/settings?err=" + quote("새 비밀번호가 현재와 같습니다"),
+            status_code=303,
+        )
+    # 4) 강도 검증
+    if (err := _validate_new_password(new_password, user.email)):
+        return RedirectResponse("/settings?err=" + quote(err), status_code=303)
+
+    # 5) 저장
+    user.password_hash = hash_password(new_password)
+    session.add(user)
+    log_activity(session, user, "user.password_change",
+                 target_type="user", target_id=user.id,
+                 summary="본인 비밀번호 변경")
+    session.commit()
+    return RedirectResponse(
+        "/settings?ok=" + quote("비밀번호 변경 완료"), status_code=303
+    )
+
+
+@router.post("/telegram")
+def save_telegram(
+    chat_id: str = Form(""),
+    current_user: User = Depends(require_login),
+    session: Session = Depends(get_session),
+):
+    if not AUTH_ENABLED:
+        return RedirectResponse("/", status_code=303)
+    user = session.get(User, current_user.id)
+    if not user:
+        return RedirectResponse("/", status_code=303)
+    user.telegram_chat_id = chat_id.strip()
+    session.add(user)
+    session.commit()
+    return RedirectResponse("/settings?flash=텔레그램+chat_id+저장됨", status_code=303)
+
+
+@router.post("/telegram/test")
+def test_telegram(
+    current_user: User = Depends(require_login),
+    session: Session = Depends(get_session),
+):
+    if not AUTH_ENABLED:
+        return RedirectResponse("/", status_code=303)
+    user = session.get(User, current_user.id)
+    if not user:
+        return RedirectResponse("/", status_code=303)
+    if not telegram_enabled():
+        return RedirectResponse(
+            "/settings?err=MEETCUTE_TELEGRAM_BOT_TOKEN+환경변수가+서버에+설정되지+않았습니다",
+            status_code=303,
+        )
+    if not user.telegram_chat_id:
+        return RedirectResponse(
+            "/settings?err=chat_id+먼저+저장하세요",
+            status_code=303,
+        )
+    ok, msg = send_telegram(
+        user.telegram_chat_id,
+        "✅ <b>meetcute 테스트 메시지</b>\n알림 연결 OK!",
+    )
+    if ok:
+        return RedirectResponse("/settings?ok=테스트+메시지+전송+성공", status_code=303)
+    # URL-encoded 메시지로 전달 (간단히)
+    from urllib.parse import quote
+    return RedirectResponse(
+        f"/settings?err={quote('전송 실패: ' + msg)}", status_code=303
+    )

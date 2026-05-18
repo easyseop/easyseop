@@ -1,0 +1,315 @@
+{% extends "base.html" %}
+{% block title %}매물 목록 · meetcute{% endblock %}
+{% block content %}
+<div class="space-y-4">
+  <div class="flex items-center justify-between gap-2 flex-wrap">
+    <h1 class="text-2xl font-bold">매물 목록</h1>
+    <div class="flex items-center gap-2">
+      {# 카드/목록 토글 — 현재 필터/정렬 유지하며 view 만 바꿈 #}
+      {% set _qs = request.query_params %}
+      {% set _base = [] %}
+      {% for k in ['q','gender','status','activity','owner','sort'] %}
+        {% if _qs.get(k) %}{% set _ = _base.append(k ~ '=' ~ _qs.get(k)) %}{% endif %}
+      {% endfor %}
+      {% set _qs_str = _base | join('&') %}
+      {% if view == 'list' %}
+      <a href="/persons?{{ _qs_str }}{% if _qs_str %}&{% endif %}view=card"
+         class="px-3 py-1.5 border border-neutral-300 rounded-lg text-sm bg-pink-50 text-pink-700 hover:bg-pink-100"
+         title="카드(사진) 보기로 전환">📋 간단보기 ON</a>
+      {% else %}
+      <a href="/persons?{{ _qs_str }}{% if _qs_str %}&{% endif %}view=list"
+         class="px-3 py-1.5 border border-neutral-300 rounded-lg text-sm bg-white hover:bg-neutral-50"
+         title="사진 없이 한 줄씩 보기로 전환">📋 간단보기 OFF</a>
+      {% endif %}
+      <a href="/persons/new" class="px-4 py-2 bg-pink-600 text-white rounded-lg text-sm hover:bg-pink-700">+ 새 매물</a>
+    </div>
+  </div>
+
+  {% set _filter_count = (1 if q else 0) + (1 if gender else 0) + (1 if status else 0) + (1 if activity else 0) + (1 if owner else 0) + (1 if starred else 0) + (1 if sort else 0) %}
+  <details class="bg-white border border-neutral-200 rounded-xl" {% if _filter_count %}open{% endif %}>
+    <summary class="cursor-pointer p-3 text-sm font-medium flex items-center justify-between hover:bg-neutral-50 rounded-xl">
+      <span>🔍 검색 / 필터
+        {% if _filter_count %}
+        <span class="ml-2 px-2 py-0.5 bg-pink-100 text-pink-700 rounded-full text-xs">{{ _filter_count }}개 적용 중</span>
+        {% endif %}
+      </span>
+      <span class="text-neutral-400 text-xs">펼치기 ▾</span>
+    </summary>
+  <form method="get" class="flex flex-wrap gap-2 items-center p-3 pt-0">
+    <input type="hidden" name="view" value="{{ view }}" />
+    <input type="text" name="q" value="{{ q }}" placeholder="ID / 이름(메모) 검색"
+           class="flex-1 min-w-[180px] px-3 py-1.5 border border-neutral-300 rounded-lg text-sm" />
+    <select name="gender" class="px-3 py-1.5 border border-neutral-300 rounded-lg text-sm">
+      <option value="">전체 성별</option>
+      <option value="M" {% if gender == 'M' %}selected{% endif %}>남자</option>
+      <option value="F" {% if gender == 'F' %}selected{% endif %}>여자</option>
+    </select>
+    <select name="status" class="px-3 py-1.5 border border-neutral-300 rounded-lg text-sm">
+      <option value="">전체 상태</option>
+      <option value="AVAILABLE" {% if status == 'AVAILABLE' %}selected{% endif %}>🟢 소개 가능</option>
+      <option value="IN_PROGRESS" {% if status == 'IN_PROGRESS' %}selected{% endif %}>🟡 진행 중</option>
+      <option value="MATCHED" {% if status == 'MATCHED' %}selected{% endif %}>💗 매칭됨</option>
+    </select>
+    <label class="inline-flex items-center gap-1.5 px-3 py-1.5 border border-neutral-300 rounded-lg text-sm cursor-pointer hover:bg-neutral-50 {% if starred == '1' %}bg-yellow-50 border-yellow-300{% endif %}">
+      <input type="checkbox" name="starred" value="1" {% if starred == '1' %}checked{% endif %} class="accent-yellow-500" />
+      ⭐ 즐겨찾기만
+    </label>
+    <select name="activity" class="px-3 py-1.5 border border-neutral-300 rounded-lg text-sm">
+      <option value="">활동 무관</option>
+      <option value="active" {% if activity == 'active' %}selected{% endif %}>진행 중 있음</option>
+      <option value="dormant" {% if activity == 'dormant' %}selected{% endif %}>30일+ 미활동</option>
+      <option value="never" {% if activity == 'never' %}selected{% endif %}>한 번도 만남 X</option>
+    </select>
+    {% if AUTH_ENABLED %}
+    <select name="owner" class="px-3 py-1.5 border border-neutral-300 rounded-lg text-sm">
+      <option value="">전체 매물</option>
+      <option value="mine" {% if owner == 'mine' %}selected{% endif %}>내 매물</option>
+      <option value="unassigned" {% if owner == 'unassigned' %}selected{% endif %}>미지정</option>
+      {% set other_admins = admin_list | rejectattr('id', 'equalto', current_user.id) | list if current_user else admin_list %}
+      {% if other_admins %}
+      <optgroup label="다른 마담뚜 별">
+        {% for a in other_admins %}
+        <option value="user:{{ a.id }}" {% if owner == 'user:' ~ a.id %}selected{% endif %}>
+          👤 {{ a.display_name }}
+        </option>
+        {% endfor %}
+      </optgroup>
+      {% endif %}
+    </select>
+    {% endif %}
+    <select name="sort" class="px-3 py-1.5 border border-neutral-300 rounded-lg text-sm">
+      <option value="" {% if not sort %}selected{% endif %}>등록순(최신)</option>
+      <option value="recent_update" {% if sort == 'recent_update' %}selected{% endif %}>최근 수정순</option>
+      <option value="recent_activity" {% if sort == 'recent_activity' %}selected{% endif %}>최근 활동순</option>
+      <option value="dormant" {% if sort == 'dormant' %}selected{% endif %}>오래 잠자는순</option>
+    </select>
+    <button class="px-4 py-1.5 bg-neutral-800 text-white rounded-lg text-sm">적용</button>
+    {% if q or gender or status or activity or owner or starred or sort %}
+    <a href="/persons" class="text-xs text-neutral-500 underline">초기화</a>
+    {% endif %}
+  </form>
+  </details>
+
+  {% if persons %}
+
+  {% if view == 'list' %}
+  {# ── 간단 목록 view (사진 없이 한 줄씩, 한 화면에 많이) ── #}
+  <div class="bg-white border border-neutral-200 rounded-xl overflow-hidden">
+    <ul class="divide-y divide-neutral-100">
+    {% for p in persons %}
+    {% set st = stats.get(p.id) %}
+    {% set s = statuses.get(p.id) %}
+    {% set _is_mine = current_user and (current_user.is_owner or p.owner_user_id == current_user.id) %}
+    {% set ow = owner_map.get(p.owner_user_id) %}
+    <li>
+      <a href="/persons/{{ p.id }}" class="flex items-center gap-3 px-3 py-2.5 hover:bg-neutral-50">
+        <span class="font-mono font-semibold text-sm shrink-0">{% if p.is_starred %}<span class="text-yellow-500" title="즐겨찾기">⭐</span> {% endif %}{{ p.public_id }}</span>
+        <span class="text-xs text-neutral-500 shrink-0">{{ p.gender.label }} · {{ p.year_label }} · {{ p.height_cm }}cm</span>
+        <span class="text-xs text-neutral-600 truncate flex-1 min-w-0">
+          {{ p.location }} · {{ p.workplace }}
+          {% if p.alias and (not AUTH_ENABLED or _is_mine) %}
+          <span class="text-neutral-400">({{ p.alias }})</span>
+          {% endif %}
+        </span>
+        {% if AUTH_ENABLED and ow %}
+          {% if current_user and ow.id == current_user.id %}
+          <span class="text-xs text-pink-600 shrink-0 hidden sm:inline">👤 내것</span>
+          {% else %}
+          <span class="text-xs text-neutral-400 shrink-0 hidden sm:inline">👤 {{ ow.display_name }}</span>
+          {% endif %}
+        {% endif %}
+        {% if s %}
+        <span class="px-2 py-0.5 rounded-full text-xs font-medium border {{ status_badge_class(s) }} shrink-0">
+          {{ status_label(s) }}
+        </span>
+        {% endif %}
+        {% if st and not st.never_met %}
+        <span class="text-xs text-neutral-400 shrink-0 hidden sm:inline">🔁 {{ st.total }}</span>
+        {% endif %}
+      </a>
+    </li>
+    {% endfor %}
+    </ul>
+  </div>
+
+  {% else %}
+  {# ── 카드 view (기본, 사진 + 정보 ── #}
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+    {% for p in persons %}
+    {% set st = stats.get(p.id) %}
+    <div class="relative">
+      {# 별표 토글 — <form> 이 <a> 안에 못 들어가서 오버레이로. z-20 으로 카드 위. #}
+      <form method="post" action="/persons/{{ p.id }}/star" class="absolute top-1.5 right-1.5 z-20">
+        <button type="submit"
+                class="w-8 h-8 rounded-full bg-white/90 backdrop-blur flex items-center justify-center text-lg hover:scale-110 active:scale-95 transition-transform shadow-sm"
+                title="{% if p.is_starred %}즐겨찾기 해제{% else %}즐겨찾기에 추가{% endif %}">
+          {% if p.is_starred %}<span class="text-yellow-500">⭐</span>{% else %}<span class="text-neutral-400">☆</span>{% endif %}
+        </button>
+      </form>
+    <a href="/persons/{{ p.id }}" class="mc-card bg-white border border-neutral-200 rounded-xl overflow-hidden hover:shadow-md block">
+      <div class="aspect-square bg-neutral-100 relative">
+        {% set _photos = p.photos | sort(attribute='order') | list %}
+        {% if _photos %}
+          {% if _photos|length > 1 %}
+          {# 여러 장: 작은 썸네일 (~10KB) 이라 모두 즉시 로드해도 큰 부담 아님.
+             자리표시자 + data-src 방식은 빈 src img 의 layout 문제 때문에 슬라이드가
+             무너지는 회귀가 있었음 — PERFORMANCE.md §7-bis 참고. #}
+          <div class="mc-photo-strip absolute inset-0 overflow-x-auto snap-x snap-mandatory flex scroll-smooth">
+            {% for ph in _photos %}
+            <img loading="lazy" decoding="async" src="/uploads/{{ ph.filename|thumb_url }}"
+                 class="snap-center shrink-0 w-full h-full object-cover bg-neutral-100" />
+            {% endfor %}
+          </div>
+          <span class="mc-photo-counter absolute bottom-2 right-2 bg-black/60 text-white text-[11px] px-2 py-0.5 rounded-full pointer-events-none font-medium">
+            1/{{ _photos|length }}
+          </span>
+          <div class="mc-photo-dots absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1 pointer-events-none">
+            {% for ph in _photos %}
+            <span class="w-1.5 h-1.5 rounded-full {% if loop.index == 1 %}bg-white{% else %}bg-white/50{% endif %}"></span>
+            {% endfor %}
+          </div>
+          {% else %}
+          <img loading="lazy" decoding="async" src="/uploads/{{ _photos[0].filename|thumb_url }}" class="w-full h-full object-cover" />
+          {% endif %}
+        {% else %}
+          <div class="flex items-center justify-center h-full text-4xl text-neutral-300">📷</div>
+        {% endif %}
+        <span class="absolute top-2 left-2 bg-white/90 backdrop-blur px-2 py-0.5 rounded-full text-xs font-semibold pointer-events-none">
+          {% if p.is_starred %}<span class="text-yellow-500" title="즐겨찾기">⭐</span> {% endif %}{{ p.public_id }}
+        </span>
+        {% set s = statuses.get(p.id) %}
+        {% if s %}
+        {# 별표 버튼 (top-right z-20) 과 안 겹치게 status 배지는 top-left 옆 으로 #}
+        <span class="absolute top-2 left-20 px-2 py-0.5 rounded-full text-xs font-medium border {{ status_badge_class(s) }} pointer-events-none">
+          {{ status_label(s) }}
+        </span>
+        {% endif %}
+      </div>
+      <div class="p-3 text-sm">
+        <div class="flex items-center gap-2">
+          <span class="font-semibold">{{ p.year_label }}</span>
+          <span class="text-neutral-500">· {{ p.location }}</span>
+        </div>
+        <div class="text-neutral-500 text-xs mt-0.5 truncate">{{ p.workplace }} · {{ p.height_cm }}cm</div>
+        {# 이름(alias) 은 owner 본인 또는 책임자에게만 노출 (다른 마담뚜한테 안 보이게) #}
+        {% set _is_mine = current_user and (current_user.is_owner or p.owner_user_id == current_user.id) %}
+        {% if p.alias and (not AUTH_ENABLED or _is_mine) %}
+        <div class="text-xs text-neutral-400 mt-1">({{ p.alias }})</div>
+        {% endif %}
+        {% if AUTH_ENABLED %}
+          {% set ow = owner_map.get(p.owner_user_id) %}
+          {% if ow %}
+            {% if current_user and ow.id == current_user.id %}
+            <div class="text-xs text-pink-600 mt-1">👤 내 매물</div>
+            {% else %}
+            <div class="text-xs text-neutral-500 mt-1">👤 {{ ow.display_name }}</div>
+            {% endif %}
+          {% else %}
+            <div class="text-xs text-neutral-400 mt-1">👤 미지정</div>
+          {% endif %}
+        {% endif %}
+        {% if st %}
+        <div class="flex items-center gap-2 mt-2 text-xs">
+          {% if st.never_met %}
+            <span class="px-1.5 py-0.5 rounded bg-neutral-100 text-neutral-500">📭 미활동</span>
+          {% else %}
+            <span class="px-1.5 py-0.5 rounded bg-neutral-100 text-neutral-700">🔁 {{ st.total }}회</span>
+            {% if st.matched %}<span class="px-1.5 py-0.5 rounded bg-pink-100 text-pink-700">💗 {{ st.matched }}</span>{% endif %}
+            {% if st.active %}<span class="px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">⏳ {{ st.active }}</span>{% endif %}
+            <span class="ml-auto text-neutral-400">{{ st.days_dormant }}일 전</span>
+          {% endif %}
+        </div>
+        {% endif %}
+      </div>
+    </a>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% else %}
+  <div class="bg-white rounded-xl border border-dashed border-neutral-300 p-12 text-center">
+    <div class="text-5xl mb-3">📭</div>
+    {% if q or gender or status or activity or owner or sort %}
+    <p class="text-neutral-500 mb-4">조건에 맞는 매물이 없어요.</p>
+    <a href="/persons" class="inline-block px-4 py-2 border border-neutral-300 rounded-lg text-sm hover:bg-neutral-50">필터 초기화</a>
+    {% else %}
+    <p class="text-neutral-700 font-medium mb-1">아직 매물이 없어요</p>
+    <p class="text-sm text-neutral-500 mb-4">첫 매물 등록부터 시작하세요.</p>
+    <a href="/persons/new" class="inline-block px-5 py-2.5 bg-pink-600 text-white rounded-lg text-sm font-medium hover:bg-pink-700">+ 새 매물 등록</a>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+
+<style>
+  /* 카드 사진 슬라이드: 스크롤바 숨김 + touch-action 명시 (가로/세로 모두 허용) */
+  .mc-photo-strip::-webkit-scrollbar { display: none; }
+  .mc-photo-strip {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+    touch-action: pan-x pan-y;  /* 브라우저에 "여기는 양방향 pan 영역" 명시 */
+  }
+  /* 카드 링크가 손가락 닿을 때 scale 애니메이션을 갖고 있으면 안쪽 절대 위치
+     슬라이드 좌표가 흔들려서 스크롤이 취소될 수 있음. 카드는 active 효과 제거. */
+  a.mc-card:active { transform: none; }
+</style>
+<script>
+  (function() {
+    function attach(strip) {
+      const parent = strip.parentElement;
+      const counter = parent.querySelector('.mc-photo-counter');
+      const dots = parent.querySelectorAll('.mc-photo-dots span');
+      const total = strip.children.length;
+      let raf = 0;
+      function update() {
+        const w = strip.clientWidth;
+        if (!w) return;
+        const idx = Math.round(strip.scrollLeft / w);
+        if (counter) counter.textContent = (idx + 1) + '/' + total;
+        dots.forEach((d, i) => {
+          d.classList.toggle('bg-white', i === idx);
+          d.classList.toggle('bg-white/50', i !== idx);
+        });
+      }
+      strip.addEventListener('scroll', () => {
+        cancelAnimationFrame(raf);
+        raf = requestAnimationFrame(update);
+      }, { passive: true });
+
+      // 카드 전체가 <a> 로 감싸여 있어 swipe 가 click 으로 인식되면 매물 상세로 튕김.
+      // touchmove 가 일정 거리 넘으면 그 직후 click 을 차단 → 진짜 탭은 통과, 스와이프는 슬라이드만.
+      let startX = 0, startY = 0, moved = false;
+      strip.addEventListener('touchstart', (e) => {
+        startX = e.touches[0].clientX;
+        startY = e.touches[0].clientY;
+        moved = false;
+      }, { passive: true });
+      strip.addEventListener('touchmove', (e) => {
+        const dx = Math.abs(e.touches[0].clientX - startX);
+        const dy = Math.abs(e.touches[0].clientY - startY);
+        if (dx > 8 || dy > 8) moved = true;
+      }, { passive: true });
+      strip.addEventListener('click', (e) => {
+        if (moved) {
+          // 손가락이 움직였으니 → swipe 였음. 카드 detail 로 튕기지 않게 차단.
+          e.preventDefault();
+          e.stopPropagation();
+          moved = false;
+        }
+        // 가만히 톡 친 거 → <a> 로 통과해서 매물 상세로 (탭-사진이동 영역 제거,
+        // 사용자 의도 모호함 회피)
+      }, { capture: true });
+    }
+    document.querySelectorAll('.mc-photo-strip').forEach(s => {
+      if (!s.dataset.mcBound) { s.dataset.mcBound = '1'; attach(s); }
+    });
+    // htmx 로 페이지 swap 후 새 strip 도 바인딩 (mcBound 가드로 중복 부착 방지)
+    document.body.addEventListener('htmx:afterSwap', () => {
+      document.querySelectorAll('.mc-photo-strip').forEach(s => {
+        if (!s.dataset.mcBound) { s.dataset.mcBound = '1'; attach(s); }
+      });
+    });
+  })();
+</script>
+{% endblock %}

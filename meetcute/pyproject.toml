@@ -1,0 +1,37 @@
+[project]
+name = "meetcute"
+version = "0.1.0"
+description = "Private matchmaking admin tool"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "sqlmodel>=0.0.22",
+    "jinja2>=3.1",
+    "python-multipart>=0.0.12",
+    "pillow>=10.4",
+    "markdown>=3.7",
+    "bcrypt>=4.2",
+    "itsdangerous>=2.2",
+    "pymysql>=1.1",
+    "cryptography>=43",
+    "certifi>=2024.7",
+]
+
+# 런타임에 data/ 와 uploads/ 폴더가 생기는데 setuptools 자동 탐지가
+# 그것들도 패키지로 오인하면서 빌드 실패하는 걸 방지.
+[tool.setuptools.packages.find]
+include = ["app*"]
+exclude = ["data*", "uploads*", "tests*"]
+
+[tool.uv]
+dev-dependencies = [
+    "ruff>=0.7",
+    "pytest>=8.0",
+    "httpx>=0.27",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-q"

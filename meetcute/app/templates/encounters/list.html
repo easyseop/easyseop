@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}만남 기록 · meetcute{% endblock %}
+
+{% macro person_chip(pid, snapshot) %}
+  {% set p = persons.get(pid) %}
+  {% if p %}
+    <a href="/persons/{{ p.id }}" class="font-mono font-semibold hover:text-pink-600">{{ p.public_id }}</a>
+    <span class="text-neutral-400">· {{ p.year_label }} · {{ p.location }}</span>
+  {% else %}
+    <span class="font-mono text-neutral-400 line-through">{{ snapshot or '?' }}</span>
+  {% endif %}
+{% endmacro %}
+
+{% block content %}
+<div class="space-y-4">
+  <div class="flex items-center justify-between">
+    <h1 class="text-2xl font-bold">만남 기록</h1>
+    <a href="/encounters/new" class="px-4 py-2 bg-pink-600 text-white rounded-lg text-sm hover:bg-pink-700">+ 새 만남</a>
+  </div>
+
+  <form method="get" class="flex flex-wrap gap-2 items-center bg-white border border-neutral-200 rounded-xl p-3">
+    <select name="outcome" class="px-3 py-1.5 border border-neutral-300 rounded-lg text-sm">
+      <option value="">전체 결과</option>
+      {% for o in EncounterOutcome %}
+      <option value="{{ o.value }}" {% if outcome and outcome == o %}selected{% endif %}>{{ OUTCOME_LABEL[o] }}</option>
+      {% endfor %}
+    </select>
+    <button class="px-4 py-1.5 bg-neutral-800 text-white rounded-lg text-sm">필터</button>
+    {% if outcome or person_id %}
+    <a href="/encounters" class="text-xs text-neutral-500 underline ml-auto">초기화</a>
+    {% endif %}
+  </form>
+
+  {% if encounters %}
+  <!-- 데스크탑: 테이블 -->
+  <div class="hidden sm:block bg-white border border-neutral-200 rounded-xl overflow-hidden scroll-x">
+    <table class="w-full text-sm">
+      <thead class="bg-neutral-50 text-neutral-500 text-xs">
+        <tr>
+          <th class="text-left py-2 px-3 whitespace-nowrap">날짜</th>
+          <th class="text-left py-2 px-3">A</th>
+          <th class="text-left py-2 px-3">B</th>
+          <th class="text-left py-2 px-3 whitespace-nowrap">결과</th>
+          <th class="py-2 px-3 w-16"></th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-neutral-100">
+        {% for e in encounters %}
+        <tr class="hover:bg-neutral-50">
+          <td class="py-2 px-3 whitespace-nowrap">{{ e.met_on.strftime('%Y-%m-%d') }}</td>
+          <td class="py-2 px-3">{{ person_chip(e.person_a_id, e.person_a_snapshot) }}</td>
+          <td class="py-2 px-3">{{ person_chip(e.person_b_id, e.person_b_snapshot) }}</td>
+          <td class="py-2 px-3 whitespace-nowrap">
+            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium {{ OUTCOME_BADGE[e.outcome] }}">
+              {{ OUTCOME_LABEL[e.outcome] }}
+            </span>
+          </td>
+          <td class="py-2 px-3 text-right">
+            <a href="/encounters/{{ e.id }}" class="text-xs text-pink-600 hover:underline">편집</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- 모바일: 카드 리스트 -->
+  <ul class="sm:hidden space-y-2">
+    {% for e in encounters %}
+    <li class="bg-white border border-neutral-200 rounded-xl p-3 space-y-2">
+      <div class="flex items-center justify-between text-xs">
+        <span class="text-neutral-500">{{ e.met_on.strftime('%Y-%m-%d') }}</span>
+        <span class="inline-flex items-center px-2 py-0.5 rounded-full font-medium {{ OUTCOME_BADGE[e.outcome] }}">
+          {{ OUTCOME_LABEL[e.outcome] }}
+        </span>
+      </div>
+      <div class="text-sm space-y-1">
+        <div>{{ person_chip(e.person_a_id, e.person_a_snapshot) }}</div>
+        <div class="text-neutral-300 text-xs pl-1">×</div>
+        <div>{{ person_chip(e.person_b_id, e.person_b_snapshot) }}</div>
+      </div>
+      <a href="/encounters/{{ e.id }}" class="block text-xs text-pink-600 text-right hover:underline">편집 →</a>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <div class="bg-white rounded-xl border border-dashed border-neutral-300 p-12 text-center">
+    <div class="text-5xl mb-3">💞</div>
+    <p class="text-neutral-700 font-medium mb-1">아직 만남 기록이 없어요</p>
+    <p class="text-sm text-neutral-500 mb-4">두 매물을 골라 첫 만남을 기록해보세요.</p>
+    <a href="/encounters/new" class="inline-block px-5 py-2.5 bg-pink-600 text-white rounded-lg text-sm font-medium hover:bg-pink-700">+ 새 만남 기록</a>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

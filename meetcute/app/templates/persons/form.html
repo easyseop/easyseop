@@ -1,0 +1,271 @@
+{% extends "base.html" %}
+{% block title %}{% if person %}매물 수정{% else %}새 매물{% endif %} · meetcute{% endblock %}
+{% block content %}
+<div class="max-w-2xl mx-auto space-y-4">
+  <h1 class="text-2xl font-bold">
+    {% if person %}매물 수정 · {{ person.public_id }}{% else %}새 매물 등록{% endif %}
+  </h1>
+
+  <form method="post"
+        action="{% if person %}/persons/{{ person.id }}{% else %}/persons{% endif %}"
+        enctype="multipart/form-data"
+        hx-boost="false"
+        class="bg-white border border-neutral-200 rounded-xl p-6 space-y-4">
+
+    {% if not person %}
+    <div>
+      <label class="block text-sm font-medium mb-1">성별 <span class="text-pink-600">*</span></label>
+      <div class="flex gap-2">
+        {% for g in Gender if g.value != 'OTHER' %}
+        <label class="flex-1">
+          <input type="radio" name="gender" value="{{ g.value }}" required class="peer sr-only" />
+          <div class="text-center py-2 border border-neutral-300 rounded-lg cursor-pointer peer-checked:bg-pink-600 peer-checked:text-white peer-checked:border-pink-600">
+            {{ g.label }}
+          </div>
+        </label>
+        {% endfor %}
+      </div>
+      <div class="text-xs text-neutral-500 mt-1">등록 후 변경 불가 (public_id 발급 기준)</div>
+    </div>
+    {% endif %}
+
+    <div class="grid grid-cols-2 gap-3">
+      <div>
+        <label class="block text-sm font-medium mb-1">출생연도 (2자리) <span class="text-pink-600">*</span> <span class="text-xs text-neutral-500 font-normal">예: 99 (1999년생), 03 (2003년생)</span></label>
+        <input type="number" name="birth_year" min="0" max="99" required value="{{ person.birth_year if person else '' }}"
+               class="w-full px-3 py-2 border border-neutral-300 rounded-lg" />
+      </div>
+      <div>
+        <label class="block text-sm font-medium mb-1">키(cm) <span class="text-pink-600">*</span></label>
+        <input type="number" name="height_cm" min="120" max="220" required value="{{ person.height_cm if person else '' }}"
+               class="w-full px-3 py-2 border border-neutral-300 rounded-lg" />
+      </div>
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium mb-1">거주지 <span class="text-pink-600">*</span></label>
+      <input type="text" name="location" required value="{{ person.location if person else '' }}"
+             placeholder="예: 서울 마포구"
+             class="w-full px-3 py-2 border border-neutral-300 rounded-lg" />
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium mb-1">직장 <span class="text-pink-600">*</span></label>
+      <input type="text" name="workplace" required value="{{ person.workplace if person else '' }}"
+             placeholder="예: ○○회사 마케팅팀"
+             class="w-full px-3 py-2 border border-neutral-300 rounded-lg" />
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium mb-1">이름 (메모용, 본인만 봄)</label>
+      <input type="text" name="alias" value="{{ person.alias if person else '' }}"
+             placeholder="예: 민지, 동아리 후배"
+             class="w-full px-3 py-2 border border-neutral-300 rounded-lg" />
+    </div>
+
+    {% if AUTH_ENABLED %}
+    <div>
+      <label class="block text-sm font-medium mb-1">마담뚜 (이 매물을 운영하는 사람)</label>
+      <select name="owner_user_id" class="w-full px-3 py-2 border border-neutral-300 rounded-lg">
+        <option value="">— 미지정 —</option>
+        {% for a in admins %}
+        {% set selected = (person.owner_user_id == a.id) if person else (current_user and a.id == current_user.id) %}
+        <option value="{{ a.id }}" {% if selected %}selected{% endif %}>
+          {{ a.display_name }}{% if current_user and a.id == current_user.id %} (나){% endif %}
+        </option>
+        {% endfor %}
+      </select>
+      <div class="text-xs text-neutral-500 mt-1">소개 요청은 이 사람한테 갑니다. 기본값: 본인.</div>
+    </div>
+
+    {# visibility — 편집 모드 + 책임자/owner 인 경우만 노출 #}
+    {% if person and current_user and (current_user.is_owner or person.owner_user_id == current_user.id) %}
+    <div class="border border-neutral-200 rounded-lg p-3 space-y-3">
+      <label class="block text-sm font-medium">🔒 공개 범위</label>
+      <div class="space-y-2 text-sm">
+        <label class="flex items-start gap-2 cursor-pointer">
+          <input type="radio" name="visibility" value="PUBLIC"
+                 {% if person.visibility.value == 'PUBLIC' %}checked{% endif %}
+                 onchange="document.getElementById('mc-allowed-list').classList.add('hidden')"
+                 class="mt-1" />
+          <span>
+            <strong>모두 공개</strong> — 모든 마담뚜가 볼 수 있음 (기본)
+          </span>
+        </label>
+        <label class="flex items-start gap-2 cursor-pointer">
+          <input type="radio" name="visibility" value="RESTRICTED"
+                 {% if person.visibility.value == 'RESTRICTED' %}checked{% endif %}
+                 onchange="document.getElementById('mc-allowed-list').classList.remove('hidden')"
+                 class="mt-1" />
+          <span>
+            <strong>특정 마담뚜만</strong> — 선택한 사람 + 나 + 책임자만 볼 수 있음
+          </span>
+        </label>
+      </div>
+      <div id="mc-allowed-list" class="{% if person.visibility.value != 'RESTRICTED' %}hidden{% endif %} pl-5 pt-2 space-y-1.5 border-t border-neutral-100">
+        <div class="text-xs text-neutral-500 mb-1">접근 허용할 마담뚜 (본인 + 책임자는 자동 포함)</div>
+        {% set _shown_any = false %}
+        {% for a in admins %}
+        {% if a.id != person.owner_user_id and not a.is_owner %}
+          {% set _shown_any = true %}
+          <label class="flex items-center gap-2 text-sm cursor-pointer">
+            <input type="checkbox" name="allowed_admins" value="{{ a.id }}"
+                   {% if a.id in allowed_admin_ids %}checked{% endif %} />
+            <span>{{ a.display_name }}</span>
+          </label>
+        {% endif %}
+        {% endfor %}
+        {% if not _shown_any %}
+        <div class="text-xs text-neutral-400">다른 마담뚜가 없어요. 가입 + 승급 후 표시됩니다.</div>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+    {% endif %}
+
+    {% if person %}
+    <!-- EDIT 모드: 기존 데이터 보여줘야 하니 항상 펼쳐서 보임 -->
+    <div>
+      <label class="block text-sm font-medium mb-1">이상형</label>
+      <textarea name="ideal_type" rows="3"
+                class="w-full px-3 py-2 border border-neutral-300 rounded-lg">{{ person.ideal_type }}</textarea>
+    </div>
+    <div>
+      <label class="block text-sm font-medium mb-1">주선자 메모</label>
+      <textarea name="notes" rows="3"
+                class="w-full px-3 py-2 border border-neutral-300 rounded-lg">{{ person.notes }}</textarea>
+    </div>
+    {% else %}
+    <!-- NEW 모드: 기본 등록은 단순하게, 추가 정보는 expand 로 -->
+    <details class="border border-neutral-200 rounded-lg">
+      <summary class="cursor-pointer text-sm font-medium px-3 py-2 text-neutral-600 hover:bg-neutral-50 rounded-lg">
+        ➕ 추가 정보 (이상형 / 메모) — 선택
+      </summary>
+      <div class="p-3 pt-0 space-y-3 border-t border-neutral-100">
+        <div>
+          <label class="block text-sm font-medium mb-1 mt-2">이상형</label>
+          <textarea name="ideal_type" rows="3"
+                    class="w-full px-3 py-2 border border-neutral-300 rounded-lg"></textarea>
+        </div>
+        <div>
+          <label class="block text-sm font-medium mb-1">주선자 메모</label>
+          <textarea name="notes" rows="3"
+                    class="w-full px-3 py-2 border border-neutral-300 rounded-lg"></textarea>
+        </div>
+      </div>
+    </details>
+    {% endif %}
+
+    <div>
+      <label class="block text-sm font-medium mb-1">사진 추가 (최대 5장, jpg/png/webp/heic)</label>
+      <input type="file" name="photos" multiple accept="image/*"
+             class="w-full text-sm" />
+    </div>
+
+    {% if person and person.photos %}
+    <div>
+      <div class="text-sm font-medium mb-2">기존 사진</div>
+      <div class="grid grid-cols-3 gap-2">
+        {% for ph in person.photos | sort(attribute='order') %}
+        <div class="relative group">
+          <img loading="lazy" decoding="async" src="/uploads/{{ ph.filename|thumb_url }}" class="aspect-square w-full object-cover rounded-lg" />
+          <button type="submit"
+                  formaction="/persons/{{ person.id }}/photos/{{ ph.id }}/delete"
+                  formmethod="post"
+                  formnovalidate
+                  onclick="return confirm('이 사진 삭제?')"
+                  class="absolute top-1 right-1 opacity-0 group-hover:opacity-100 bg-red-600 text-white text-xs px-2 py-1 rounded">×</button>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="flex gap-2 pt-2">
+      <button id="mc-submit-btn" class="flex-1 bg-pink-600 text-white py-2 rounded-lg font-medium hover:bg-pink-700 disabled:opacity-60">
+        {% if person %}저장{% else %}등록{% endif %}
+      </button>
+      <a href="{% if person %}/persons/{{ person.id }}{% else %}/persons{% endif %}"
+         class="px-4 py-2 border border-neutral-300 rounded-lg">취소</a>
+    </div>
+  </form>
+</div>
+
+<script>
+/* 클라이언트 사이드 사진 압축.
+   브라우저에서 미리 1600px / quality 0.85 로 줄여 업로드 → 서버 Pillow 부담 0,
+   업로드 전송 바이트도 줄어 모바일 셀룰러에서 큰 체감. EXIF 회전은
+   createImageBitmap({imageOrientation:'from-image'}) 가 자동 처리.
+
+   HEIC 는 브라우저가 decode 못 하니 그대로 보냄 (서버가 원본 복사). */
+(function () {
+  const FORM = document.querySelector('form[enctype="multipart/form-data"]');
+  if (!FORM) return;
+  const SUBMIT_BTN = document.getElementById('mc-submit-btn');
+  const MAX_DIM = 1600;
+  const QUALITY = 0.85;
+  // 작은 파일은 압축 안 함 (이미 작거나 비-이미지).
+  const SKIP_BELOW_BYTES = 400 * 1024;
+
+  async function compressOne(file) {
+    if (!file.type.startsWith('image/')) return file;
+    if (file.type === 'image/heic' || /\.heic$/i.test(file.name)) return file;
+    if (file.size < SKIP_BELOW_BYTES) return file;
+    try {
+      const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
+      const scale = Math.min(1, MAX_DIM / Math.max(bitmap.width, bitmap.height));
+      const w = Math.round(bitmap.width * scale);
+      const h = Math.round(bitmap.height * scale);
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(bitmap, 0, 0, w, h);
+      bitmap.close();
+      const blob = await new Promise(res =>
+        canvas.toBlob(res, 'image/jpeg', QUALITY)
+      );
+      if (!blob || blob.size >= file.size) return file;  // 압축이 외려 키우면 원본 유지
+      const newName = file.name.replace(/\.[^.]+$/, '') + '.jpg';
+      return new File([blob], newName, { type: 'image/jpeg' });
+    } catch (e) {
+      console.warn('compress failed, sending original:', file.name, e);
+      return file;
+    }
+  }
+
+  let busy = false;
+  FORM.addEventListener('submit', async (e) => {
+    if (busy) return;  // 재진입 방지
+    const inputs = FORM.querySelectorAll('input[type="file"][name="photos"]');
+    if (!inputs.length) return;
+    // 압축할 게 있는지 빠른 검사
+    let work = false;
+    for (const inp of inputs) {
+      for (const f of inp.files) {
+        if (f.type.startsWith('image/') && f.size >= SKIP_BELOW_BYTES
+            && !/\.heic$/i.test(f.name)) { work = true; break; }
+      }
+      if (work) break;
+    }
+    if (!work) return;
+
+    e.preventDefault();
+    busy = true;
+    const orig = SUBMIT_BTN?.textContent;
+    if (SUBMIT_BTN) { SUBMIT_BTN.disabled = true; SUBMIT_BTN.textContent = '📐 사진 압축 중...'; }
+
+    try {
+      for (const inp of inputs) {
+        const compressed = await Promise.all(Array.from(inp.files).map(compressOne));
+        const dt = new DataTransfer();
+        compressed.forEach(f => dt.items.add(f));
+        inp.files = dt.files;
+      }
+    } catch (e) {
+      console.warn('client-side compression error:', e);
+    }
+    // 다시 native submit (이벤트 리스너 우회)
+    FORM.submit();
+  });
+})();
+</script>
+{% endblock %}

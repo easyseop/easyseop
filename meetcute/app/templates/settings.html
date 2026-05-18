@@ -1,0 +1,212 @@
+{% extends "base.html" %}
+{% block title %}내 설정 · meetcute{% endblock %}
+{% block content %}
+<div class="max-w-2xl mx-auto space-y-4">
+  <h1 class="text-2xl font-bold">내 설정</h1>
+
+  {% if ok %}
+  <div class="bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl p-3 text-sm">✅ {{ ok }}</div>
+  {% endif %}
+  {% if err %}
+  <div class="bg-red-50 border border-red-200 text-red-700 rounded-xl p-3 text-sm">⚠️ {{ err }}</div>
+  {% endif %}
+  {% if flash %}
+  <div class="bg-blue-50 border border-blue-200 text-blue-700 rounded-xl p-3 text-sm">{{ flash }}</div>
+  {% endif %}
+
+  <div class="bg-white border border-neutral-200 rounded-xl p-6 space-y-3">
+    <h2 class="font-semibold">🔑 비밀번호 변경</h2>
+    <p class="text-sm text-neutral-600">
+      10자 이상 · 영문+숫자 혼합 · 흔한 비밀번호/이메일 포함 X.
+    </p>
+    <form method="post" action="/settings/password" class="space-y-2">
+      <input type="password" name="old_password" autocomplete="current-password" required
+             placeholder="현재 비밀번호"
+             class="w-full px-3 py-2 border border-neutral-300 rounded-lg" />
+      <input type="password" name="new_password" autocomplete="new-password" minlength="10" required
+             placeholder="새 비밀번호 (10자 이상)"
+             class="w-full px-3 py-2 border border-neutral-300 rounded-lg" />
+      <input type="password" name="new_password_confirm" autocomplete="new-password" minlength="10" required
+             placeholder="새 비밀번호 확인"
+             class="w-full px-3 py-2 border border-neutral-300 rounded-lg" />
+      <button class="px-4 py-2 bg-pink-600 text-white rounded-lg text-sm hover:bg-pink-700">변경</button>
+    </form>
+  </div>
+
+  <div class="bg-white border border-neutral-200 rounded-xl p-6 space-y-3">
+    <h2 class="font-semibold">🪪 닉네임</h2>
+    <p class="text-sm text-neutral-600">
+      다른 마담뚜한테 표시되는 이름입니다. <strong>이메일은 절대 노출되지 않아요.</strong>
+      비워두면 <code class="bg-neutral-100 px-1 rounded">마담뚜-{{ current_user.id }}</code> 로 표시됩니다.
+    </p>
+    <form method="post" action="/settings/nickname" class="flex gap-2 flex-wrap">
+      <input type="text" name="nickname" value="{{ current_user.nickname }}" maxlength="64"
+             placeholder="예: 엉뚱한강아지"
+             class="flex-1 min-w-[160px] px-3 py-2 border border-neutral-300 rounded-lg" />
+      <button class="px-4 py-2 bg-pink-600 text-white rounded-lg text-sm hover:bg-pink-700">저장</button>
+      <button formaction="/settings/nickname/reroll" formnovalidate
+              class="px-4 py-2 border border-neutral-300 rounded-lg text-sm hover:bg-neutral-50">🎲 새로 뽑기</button>
+    </form>
+    <div class="text-xs text-neutral-500">
+      현재 표시되는 이름: <span class="font-mono font-semibold">{{ current_user.display_name }}</span>
+      {% if current_user.is_owner %}<span class="ml-2 px-1.5 py-0.5 rounded bg-pink-100 text-pink-700">👑 책임자</span>{% endif %}
+    </div>
+  </div>
+
+  <div class="bg-white border border-neutral-200 rounded-xl p-6 space-y-3">
+    <h2 class="font-semibold">📱 텔레그램 알림</h2>
+    <p class="text-sm text-neutral-600">
+      소개 요청을 받거나 응답이 올 때 텔레그램으로 알림 받으려면 chat_id를 등록하세요.
+    </p>
+
+    {% if not telegram_enabled_globally %}
+    <div class="bg-amber-50 border border-amber-200 text-amber-800 rounded-lg p-3 text-sm">
+      ⚠️ 서버에 <code class="bg-amber-100 px-1 rounded">MEETCUTE_TELEGRAM_BOT_TOKEN</code> 환경변수가 설정되지 않았습니다.
+      <code class="bg-amber-100 px-1 rounded">.env</code> 에 추가 후 dev.sh 재시작 필요.
+    </div>
+    {% elif bot_username %}
+    <div class="bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-lg p-3 text-sm">
+      ✅ 봇 연결됨: <a href="https://t.me/{{ bot_username }}" target="_blank" class="font-semibold underline">@{{ bot_username }}</a>
+      <span class="text-xs text-emerald-600">← 휴대폰 텔레그램에서 이 봇을 찾아 <code class="bg-emerald-100 px-1 rounded">/start</code> 한 번 보내세요.</span>
+    </div>
+    {% elif bot_error %}
+    <div class="bg-red-50 border border-red-200 text-red-700 rounded-lg p-3 text-sm">
+      ⚠️ 봇 인증 실패: {{ bot_error }} (토큰이 잘못됐을 수 있음 — <code class="bg-red-100 px-1 rounded">.env</code> 확인)
+    </div>
+    {% endif %}
+
+    <details class="bg-neutral-50 rounded-lg p-3 text-sm">
+      <summary class="cursor-pointer font-medium">📖 chat_id 어떻게 받지?</summary>
+      <div class="mt-2 space-y-2 text-neutral-600">
+        <p><strong>방법 1 (추천):</strong> 본인이 만든 봇에 텔레그램에서 아무 메시지(<code class="bg-neutral-200 px-1 rounded">/start</code> 또는 "hi" 등)나 보낸 후 → 아래 <strong>🔍 자동 감지</strong> 버튼.</p>
+        <p><strong>방법 2:</strong> 텔레그램에서 <strong>@get_id_bot</strong> 검색 → /start → 답장에서 chat_id 확인 → 직접 입력.</p>
+        <p><strong>방법 3:</strong> 브라우저에서 <code class="bg-neutral-200 px-1 rounded">https://api.telegram.org/bot&lt;TOKEN&gt;/getUpdates</code> → JSON 에서 <code>"chat":{"id":...}</code> 찾기.</p>
+      </div>
+    </details>
+
+    {% if detect_attempted %}
+      {% if detect_error %}
+      <div class="bg-red-50 border border-red-200 text-red-700 rounded-lg p-3 text-sm">⚠️ 자동 감지 실패: {{ detect_error }}</div>
+      {% elif detected_chats %}
+      <div class="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-sm space-y-2">
+        <div class="font-medium text-emerald-800">🔍 봇에 메시지 보낸 사람들 ({{ detected_chats | length }})</div>
+        <p class="text-emerald-700 text-xs">아래에서 본인 chat_id 옆 [채우기] 클릭 → 입력란에 자동 채워짐 → <strong>저장</strong> 누르기.</p>
+        <ul class="space-y-1">
+          {% for c in detected_chats %}
+          <li class="flex items-center gap-2 text-emerald-900">
+            <code class="bg-white px-2 py-0.5 rounded font-mono">{{ c.id }}</code>
+            <span class="flex-1 truncate">{{ c.name }}</span>
+            <button type="button" onclick="document.querySelector('input[name=chat_id]').value='{{ c.id }}'"
+                    class="text-xs px-2 py-1 bg-emerald-600 text-white rounded hover:bg-emerald-700">채우기</button>
+          </li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% else %}
+      <div class="bg-amber-50 border border-amber-200 text-amber-800 rounded-lg p-3 text-sm">
+        봇에 메시지 보낸 사람이 없습니다. 텔레그램에서 본인 봇한테 먼저 <code class="bg-amber-100 px-1 rounded">/start</code> 한 번 보낸 뒤 다시 시도.
+      </div>
+      {% endif %}
+    {% endif %}
+
+    <form method="post" action="/settings/telegram" class="space-y-2">
+      <label class="block text-sm font-medium">텔레그램 chat_id</label>
+      <input type="text" name="chat_id" value="{{ current_user.telegram_chat_id }}"
+             placeholder="예: 12345678"
+             class="w-full px-3 py-2 border border-neutral-300 rounded-lg" />
+      <div class="flex gap-2 flex-wrap">
+        <button class="px-4 py-2 bg-pink-600 text-white rounded-lg text-sm hover:bg-pink-700">저장</button>
+        {% if current_user.telegram_chat_id %}
+        <button formaction="/settings/telegram/test"
+                class="px-4 py-2 border border-neutral-300 rounded-lg text-sm hover:bg-neutral-50">
+          🧪 테스트 메시지 보내기
+        </button>
+        {% endif %}
+        <a href="/settings?detect=1"
+           class="px-4 py-2 border border-neutral-300 rounded-lg text-sm hover:bg-neutral-50 ml-auto">
+          🔍 자동 감지
+        </a>
+      </div>
+    </form>
+  </div>
+
+  {% if db_info %}
+  <div class="bg-white border border-neutral-200 rounded-xl p-6 space-y-3">
+    <h2 class="font-semibold">💾 데이터 / 시스템 상태</h2>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <!-- DB -->
+      <div class="bg-neutral-50 rounded-lg p-4 space-y-1">
+        <div class="text-xs text-neutral-500">데이터베이스</div>
+        <div class="font-semibold">{{ db_info.kind }}</div>
+        <div class="text-xs text-neutral-500 mt-2">파일 경로</div>
+        <div class="text-xs font-mono break-all">{{ db_info.db_file_path or db_info.url_masked }}</div>
+        <div class="text-xs text-neutral-500 mt-2">파일 크기</div>
+        <div class="font-semibold">{{ db_info.db_file_size_h }}</div>
+      </div>
+
+      <!-- 사진 -->
+      <div class="bg-neutral-50 rounded-lg p-4 space-y-1">
+        <div class="text-xs text-neutral-500">사진 저장소</div>
+        <div class="font-semibold">{{ db_info.uploads_count }} 장 · {{ db_info.uploads_size_h }}</div>
+        <div class="text-xs text-neutral-500 mt-2">경로</div>
+        <div class="text-xs font-mono break-all">{{ db_info.uploads_path }}</div>
+      </div>
+    </div>
+
+    <!-- Row counts -->
+    <div>
+      <div class="text-sm font-medium mb-2">테이블별 row 개수</div>
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-sm">
+        {% for table, n in db_info.counts.items() %}
+        <div class="bg-neutral-50 rounded-lg p-3">
+          <div class="text-xs text-neutral-500">{{ table }}</div>
+          <div class="text-lg font-bold">{{ n }}</div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <details class="text-sm">
+      <summary class="cursor-pointer font-medium text-neutral-700">📥 백업하는 법</summary>
+      <div class="mt-3 space-y-2 text-neutral-600">
+        <p>두 폴더만 챙기면 됩니다:</p>
+        <pre class="bg-neutral-100 rounded p-2 text-xs overflow-x-auto"><code>{{ db_info.db_file_path }}
+{{ db_info.uploads_path }}</code></pre>
+        <p>구체적 방법은 <strong>MANUAL.md → 백업 섹션</strong> 또는 <a href="/manual" class="text-pink-600 underline">/manual</a> 참조.</p>
+      </div>
+    </details>
+  </div>
+  {% endif %}
+
+  <div class="bg-white border border-neutral-200 rounded-xl p-6 space-y-3">
+    <h2 class="font-semibold">계정</h2>
+    <div class="text-sm text-neutral-600">이메일: <code>{{ current_user.email }}</code></div>
+    <div class="text-sm text-neutral-600">권한:
+      {% if current_user.is_owner %}👑 책임자
+      {% elif current_user.is_admin %}마담뚜
+      {% else %}일반 가입자{% endif %}
+    </div>
+    <div class="text-sm text-neutral-400">가입일: {{ current_user.created_at.strftime('%Y-%m-%d') }}</div>
+
+    <div class="border-t border-neutral-100 pt-3">
+      <form method="post" action="/auth/logout">
+        <button class="w-full px-4 py-2 border border-neutral-300 rounded-lg text-sm text-red-600 hover:bg-red-50">로그아웃</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- 모바일에서 햄버거 없으니 여기서 자주 안 쓰는 메뉴 접근 -->
+  <div class="bg-white border border-neutral-200 rounded-xl p-4">
+    <div class="text-xs text-neutral-500 mb-2">🔗 바로 가기</div>
+    <div class="grid grid-cols-2 gap-2 text-sm">
+      <a href="/compatibility" class="px-3 py-2 border border-neutral-200 rounded-lg hover:bg-neutral-50 text-center">🔀 호환성 체크</a>
+      <a href="/manual" class="px-3 py-2 border border-neutral-200 rounded-lg hover:bg-neutral-50 text-center">📖 매뉴얼</a>
+      {% if current_user.is_owner %}
+      <a href="/users" class="px-3 py-2 border border-pink-200 bg-pink-50 text-pink-700 rounded-lg hover:bg-pink-100 text-center">👑 마담뚜 관리 (책임자만)</a>
+      {% endif %}
+      <a href="/persons/new" class="px-3 py-2 border border-pink-200 bg-pink-50 text-pink-700 rounded-lg hover:bg-pink-100 text-center">+ 새 매물</a>
+    </div>
+  </div>
+</div>
+{% endblock %}

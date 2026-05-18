@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}소개 요청 보내기 · meetcute{% endblock %}
+{% block content %}
+<div class="max-w-2xl mx-auto space-y-4">
+  <h1 class="text-2xl font-bold">📨 소개 요청 보내기</h1>
+
+  <div class="bg-white border border-neutral-200 rounded-xl p-5">
+    <div class="text-xs text-neutral-500 mb-1">상대 매물 (다른 마담뚜 소유)</div>
+    <a href="/persons/{{ their_person.id }}" class="font-mono text-lg font-bold hover:text-pink-600">{{ their_person.public_id }}</a>
+    <div class="text-sm text-neutral-600 mt-1">
+      {{ their_person.gender.label }} · {{ their_person.year_label }} · {{ their_person.height_cm }}cm · {{ their_person.location }}
+    </div>
+    {% if their_owner %}
+    <div class="text-xs text-neutral-500 mt-1">마담뚜: 👤 {{ their_owner.display_name }}</div>
+    {% endif %}
+  </div>
+
+  {% if my_persons %}
+  <form method="post" action="/requests" class="bg-white border border-neutral-200 rounded-xl p-6 space-y-4">
+    <input type="hidden" name="their_person_id" value="{{ their_person.id }}" />
+
+    <div>
+      <label class="block text-sm font-medium mb-1">내 매물 중에서 누구를 소개? <span class="text-pink-600">*</span></label>
+      <select name="my_person_id" required class="w-full px-3 py-2 border border-neutral-300 rounded-lg">
+        <option value="">선택</option>
+        {% for p in my_persons %}
+        <option value="{{ p.id }}">
+          {{ p.public_id }} · {{ p.gender.label }} · {{ p.year_label }} · {{ p.workplace }}{% if p.alias %} ({{ p.alias }}){% endif %}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium mb-1">메모 <span class="text-neutral-400 font-normal">(상대 admin 에게 전달됨)</span></label>
+      <textarea name="message" rows="4" placeholder="예: 두 분 조건이 잘 맞을 것 같아요. 한 번 물어봐주실 수 있을까요?"
+                class="w-full px-3 py-2 border border-neutral-300 rounded-lg"></textarea>
+    </div>
+
+    <label class="flex items-start gap-2 cursor-pointer bg-emerald-50 border border-emerald-200 rounded-lg p-3">
+      <input type="checkbox" name="sender_consent" value="1" class="mt-1 accent-emerald-600" />
+      <span class="text-sm">
+        <strong>✅ 내 매물에게 이미 의향 물어봤고 동의 받았어요.</strong>
+        <span class="block text-xs text-neutral-600 mt-0.5">
+          체크 안 하면 "본인 매물 의향 미확인" 으로 표시됩니다. 받은 마담뚜가
+          "먼저 물어봐달라" 회신할 수도 있어요. 나중에 /requests 에서 동의 표시
+          가능.
+        </span>
+      </span>
+    </label>
+
+    <div class="flex gap-2 pt-2">
+      <button class="flex-1 bg-pink-600 text-white py-2 rounded-lg font-medium hover:bg-pink-700">요청 보내기</button>
+      <a href="/persons/{{ their_person.id }}" class="px-4 py-2 border border-neutral-300 rounded-lg">취소</a>
+    </div>
+  </form>
+  {% else %}
+  <div class="bg-white border border-dashed border-neutral-300 rounded-xl p-8 text-center text-neutral-500">
+    <p>본인이 관리하는 매물이 없어요.</p>
+    <a href="/persons/new" class="text-pink-600 underline">매물 먼저 등록</a>해주세요.
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

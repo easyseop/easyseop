@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block title %}만남 #{{ enc.id }} · meetcute{% endblock %}
+
+{% macro person_card(pid, snapshot) %}
+  {% set p = persons.get(pid) %}
+  <div class="flex-1 bg-neutral-50 rounded-xl p-4">
+    {% if p %}
+      <a href="/persons/{{ p.id }}" class="font-mono text-lg font-bold hover:text-pink-600">{{ p.public_id }}</a>
+      <div class="text-sm text-neutral-600 mt-1">
+        {{ p.gender.label }} · {{ p.year_label }} · {{ p.height_cm }}cm
+      </div>
+      <div class="text-sm text-neutral-500">{{ p.location }} · {{ p.workplace }}</div>
+      {% if p.alias %}<div class="text-xs text-neutral-400 mt-1">({{ p.alias }})</div>{% endif %}
+    {% else %}
+      <div class="font-mono text-lg text-neutral-400 line-through">{{ snapshot or '?' }}</div>
+      <div class="text-xs text-neutral-400 mt-1">삭제된 매물</div>
+    {% endif %}
+  </div>
+{% endmacro %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto space-y-4">
+  <h1 class="text-2xl font-bold">만남 기록 편집</h1>
+
+  <div class="flex flex-col sm:flex-row gap-3 items-stretch">
+    {{ person_card(enc.person_a_id, enc.person_a_snapshot) }}
+    <div class="flex items-center justify-center text-2xl text-pink-400 sm:px-2">×</div>
+    {{ person_card(enc.person_b_id, enc.person_b_snapshot) }}
+  </div>
+
+  <form method="post" action="/encounters/{{ enc.id }}" class="bg-white border border-neutral-200 rounded-xl p-6 space-y-4">
+    <div class="grid grid-cols-2 gap-3">
+      <div>
+        <label class="block text-sm font-medium mb-1">만남 날짜</label>
+        <input type="date" name="met_on" required value="{{ enc.met_on.isoformat() }}"
+               class="w-full px-3 py-2 border border-neutral-300 rounded-lg" />
+      </div>
+      <div>
+        <label class="block text-sm font-medium mb-1">결과</label>
+        <select name="outcome" class="w-full px-3 py-2 border border-neutral-300 rounded-lg">
+          {% for o in EncounterOutcome %}
+          <option value="{{ o.value }}" {% if o == enc.outcome %}selected{% endif %}>
+            {{ OUTCOME_LABEL[o] }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium mb-1">
+        결과 변경 사유 <span class="text-neutral-400 font-normal">(선택 · 결과를 바꾼 경우만 기록됨)</span>
+      </label>
+      <input type="text" name="transition_note"
+             placeholder="예: 2차 만남 잘 됐다고 함 / A가 연락 끊김"
+             class="w-full px-3 py-2 border border-neutral-300 rounded-lg" />
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium mb-1">전체 메모</label>
+      <textarea name="notes" rows="5"
+                class="w-full px-3 py-2 border border-neutral-300 rounded-lg">{{ enc.notes }}</textarea>
+    </div>
+
+    <div class="flex gap-2 pt-2">
+      <button class="flex-1 bg-pink-600 text-white py-2 rounded-lg font-medium hover:bg-pink-700">저장</button>
+      <a href="/encounters" class="px-4 py-2 border border-neutral-300 rounded-lg">취소</a>
+    </div>
+  </form>
+
+  <div class="bg-white border border-neutral-200 rounded-xl p-5">
+    <h2 class="font-semibold mb-3">📜 결과 변경 이력 <span class="text-xs font-normal text-neutral-500">({{ events | length }}건)</span></h2>
+    {% if events %}
+    <ol class="relative border-l border-neutral-200 ml-2 space-y-3">
+      {% for ev in events %}
+      <li class="ml-4">
+        <div class="absolute -left-1.5 w-3 h-3 rounded-full {% if ev.outcome.value == 'MATCHED' %}bg-pink-400{% elif ev.outcome.value in ['PENDING','CONTINUING'] %}bg-amber-400{% else %}bg-neutral-300{% endif %} mt-1.5"></div>
+        <div class="text-xs text-neutral-500">
+          {{ ev.created_at | human_time }} <span class="text-neutral-300">({{ ev.created_at.strftime('%Y-%m-%d %H:%M') }})</span>
+          {% if ev.changed_by_email %}· <span class="font-medium">{{ ev.changed_by_email }}</span>{% endif %}
+        </div>
+        <div class="mt-0.5 flex items-center gap-2 text-sm">
+          <span class="px-2 py-0.5 rounded-full text-xs font-medium {{ OUTCOME_BADGE[ev.outcome] }}">
+            {{ OUTCOME_LABEL[ev.outcome] }}
+          </span>
+          {% if ev.note %}
+          <span class="text-neutral-600">— {{ ev.note }}</span>
+          {% endif %}
+        </div>
+      </li>
+      {% endfor %}
+    </ol>
+    {% else %}
+    <div class="text-sm text-neutral-400 text-center py-4">변경 이력 없음 (이전 버전에서 만들어진 기록)</div>
+    {% endif %}
+  </div>
+
+  <form method="post" action="/encounters/{{ enc.id }}/delete"
+        onsubmit="return confirm('만남 기록 삭제? (이력에서 사라짐)')"
+        class="text-right">
+    <button class="text-xs text-red-600 hover:underline">이 만남 기록 삭제</button>
+  </form>
+</div>
+{% endblock %}

@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% block title %}대시보드 · meetcute{% endblock %}
+
+{% macro person_chip(pid, snapshot) %}
+  {% set p = person_map.get(pid) %}
+  {% if p %}
+    <a href="/persons/{{ p.id }}" class="font-mono text-sm font-semibold hover:text-pink-600">{{ p.public_id }}</a>
+  {% else %}
+    <span class="font-mono text-sm text-neutral-400 line-through">{{ snapshot or '?' }}</span>
+  {% endif %}
+{% endmacro %}
+
+{% block content %}
+<div class="space-y-6">
+  <h1 class="text-2xl font-bold">대시보드</h1>
+
+  <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+    <div class="bg-white rounded-xl border border-neutral-200 p-4">
+      <div class="text-xs text-neutral-500">전체 매물</div>
+      <div class="text-2xl font-bold mt-1">{{ stats.total }}</div>
+      <div class="text-xs text-neutral-400 mt-1">M {{ stats.male }} · F {{ stats.female }}{% if stats.other %} · X {{ stats.other }}{% endif %}</div>
+    </div>
+    <div class="bg-emerald-50 rounded-xl border border-emerald-100 p-4">
+      <div class="text-xs text-emerald-700">소개 가능</div>
+      <div class="text-2xl font-bold mt-1 text-emerald-800">{{ stats.available }}</div>
+    </div>
+    <div class="bg-amber-50 rounded-xl border border-amber-100 p-4">
+      <div class="text-xs text-amber-700">진행 중</div>
+      <div class="text-2xl font-bold mt-1 text-amber-800">{{ stats.in_progress }}</div>
+    </div>
+    <div class="bg-pink-50 rounded-xl border border-pink-100 p-4">
+      <div class="text-xs text-pink-700">매칭됨</div>
+      <div class="text-2xl font-bold mt-1 text-pink-800">{{ stats.matched }}</div>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+    <div class="bg-white rounded-xl border border-neutral-200 p-5">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="font-semibold">진행 중 매칭 ({{ active_encs | length }})</h2>
+        <a href="/encounters?outcome=PENDING" class="text-xs text-pink-600 hover:underline">전체 보기</a>
+      </div>
+      {% if active_encs %}
+      <ul class="divide-y divide-neutral-100">
+        {% for e in active_encs %}
+        <li class="py-2 flex items-center gap-2 text-sm">
+          <span class="text-xs text-neutral-400 w-20">{{ e.met_on | human_time }}</span>
+          {{ person_chip(e.person_a_id, e.person_a_snapshot) }}
+          <span class="text-neutral-300">×</span>
+          {{ person_chip(e.person_b_id, e.person_b_snapshot) }}
+          <span class="ml-auto px-2 py-0.5 rounded-full text-xs font-medium {{ OUTCOME_BADGE[e.outcome] }}">
+            {{ OUTCOME_LABEL[e.outcome] }}
+          </span>
+          <a href="/encounters/{{ e.id }}" class="text-xs text-neutral-400 hover:text-pink-600">→</a>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <div class="text-center text-neutral-400 text-sm py-6">진행 중인 매칭이 없습니다</div>
+      {% endif %}
+    </div>
+
+    <div class="bg-white rounded-xl border border-neutral-200 p-5">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="font-semibold">최근 활동</h2>
+        <a href="/encounters" class="text-xs text-pink-600 hover:underline">전체 만남 기록</a>
+      </div>
+      {% if recent_encs %}
+      <ul class="divide-y divide-neutral-100">
+        {% for e in recent_encs %}
+        <li class="py-2 flex items-center gap-2 text-sm">
+          <span class="text-xs text-neutral-400 w-20">{{ e.met_on | human_time }}</span>
+          {{ person_chip(e.person_a_id, e.person_a_snapshot) }}
+          <span class="text-neutral-300">×</span>
+          {{ person_chip(e.person_b_id, e.person_b_snapshot) }}
+          <span class="ml-auto px-2 py-0.5 rounded-full text-xs font-medium {{ OUTCOME_BADGE[e.outcome] }}">
+            {{ OUTCOME_LABEL[e.outcome] }}
+          </span>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <div class="text-center text-neutral-400 text-sm py-6">아직 만남 기록 없음</div>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if new_persons %}
+  <div class="bg-white rounded-xl border border-pink-200 p-5">
+    <div class="flex items-center justify-between mb-3">
+      <h2 class="font-semibold">🆕 신규 매물 <span class="text-xs font-normal text-neutral-500">(등록 {{ new_threshold_days }}일 이내)</span></h2>
+      <a href="/persons?sort=created" class="text-xs text-pink-600 hover:underline">전체 매물 보기</a>
+    </div>
+    <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+      {% for p, a in new_persons %}
+      <a href="/persons/{{ p.id }}" class="flex items-center gap-2 p-2 rounded-lg border border-pink-100 hover:border-pink-300 hover:bg-pink-50/50">
+        <div class="w-10 h-10 rounded-lg bg-neutral-100 flex items-center justify-center text-lg shrink-0">
+          {% set thumb = p.photos | sort(attribute='order') | first %}
+          {% if thumb %}<img loading="lazy" decoding="async" src="/uploads/{{ thumb.filename|thumb_url }}" class="w-full h-full object-cover rounded-lg" />{% else %}📷{% endif %}
+        </div>
+        <div class="flex-1 min-w-0">
+          <div class="font-mono text-sm font-semibold">{{ p.public_id }}</div>
+          <div class="text-xs text-pink-600 truncate">{{ p.created_at | human_time }} 등록</div>
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="bg-white rounded-xl border border-neutral-200 p-5">
+    <div class="flex items-center justify-between mb-3">
+      <h2 class="font-semibold">😴 오래 잠자는 매물 <span class="text-xs font-normal text-neutral-500">({{ dormant_threshold }}일+ 미활동 · 소개 가능 · 등록 {{ new_threshold_days }}일 초과)</span></h2>
+      <a href="/persons?activity=dormant&sort=dormant" class="text-xs text-pink-600 hover:underline">전체 보기</a>
+    </div>
+    {% if dormant_persons %}
+    <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+      {% for p, a in dormant_persons %}
+      <a href="/persons/{{ p.id }}" class="flex items-center gap-2 p-2 rounded-lg border border-neutral-100 hover:border-pink-300 hover:bg-pink-50/30">
+        <div class="w-10 h-10 rounded-lg bg-neutral-100 flex items-center justify-center text-lg shrink-0">
+          {% set thumb = p.photos | sort(attribute='order') | first %}
+          {% if thumb %}<img loading="lazy" decoding="async" src="/uploads/{{ thumb.filename|thumb_url }}" class="w-full h-full object-cover rounded-lg" />{% else %}📷{% endif %}
+        </div>
+        <div class="flex-1 min-w-0">
+          <div class="font-mono text-sm font-semibold">{{ p.public_id }}</div>
+          <div class="text-xs text-neutral-500 truncate">
+            {% if a.never_met %}한 번도 만남 X{% else %}{{ a.days_dormant }}일 전 만남{% endif %}
+          </div>
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="text-center text-neutral-400 text-sm py-4">잠자는 매물 없음 — 모두 잘 굴러가고 있어요 ✨</div>
+    {% endif %}
+  </div>
+
+  {# 홈 하단 빠른 액션 바는 제거 — 네비 + 햄버거 + 하단 탭바에 다 있음 (중복) #}
+</div>
+{% endblock %}

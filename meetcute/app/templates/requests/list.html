@@ -1,0 +1,189 @@
+{% extends "base.html" %}
+{% block title %}소개 요청 · meetcute{% endblock %}
+
+{% macro person_chip(pid) %}
+  {% set p = persons.get(pid) %}
+  {% if p %}
+    <a href="/persons/{{ p.id }}" class="font-mono font-semibold hover:text-pink-600">{{ p.public_id }}</a>
+    <span class="text-xs text-neutral-500">{{ p.gender.label }} · {{ p.year_label }} · {{ p.location }}</span>
+  {% else %}
+    <span class="font-mono text-neutral-400 line-through">(삭제됨)</span>
+  {% endif %}
+{% endmacro %}
+
+{% macro user_chip(uid) %}
+  {% set u = users.get(uid) %}
+  {% if u %}{{ u.display_name }}{% else %}<span class="text-neutral-400">(삭제됨)</span>{% endif %}
+{% endmacro %}
+
+{% block content %}
+<div class="space-y-6">
+  <div class="flex items-center justify-between">
+    <h1 class="text-2xl font-bold">소개 요청</h1>
+    <a href="/persons?owner=others" class="text-sm text-pink-600 hover:underline">다른 마담뚜 매물 보러가기 →</a>
+  </div>
+
+  <!-- 받은 요청 -->
+  <section class="space-y-3">
+    <h2 class="font-semibold text-lg">📥 받은 요청 ({{ incoming | length }})</h2>
+    {% if incoming %}
+    <ul class="space-y-2">
+      {% for r in incoming %}
+      <li class="bg-white border border-neutral-200 rounded-xl p-4 space-y-3">
+        <div class="flex items-center gap-2 flex-wrap">
+          <span class="text-xs text-neutral-400">{{ r.created_at | human_time }}</span>
+          <span class="px-2 py-0.5 rounded-full text-xs font-medium {{ STATUS_BADGE[r.status] }}">
+            {{ STATUS_LABEL[r.status] }}
+          </span>
+          <span class="px-2 py-0.5 rounded-full text-xs {{ CONSENT_BADGE[r.sender_own_consent] }}">
+            보낸이 매물 {{ CONSENT_LABEL[r.sender_own_consent] }}
+          </span>
+          <span class="px-2 py-0.5 rounded-full text-xs {{ CONSENT_BADGE[r.receiver_own_consent] }}">
+            내 매물 {{ CONSENT_LABEL[r.receiver_own_consent] }}
+          </span>
+          {% if r.status.value == 'PENDING' and r.last_reminded_at %}
+          <span class="text-xs text-amber-600">⏰ 재알림 {{ r.last_reminded_at | human_time }}</span>
+          {% endif %}
+        </div>
+        <div class="text-sm">
+          <div><span class="text-neutral-500">보낸이:</span> {{ user_chip(r.from_user_id) }}</div>
+          <div class="mt-1"><span class="text-neutral-500">소개하려는 매물:</span> {{ person_chip(r.my_person_id) }}</div>
+          <div class="mt-1"><span class="text-neutral-500">→ 너네 매물:</span> {{ person_chip(r.their_person_id) }}</div>
+        </div>
+        {% if r.message %}
+        <div class="text-sm whitespace-pre-wrap bg-neutral-50 rounded-lg p-3">{{ r.message }}</div>
+        {% endif %}
+        {% if r.response_note %}
+        <div class="text-sm whitespace-pre-wrap bg-amber-50 rounded-lg p-3">
+          <div class="text-xs text-amber-700 mb-1">내 응답</div>
+          {{ r.response_note }}
+        </div>
+        {% endif %}
+        {% if r.status.value == 'PENDING' %}
+        <div class="border-t border-neutral-100 pt-3 space-y-2">
+          {# 보낸이 매물 미확인 → 추가 옵션: "먼저 물어봐달라" 회신 #}
+          {% if r.sender_own_consent.value == 'NOT_ASKED' %}
+          <form method="post" action="/requests/{{ r.id }}/ping-sender"
+                onsubmit="return confirm('보낸이에게 본인 매물 의향 먼저 확인해달라고 회신할까요?')">
+            <button class="w-full px-3 py-2 border border-amber-300 bg-amber-50 text-amber-800 rounded-lg text-sm hover:bg-amber-100">
+              🔔 "본인 매물에 먼저 물어봐주세요" 회신
+            </button>
+          </form>
+          {% endif %}
+          {# 내 매물 아직 동의 표시 안 함 → accept 버튼 ("내 매물 동의" 의미) + decline #}
+          {% if r.receiver_own_consent.value == 'NOT_ASKED' %}
+          <form method="post" action="/requests/{{ r.id }}/accept" class="space-y-2">
+            <input type="text" name="response_note" placeholder="응답 메모 (선택)"
+                   class="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm" />
+            <button class="w-full bg-pink-600 text-white py-2 rounded-lg text-sm hover:bg-pink-700">
+              ✅ 내 매물 동의 표시
+              {% if r.sender_own_consent.value == 'AGREED' %}
+              (→ 자동 매칭 즉시 생성)
+              {% else %}
+              (→ 보낸이 동의 대기)
+              {% endif %}
+            </button>
+          </form>
+          <form method="post" action="/requests/{{ r.id }}/decline"
+                onsubmit="return confirm('정말 거절? (요청 종결됨)')" class="flex gap-2">
+            <input type="text" name="response_note" placeholder="거절 사유 (선택)"
+                   class="flex-1 px-3 py-2 border border-neutral-300 rounded-lg text-sm" />
+            <button class="px-4 py-2 border border-red-300 text-red-600 rounded-lg text-sm hover:bg-red-50">❌ 내 매물 거절</button>
+          </form>
+          {% else %}
+          <div class="text-xs text-emerald-700 bg-emerald-50 rounded-lg p-2">
+            ✅ 내 매물 동의 표시 완료. 보낸이 매물 동의 대기 중.
+          </div>
+          {% endif %}
+        </div>
+        {% elif r.status.value == 'ACCEPTED' and r.resolved_encounter_id %}
+        <a href="/encounters/{{ r.resolved_encounter_id }}" class="text-xs text-pink-600 hover:underline">
+          → 자동 생성된 만남 기록 보기 (#{{ r.resolved_encounter_id }})
+        </a>
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <div class="bg-white rounded-xl border border-dashed border-neutral-300 p-8 text-center">
+      <div class="text-3xl mb-2">📭</div>
+      <p class="text-sm text-neutral-500">받은 요청이 없어요.</p>
+    </div>
+    {% endif %}
+  </section>
+
+  <!-- 보낸 요청 -->
+  <section class="space-y-3">
+    <h2 class="font-semibold text-lg">📤 보낸 요청 ({{ outgoing | length }})</h2>
+    {% if outgoing %}
+    <ul class="space-y-2">
+      {% for r in outgoing %}
+      <li class="bg-white border border-neutral-200 rounded-xl p-4 space-y-2">
+        <div class="flex items-center gap-2 flex-wrap">
+          <span class="text-xs text-neutral-400">{{ r.created_at | human_time }}</span>
+          <span class="px-2 py-0.5 rounded-full text-xs font-medium {{ STATUS_BADGE[r.status] }}">
+            {{ STATUS_LABEL[r.status] }}
+          </span>
+          <span class="px-2 py-0.5 rounded-full text-xs {{ CONSENT_BADGE[r.sender_own_consent] }}">
+            내 매물 {{ CONSENT_LABEL[r.sender_own_consent] }}
+          </span>
+          <span class="px-2 py-0.5 rounded-full text-xs {{ CONSENT_BADGE[r.receiver_own_consent] }}">
+            상대 매물 {{ CONSENT_LABEL[r.receiver_own_consent] }}
+          </span>
+        </div>
+        <div class="text-sm">
+          <div><span class="text-neutral-500">받는이:</span> {{ user_chip(r.to_user_id) }}</div>
+          <div class="mt-1"><span class="text-neutral-500">내 매물:</span> {{ person_chip(r.my_person_id) }}</div>
+          <div class="mt-1"><span class="text-neutral-500">→ 상대 매물:</span> {{ person_chip(r.their_person_id) }}</div>
+        </div>
+        {% if r.message %}
+        <div class="text-sm whitespace-pre-wrap bg-neutral-50 rounded-lg p-3">{{ r.message }}</div>
+        {% endif %}
+        {% if r.response_note %}
+        <div class="text-sm whitespace-pre-wrap bg-amber-50 rounded-lg p-3">
+          <div class="text-xs text-amber-700 mb-1">상대 응답</div>
+          {{ r.response_note }}
+        </div>
+        {% endif %}
+        {% if r.status.value == 'PENDING' %}
+        {# 본인 매물 의향 미확인 상태면 사후 표시 가능. 동의 → AGREED. 거절 → WITHDRAWN 자동 종결. #}
+        {% if r.sender_own_consent.value == 'NOT_ASKED' %}
+        <div class="border-t border-neutral-100 pt-2 space-y-2">
+          <div class="text-xs text-amber-700">내 매물에 의향 물어본 후 결과 표시:</div>
+          <div class="flex gap-2">
+            <form method="post" action="/requests/{{ r.id }}/consent-agree" class="flex-1">
+              <button class="w-full px-3 py-2 border border-emerald-300 bg-emerald-50 text-emerald-800 rounded-lg text-sm hover:bg-emerald-100">
+                👍 내 매물 동의
+              </button>
+            </form>
+            <form method="post" action="/requests/{{ r.id }}/consent-decline" class="flex-1"
+                  onsubmit="return confirm('매물이 거절 → 요청 자동 종결. 진행할까요?')">
+              <button class="w-full px-3 py-2 border border-neutral-300 bg-neutral-50 text-neutral-700 rounded-lg text-sm hover:bg-neutral-100">
+                👎 내 매물 거절 (요청 종결)
+              </button>
+            </form>
+          </div>
+        </div>
+        {% endif %}
+        <form method="post" action="/requests/{{ r.id }}/withdraw"
+              onsubmit="return confirm('이 요청을 취소할까요?')" class="text-right">
+          <button class="text-xs text-neutral-500 hover:text-red-600 underline">요청 취소</button>
+        </form>
+        {% elif r.status.value == 'ACCEPTED' and r.resolved_encounter_id %}
+        <a href="/encounters/{{ r.resolved_encounter_id }}" class="text-xs text-pink-600 hover:underline">
+          → 자동 생성된 만남 기록 (#{{ r.resolved_encounter_id }})
+        </a>
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <div class="bg-white rounded-xl border border-dashed border-neutral-300 p-8 text-center">
+      <div class="text-3xl mb-2">📤</div>
+      <p class="text-sm text-neutral-700 mb-3">보낸 요청이 없어요.</p>
+      <a href="/persons?owner=others" class="text-xs text-pink-600 hover:underline">다른 마담뚜 매물 보러가기 →</a>
+    </div>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

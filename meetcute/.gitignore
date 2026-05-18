@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+.venv/
+uv.lock
+.env
+.secret
+.encryption_key
+.public_url
+.last_known_url
+data/
+uploads/
+*.egg-info/
+.ruff_cache/
+.DS_Store

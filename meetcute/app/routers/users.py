@@ -1,0 +1,86 @@
+"""책임자 (is_owner) 전용 유저 관리. 권한 토글 및 사용자 삭제."""
+from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import HTMLResponse, RedirectResponse
+from sqlmodel import Session, select
+
+from ..auth import require_owner
+from ..database import get_session
+from ..models import User
+from ..services.activity_log import log_activity
+from ..templating import templates
+
+router = APIRouter(prefix="/users", tags=["users"])
+
+
+@router.get("", response_class=HTMLResponse)
+def list_users(
+    request: Request,
+    current_user: User = Depends(require_owner),
+    session: Session = Depends(get_session),
+):
+    users = session.exec(select(User).order_by(User.created_at)).all()
+    return templates.TemplateResponse(
+        request,
+        "users/list.html",
+        {"users": users, "current_user": current_user},
+    )
+
+
+@router.post("/{user_id}/toggle-admin")
+def toggle_admin(
+    user_id: int,
+    current_user: User = Depends(require_owner),
+    session: Session = Depends(get_session),
+):
+    target = session.get(User, user_id)
+    if not target:
+        raise HTTPException(404, "User not found")
+
+    # 마지막 마담뚜가 자기 자신을 강등하면 시스템에 관리자 0명 → 차단
+    if target.is_admin and target.id == current_user.id:
+        admin_count = len(
+            session.exec(select(User).where(User.is_admin == True)).all()  # noqa: E712
+        )
+        if admin_count <= 1:
+            raise HTTPException(
+                400, "마지막 마담뚜는 강등할 수 없습니다 (먼저 다른 사람을 관리자로)"
+            )
+
+    target.is_admin = not target.is_admin
+    session.add(target)
+    log_activity(
+        session, current_user, "user.promote",
+        target_type="user", target_id=target.id,
+        summary=f"{target.display_name} → 마담뚜 {'활성화' if target.is_admin else '강등'}",
+    )
+    session.commit()
+    return RedirectResponse("/users", status_code=303)
+
+
+@router.post("/{user_id}/delete")
+def delete_user(
+    user_id: int,
+    current_user: User = Depends(require_owner),
+    session: Session = Depends(get_session),
+):
+    target = session.get(User, user_id)
+    if not target:
+        raise HTTPException(404, "User not found")
+    if target.id == current_user.id:
+        raise HTTPException(400, "자기 자신은 삭제할 수 없습니다")
+    if target.is_admin:
+        admin_count = len(
+            session.exec(select(User).where(User.is_admin == True)).all()  # noqa: E712
+        )
+        if admin_count <= 1:
+            raise HTTPException(400, "마지막 마담뚜는 삭제할 수 없습니다")
+    target_id = target.id
+    target_name = target.display_name
+    session.delete(target)
+    log_activity(
+        session, current_user, "user.delete",
+        target_type="user", target_id=target_id,
+        summary=f"{target_name} 삭제",
+    )
+    session.commit()
+    return RedirectResponse("/users", status_code=303)
