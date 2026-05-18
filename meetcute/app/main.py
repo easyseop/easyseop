@@ -73,7 +73,10 @@ _UPLOAD_ROOT = UPLOAD_DIR.resolve()
 def serve_upload(rest: str, current_user=Depends(require_admin)):
     """업로드된 사진은 로그인된 마담뚜만 접근 가능 (URL 추측 + 유출 방어).
     AUTH=off 모드면 require_admin 이 LOCAL_ADMIN 으로 통과시킴.
-    Cache-Control 헤더로 브라우저 캐시 — 같은 사진 재요청 시 즉시."""
+    Cache-Control 헤더로 브라우저 캐시 — 같은 사진 재요청 시 즉시.
+
+    옛 사진 호환: '_thumb' 가 붙은 경로인데 파일이 없으면 원본으로 폴백.
+    썸네일 기능 도입 전에 업로드된 사진은 _thumb 파일이 없음."""
     # path traversal 방어
     target = (UPLOAD_DIR / rest).resolve()
     try:
@@ -81,7 +84,20 @@ def serve_upload(rest: str, current_user=Depends(require_admin)):
     except ValueError:
         raise HTTPException(404)
     if not target.is_file():
-        raise HTTPException(404)
+        # _thumb 가 없으면 원본 시도 (옛 사진 호환)
+        from pathlib import PurePosixPath
+        p = PurePosixPath(rest)
+        if p.stem.endswith("_thumb"):
+            fallback = str(p.with_name(p.stem[:-len("_thumb")] + p.suffix))
+            target = (UPLOAD_DIR / fallback).resolve()
+            try:
+                target.relative_to(_UPLOAD_ROOT)
+            except ValueError:
+                raise HTTPException(404)
+            if not target.is_file():
+                raise HTTPException(404)
+        else:
+            raise HTTPException(404)
     return FileResponse(
         target,
         headers={

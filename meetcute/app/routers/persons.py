@@ -50,16 +50,23 @@ router = APIRouter(prefix="/persons", tags=["persons"])
 
 ALLOWED_EXT = {".jpg", ".jpeg", ".png", ".webp", ".heic"}
 MAX_PHOTOS = 5
-# 모바일 원본 사진(5–10MB) 그대로 두면 카드 그리드가 무거움.
-# 긴 변 기준 리사이즈 + JPEG quality 압축 → 보통 1/10 이하로 줄어듦.
-PHOTO_MAX_DIM = 1600
+# 원본은 라이트박스 (확대/디테일) 용. 카드 그리드는 더 작은 썸네일 사용.
+PHOTO_MAX_DIM = 1600   # 원본
+PHOTO_THUMB_DIM = 800  # 카드용 (mobile retina 400px 디스플레이 × 2x)
 PHOTO_JPEG_QUALITY = 85
 PHOTO_WEBP_QUALITY = 85
 
 
+def _thumb_path(filename: str) -> str:
+    """원본 파일명 → 썸네일 파일명. '12/abc.jpg' → '12/abc_thumb.jpg'."""
+    from pathlib import PurePosixPath
+    p = PurePosixPath(filename)
+    return str(p.with_name(p.stem + "_thumb" + p.suffix))
+
+
 def _save_photo(person_id: int, upload: UploadFile) -> str:
-    """사진 저장. EXIF orientation 자동 보정 + 긴 변 1600px 리사이즈 + 압축.
-    HEIC 는 PIL 기본 미지원 → 원본 복사."""
+    """사진 저장. EXIF orientation 자동 보정 + 원본(1600px) + 썸네일(800px) 둘 다 생성.
+    HEIC 는 PIL 기본 미지원 → 원본 복사 (썸네일 없음)."""
     from PIL import Image, ImageOps
 
     ext = Path(upload.filename or "").suffix.lower()
@@ -75,26 +82,34 @@ def _save_photo(person_id: int, upload: UploadFile) -> str:
             shutil.copyfileobj(upload.file, f)
         return f"{person_id}/{name}"
 
+    save_kwargs: dict = {}
+    if ext in (".jpg", ".jpeg"):
+        save_kwargs = {"quality": PHOTO_JPEG_QUALITY, "optimize": True, "progressive": True}
+    elif ext == ".webp":
+        save_kwargs = {"quality": PHOTO_WEBP_QUALITY, "method": 6}
+    elif ext == ".png":
+        save_kwargs = {"optimize": True}
+
     try:
         img = Image.open(upload.file)
         img = ImageOps.exif_transpose(img)
-        # 긴 변이 PHOTO_MAX_DIM 보다 크면 비율 유지 축소
-        w, h = img.size
-        if max(w, h) > PHOTO_MAX_DIM:
-            img.thumbnail((PHOTO_MAX_DIM, PHOTO_MAX_DIM), Image.LANCZOS)
         # JPEG 는 RGBA 지원 X — 변환
         if ext in (".jpg", ".jpeg") and img.mode in ("RGBA", "P"):
             img = img.convert("RGB")
-        save_kwargs: dict = {}
-        if ext in (".jpg", ".jpeg"):
-            save_kwargs = {"quality": PHOTO_JPEG_QUALITY, "optimize": True, "progressive": True}
-        elif ext == ".webp":
-            save_kwargs = {"quality": PHOTO_WEBP_QUALITY, "method": 6}
-        elif ext == ".png":
-            save_kwargs = {"optimize": True}
-        img.save(dest, **save_kwargs)
+
+        # 원본 (1600px)
+        full = img.copy()
+        if max(full.size) > PHOTO_MAX_DIM:
+            full.thumbnail((PHOTO_MAX_DIM, PHOTO_MAX_DIM), Image.LANCZOS)
+        full.save(dest, **save_kwargs)
+
+        # 썸네일 (800px) — 카드 그리드에서 사용
+        thumb = img.copy()
+        thumb.thumbnail((PHOTO_THUMB_DIM, PHOTO_THUMB_DIM), Image.LANCZOS)
+        thumb_dest = person_dir / f"{Path(name).stem}_thumb{ext}"
+        thumb.save(thumb_dest, **save_kwargs)
     except Exception:
-        # 파싱 실패 시 원본 그대로
+        # 파싱 실패 시 원본 그대로 (썸네일 없음)
         upload.file.seek(0)
         with dest.open("wb") as f:
             shutil.copyfileobj(upload.file, f)

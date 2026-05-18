@@ -168,7 +168,7 @@
       <div class="grid grid-cols-3 gap-2">
         {% for ph in person.photos | sort(attribute='order') %}
         <div class="relative group">
-          <img loading="lazy" decoding="async" src="/uploads/{{ ph.filename }}" class="aspect-square w-full object-cover rounded-lg" />
+          <img loading="lazy" decoding="async" src="/uploads/{{ ph.filename|thumb_url }}" class="aspect-square w-full object-cover rounded-lg" />
           <button type="submit"
                   formaction="/persons/{{ person.id }}/photos/{{ ph.id }}/delete"
                   formmethod="post"

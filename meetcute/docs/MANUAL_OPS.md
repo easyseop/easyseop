@@ -150,6 +150,15 @@ tar xzf ~/Dropbox/meetcute-bk/meetcute-2026XXXX-XXXXXX.tar.gz -C ~/easyseop/meet
 ./dev.sh
 ```
 
+### 사진 썸네일 백필 (한 번만, 속도 향상)
+신규 업로드는 자동으로 800px 썸네일을 만들지만, **썸네일 기능 이전에 올라온 사진은 _thumb 파일이 없어서** 카드 그리드가 매번 원본(1600px)을 불러와 느림. 한 번 돌려두면 옛 사진도 새 사진처럼 빨라짐:
+```bash
+cd ~/easyseop/meetcute
+python -m app.backfill_thumbs
+# 생성: N개  /  건너뜀(이미 있음): M개  /  실패: 0개
+```
+idempotent — 여러 번 돌려도 안전.
+
 ## 6. 보안
 
 ### 자동 적용

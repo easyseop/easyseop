@@ -139,10 +139,10 @@
         {% set _photos = p.photos | sort(attribute='order') | list %}
         {% if _photos %}
           {% if _photos|length > 1 %}
-          {# 여러 장: 스와이프 가능한 carousel + 카운터 + 도트 #}
+          {# 여러 장: 스와이프 가능한 carousel + 카운터 + 도트. 썸네일 사용 — 카드 표시 크기 (~400px) 에 1600px 원본은 과함 #}
           <div class="mc-photo-strip absolute inset-0 overflow-x-auto snap-x snap-mandatory flex scroll-smooth">
             {% for ph in _photos %}
-            <img loading="lazy" decoding="async" src="/uploads/{{ ph.filename }}"
+            <img loading="lazy" decoding="async" src="/uploads/{{ ph.filename|thumb_url }}"
                  class="snap-center shrink-0 w-full h-full object-cover" />
             {% endfor %}
           </div>
@@ -155,7 +155,7 @@
             {% endfor %}
           </div>
           {% else %}
-          <img loading="lazy" decoding="async" src="/uploads/{{ _photos[0].filename }}" class="w-full h-full object-cover" />
+          <img loading="lazy" decoding="async" src="/uploads/{{ _photos[0].filename|thumb_url }}" class="w-full h-full object-cover" />
           {% endif %}
         {% else %}
           <div class="flex items-center justify-center h-full text-4xl text-neutral-300">📷</div>

@@ -58,7 +58,20 @@ def _human_time(value) -> str:
     return str(value)
 
 
+def _thumb_url(filename: str) -> str:
+    """카드/리스트 view 용 썸네일 경로. '12/abc.jpg' → '12/abc_thumb.jpg'.
+    파일이 없으면 serve_upload 가 자동으로 원본으로 폴백 (옛 사진 호환)."""
+    if not filename:
+        return filename
+    from pathlib import PurePosixPath
+    p = PurePosixPath(filename)
+    if p.stem.endswith("_thumb"):
+        return filename  # 이미 thumb
+    return str(p.with_name(p.stem + "_thumb" + p.suffix))
+
+
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 templates.env.globals["AUTH_ENABLED"] = AUTH_ENABLED
 templates.env.globals["PUBLIC_MODE"] = PUBLIC_MODE
 templates.env.filters["human_time"] = _human_time
+templates.env.filters["thumb_url"] = _thumb_url
