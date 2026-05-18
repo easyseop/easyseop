@@ -157,6 +157,30 @@ URL-encode.
 
 ---
 
+## 7-bis. (회귀) 6번 적용 후 슬라이드 자체가 안 됨
+
+### 원인
+6번에서 두 번째 사진부터 `src` 대신 `data-src` 로만 들고 있게 했는데,
+`<img>` 가 src 없으면 **layout box 가 0폭으로 무너짐**. 가로로 스와이프할
+공간 자체가 사라져서 첫 장만 표시되는 슬라이드 한 칸으로 변함. 사용자
+입장에서 "옆으로 넘겨도 아무 것도 안 일어남" = 슬라이드가 망가진 걸로 보임.
+
+### 해결 (`<다음 커밋>`)
+4:3 비율의 투명 SVG 데이터 URL 을 자리표시자 `src` 로 박음:
+```html
+<img src="data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 4 3'%3E%3C/svg%3E"
+     data-src="/uploads/.../photo_thumb.jpg" />
+```
+이러면 img 가 정상 layout 잡고 (`w-full h-full` 적용됨), 손가락 대면
+hydrate() 가 진짜 URL 로 src 교체. bg-neutral-100 으로 회색 자리표시
+색깔만 보이다 진짜 사진으로 교체됨.
+
+### 교훈
+빈 src 의 img 는 layout 잡지 못함. 자리표시자 (data URL 또는 width/height
+attr) 가 반드시 필요.
+
+---
+
 ## 7. 사진 업로드 1.5초도 줄이고 싶을 때 — 클라이언트 사이드 압축
 
 ### 원인

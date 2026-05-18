@@ -139,15 +139,18 @@
         {% set _photos = p.photos | sort(attribute='order') | list %}
         {% if _photos %}
           {% if _photos|length > 1 %}
-          {# 여러 장: 첫 장만 즉시 로드, 나머지는 data-src 로 lazy.
-             사용자가 swipe 시작 (touchstart/scroll) 하면 hydrate → HTTP 요청 수 ~3× 감소 #}
+          {# 여러 장: 첫 장만 즉시 로드, 나머지는 4:3 투명 SVG 자리표시자 + data-src.
+             자리표시자가 있어야 slide 가능한 공간이 잡힘 (이전엔 src 없어서 0폭으로 무너짐).
+             사용자가 손가락 대면 (touchstart/scroll/mouseenter) 진짜 사진 URL 로 교체. #}
+          {% set _ph_placeholder = "data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 4 3'%3E%3C/svg%3E" %}
           <div class="mc-photo-strip absolute inset-0 overflow-x-auto snap-x snap-mandatory flex scroll-smooth">
             {% for ph in _photos %}
             {% if loop.first %}
             <img loading="lazy" decoding="async" src="/uploads/{{ ph.filename|thumb_url }}"
                  class="snap-center shrink-0 w-full h-full object-cover" />
             {% else %}
-            <img loading="lazy" decoding="async" data-src="/uploads/{{ ph.filename|thumb_url }}"
+            <img loading="lazy" decoding="async" src="{{ _ph_placeholder }}"
+                 data-src="/uploads/{{ ph.filename|thumb_url }}"
                  class="snap-center shrink-0 w-full h-full object-cover bg-neutral-100" />
             {% endif %}
             {% endfor %}
