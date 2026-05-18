@@ -43,7 +43,6 @@
       <option value="">전체 성별</option>
       <option value="M" {% if gender == 'M' %}selected{% endif %}>남자</option>
       <option value="F" {% if gender == 'F' %}selected{% endif %}>여자</option>
-      <option value="OTHER" {% if gender == 'OTHER' %}selected{% endif %}>기타</option>
     </select>
     <select name="status" class="px-3 py-1.5 border border-neutral-300 rounded-lg text-sm">
       <option value="">전체 상태</option>
@@ -138,6 +137,15 @@
   <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
     {% for p in persons %}
     {% set st = stats.get(p.id) %}
+    <div class="relative">
+      {# 별표 토글 — <form> 이 <a> 안에 못 들어가서 오버레이로. z-20 으로 카드 위. #}
+      <form method="post" action="/persons/{{ p.id }}/star" class="absolute top-1.5 right-1.5 z-20">
+        <button type="submit"
+                class="w-8 h-8 rounded-full bg-white/90 backdrop-blur flex items-center justify-center text-lg hover:scale-110 active:scale-95 transition-transform shadow-sm"
+                title="{% if p.is_starred %}즐겨찾기 해제{% else %}즐겨찾기에 추가{% endif %}">
+          {% if p.is_starred %}<span class="text-yellow-500">⭐</span>{% else %}<span class="text-neutral-400">☆</span>{% endif %}
+        </button>
+      </form>
     <a href="/persons/{{ p.id }}" class="mc-card bg-white border border-neutral-200 rounded-xl overflow-hidden hover:shadow-md block">
       <div class="aspect-square bg-neutral-100 relative">
         {% set _photos = p.photos | sort(attribute='order') | list %}
@@ -171,7 +179,8 @@
         </span>
         {% set s = statuses.get(p.id) %}
         {% if s %}
-        <span class="absolute top-2 right-2 px-2 py-0.5 rounded-full text-xs font-medium border {{ status_badge_class(s) }} pointer-events-none">
+        {# 별표 버튼 (top-right z-20) 과 안 겹치게 status 배지는 top-left 옆 으로 #}
+        <span class="absolute top-2 left-20 px-2 py-0.5 rounded-full text-xs font-medium border {{ status_badge_class(s) }} pointer-events-none">
           {{ status_label(s) }}
         </span>
         {% endif %}
@@ -213,6 +222,7 @@
         {% endif %}
       </div>
     </a>
+    </div>
     {% endfor %}
   </div>
   {% endif %}

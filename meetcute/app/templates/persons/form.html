@@ -16,7 +16,7 @@
     <div>
       <label class="block text-sm font-medium mb-1">성별 <span class="text-pink-600">*</span></label>
       <div class="flex gap-2">
-        {% for g in Gender %}
+        {% for g in Gender if g.value != 'OTHER' %}
         <label class="flex-1">
           <input type="radio" name="gender" value="{{ g.value }}" required class="peer sr-only" />
           <div class="text-center py-2 border border-neutral-300 rounded-lg cursor-pointer peer-checked:bg-pink-600 peer-checked:text-white peer-checked:border-pink-600">

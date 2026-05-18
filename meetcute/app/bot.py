@@ -67,7 +67,7 @@ FORM_TEMPLATE = (
     "아래 양식을 <b>전체 복사 → 빈 칸 채우기 → 그대로 전송</b>해주세요.\n"
     "(순서 / 추가 줄 자유. 필수 6칸, 빈 칸 두면 검증 실패)\n\n"
     "<code>"
-    "성별: (남자/여자/기타)\n"
+    "성별: (남자/여자)\n"
     "이름: \n"
     "사는곳: \n"
     "직장: \n"
@@ -82,11 +82,11 @@ FORM_TEMPLATE = (
     "다 채워 보내면 → 검증 → 사진 단계로 진행."
 )
 
-# 성별 입력 노멀라이즈: 한글 / 영문 / 약자 모두 허용
+# 성별 입력 노멀라이즈: 한글 / 영문 / 약자 모두 허용. OTHER 는 신규 등록 옵션에서
+# 제거됐지만, 매핑 자체는 남겨두면 기존 데이터 (OTHER) 와의 호환성 문제 없음.
 _GENDER_NORMALIZE = {
     "남자": "M", "남": "M", "남성": "M", "M": "M",
     "여자": "F", "여": "F", "여성": "F", "F": "F",
-    "기타": "OTHER", "OTHER": "OTHER", "X": "OTHER",
 }
 
 
@@ -154,7 +154,7 @@ def _validate_form(raw: dict[str, str]) -> tuple[dict, list[str]]:
     g_raw = raw.get("gender", "").strip()
     g = _GENDER_NORMALIZE.get(g_raw) or _GENDER_NORMALIZE.get(g_raw.upper())
     if not g:
-        errors.append("성별: 남자 / 여자 / 기타 중 하나로")
+        errors.append("성별: 남자 / 여자 중 하나로")
     else:
         cleaned["gender"] = g
 

@@ -17,13 +17,23 @@ from sqlmodel import Session, select
 from .config import AUTH_ENABLED
 from .database import engine
 from .url_watcher import current_public_url
-from .models import IntroductionRequest, IntroRequestStatus, Person, User
+from .models import (
+    Encounter,
+    EncounterOutcome,
+    IntroductionRequest,
+    IntroRequestStatus,
+    Person,
+    User,
+)
 from .notifications import send_telegram, telegram_enabled
 
 logger = logging.getLogger("meetcute.reminders")
 
 REMINDER_INTERVAL_HOURS = int(os.getenv("MEETCUTE_REMINDER_HOURS", "24"))
 CHECK_INTERVAL_SECONDS = int(os.getenv("MEETCUTE_REMINDER_CHECK_SECONDS", str(60 * 60)))
+# 만남 후속 알림 임계값 (일 단위)
+ENCOUNTER_PENDING_DAYS = int(os.getenv("MEETCUTE_ENCOUNTER_PENDING_DAYS", "7"))      # PENDING 7일 → "결과 어떻게?"
+ENCOUNTER_CONTINUING_DAYS = int(os.getenv("MEETCUTE_ENCOUNTER_CONTINUING_DAYS", "30"))  # CONTINUING 30일 → "혹시 진전?"
 
 
 def _person_summary(p):
@@ -76,6 +86,77 @@ def _send_pending_reminders() -> int:
     return sent
 
 
+def _send_encounter_followups() -> int:
+    """만남 후속 리마인더 — outcome 별 임계 일수가 지났는데 결과가 안 정해진 케이스.
+    PENDING 7일+ → "결과 어떻게?" / CONTINUING 30일+ → "혹시 진전?"
+    Person.owner_user_id 양쪽 (둘 다 같은 마담뚜면 한 번) 에게 텔레그램.
+    중복 방지를 위해 last_reminded_at 기록 후 같은 임계로는 다시 안 보냄."""
+    from datetime import date as _date
+    now = datetime.utcnow()
+    today = _date.today()
+    sent = 0
+    with Session(engine) as session:
+        encs = session.exec(
+            select(Encounter).where(
+                Encounter.outcome.in_(
+                    [EncounterOutcome.PENDING, EncounterOutcome.CONTINUING]
+                )
+            )
+        ).all()
+        for e in encs:
+            if not e.met_on:
+                continue
+            days_since_met = (today - e.met_on).days
+            if e.outcome == EncounterOutcome.PENDING:
+                threshold = ENCOUNTER_PENDING_DAYS
+            else:
+                threshold = ENCOUNTER_CONTINUING_DAYS
+            if days_since_met < threshold:
+                continue
+            # 중복 방지: 같은 임계 주기 안에서는 안 보냄 (대략 임계일 만큼 cooldown)
+            if e.last_reminded_at and (now - e.last_reminded_at).days < threshold:
+                continue
+
+            # 양쪽 매물 + 마담뚜 fetch
+            a = session.get(Person, e.person_a_id) if e.person_a_id else None
+            b = session.get(Person, e.person_b_id) if e.person_b_id else None
+            owners: dict[int, User] = {}
+            for p in (a, b):
+                if p and p.owner_user_id:
+                    u = session.get(User, p.owner_user_id)
+                    if u and u.telegram_chat_id and u.id not in owners:
+                        owners[u.id] = u
+            if not owners:
+                continue
+
+            label = ("PENDING (예정/결과 미정)" if e.outcome == EncounterOutcome.PENDING
+                     else "CONTINUING (계속 만나는 중)")
+            ask = ("결과 어떻게 됐어요?" if e.outcome == EncounterOutcome.PENDING
+                   else "혹시 진전 있어요? 결혼 결정 또는 종료?")
+            msg = (
+                f"💞 <b>만남 #{e.id} 후속 확인</b>\n"
+                f"{_person_summary(a)} × {_person_summary(b)}\n"
+                f"등록일: {e.met_on} ({days_since_met}일 경과)\n"
+                f"현재 상태: {label}\n\n"
+                f"<b>{ask}</b>"
+            )
+            _url = current_public_url()
+            link = f'<a href="{_url}/encounters/{e.id}">/encounters/{e.id}</a>' if _url else f"/encounters/{e.id}"
+            msg += f"\n→ {link} 에서 결과 업데이트"
+
+            any_ok = False
+            for u in owners.values():
+                ok, _ = send_telegram(u.telegram_chat_id, msg)
+                if ok: any_ok = True
+            if any_ok:
+                e.last_reminded_at = now
+                session.add(e)
+                sent += 1
+        if sent:
+            session.commit()
+    return sent
+
+
 async def reminder_loop():
     """FastAPI lifespan 에서 백그라운드 task 로 실행."""
     if not AUTH_ENABLED:
@@ -92,9 +173,15 @@ async def reminder_loop():
     await asyncio.sleep(60)
     while True:
         try:
-            n = _send_pending_reminders()
-            if n:
-                logger.info(f"sent {n} reminder(s)")
+            n_req = _send_pending_reminders()
+            if n_req:
+                logger.info(f"sent {n_req} request reminder(s)")
         except Exception as e:
-            logger.exception(f"reminder loop error: {e}")
+            logger.exception(f"request reminder loop error: {e}")
+        try:
+            n_enc = _send_encounter_followups()
+            if n_enc:
+                logger.info(f"sent {n_enc} encounter followup(s)")
+        except Exception as e:
+            logger.exception(f"encounter followup loop error: {e}")
         await asyncio.sleep(CHECK_INTERVAL_SECONDS)

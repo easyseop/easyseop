@@ -152,6 +152,9 @@ class Encounter(SQLModel, table=True):
         sa_column=_enum_col(EncounterOutcome),
     )
     notes: str = Field(default="", sa_column=_legacy_enc_text_col())
+    # 후속 리마인더: PENDING 7일+ 또는 CONTINUING 30일+ 이면 양쪽 owner 에게
+    # 텔레그램 알림 ("결과 어떻게 됐어요?"). 보낸 시각 기록해서 중복 방지.
+    last_reminded_at: Optional[datetime] = Field(default=None)
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 

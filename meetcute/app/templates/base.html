@@ -218,6 +218,16 @@
         window.scrollTo(0, 0);
       });
     }
+    // 모바일 햄버거 메뉴 — 스크롤 시작하면 자동으로 닫힘 (열어둔 채로 본문 스크롤하면 거슬림)
+    let _menuLastY = window.scrollY;
+    window.addEventListener('scroll', () => {
+      const menu = document.getElementById('mobile-menu');
+      if (menu && !menu.classList.contains('hidden')) {
+        const dy = Math.abs(window.scrollY - _menuLastY);
+        if (dy > 20) menu.classList.add('hidden');
+      }
+      _menuLastY = window.scrollY;
+    }, { passive: true });
   </script>
 </body>
 </html>
