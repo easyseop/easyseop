@@ -52,8 +52,9 @@ ALLOWED_EXT = {".jpg", ".jpeg", ".png", ".webp", ".heic"}
 MAX_PHOTOS = 5
 # 원본은 라이트박스 (확대/디테일) 용. 카드 그리드는 더 작은 썸네일 사용.
 PHOTO_MAX_DIM = 1600   # 원본
-PHOTO_THUMB_DIM = 800  # 카드용 (mobile retina 400px 디스플레이 × 2x)
-PHOTO_JPEG_QUALITY = 85
+PHOTO_THUMB_DIM = 500  # 카드용 — 모바일 retina (~400px display × 1.25x). 800 → 500 로 줄여서 추가 압축
+PHOTO_JPEG_QUALITY = 85       # 원본
+PHOTO_THUMB_QUALITY = 75      # 썸네일은 한 단계 더 압축 — 카드 크기에선 시각적 차이 미미
 PHOTO_WEBP_QUALITY = 85
 
 
@@ -82,13 +83,17 @@ def _save_photo(person_id: int, upload: UploadFile) -> str:
             shutil.copyfileobj(upload.file, f)
         return f"{person_id}/{name}"
 
-    save_kwargs: dict = {}
+    full_kwargs: dict = {}
+    thumb_kwargs: dict = {}
     if ext in (".jpg", ".jpeg"):
-        save_kwargs = {"quality": PHOTO_JPEG_QUALITY, "optimize": True, "progressive": True}
+        full_kwargs = {"quality": PHOTO_JPEG_QUALITY, "optimize": True, "progressive": True}
+        thumb_kwargs = {"quality": PHOTO_THUMB_QUALITY, "optimize": True, "progressive": True}
     elif ext == ".webp":
-        save_kwargs = {"quality": PHOTO_WEBP_QUALITY, "method": 6}
+        full_kwargs = {"quality": PHOTO_WEBP_QUALITY, "method": 6}
+        thumb_kwargs = {"quality": PHOTO_THUMB_QUALITY, "method": 6}
     elif ext == ".png":
-        save_kwargs = {"optimize": True}
+        full_kwargs = {"optimize": True}
+        thumb_kwargs = {"optimize": True}
 
     try:
         img = Image.open(upload.file)
@@ -101,13 +106,13 @@ def _save_photo(person_id: int, upload: UploadFile) -> str:
         full = img.copy()
         if max(full.size) > PHOTO_MAX_DIM:
             full.thumbnail((PHOTO_MAX_DIM, PHOTO_MAX_DIM), Image.LANCZOS)
-        full.save(dest, **save_kwargs)
+        full.save(dest, **full_kwargs)
 
-        # 썸네일 (800px) — 카드 그리드에서 사용
+        # 썸네일 (500px, quality 75) — 카드 그리드에서 사용
         thumb = img.copy()
         thumb.thumbnail((PHOTO_THUMB_DIM, PHOTO_THUMB_DIM), Image.LANCZOS)
         thumb_dest = person_dir / f"{Path(name).stem}_thumb{ext}"
-        thumb.save(thumb_dest, **save_kwargs)
+        thumb.save(thumb_dest, **thumb_kwargs)
     except Exception:
         # 파싱 실패 시 원본 그대로 (썸네일 없음)
         upload.file.seek(0)

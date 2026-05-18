@@ -16,15 +16,15 @@ from PIL import Image, ImageOps
 from .config import UPLOAD_DIR
 
 _ALLOWED = {".jpg", ".jpeg", ".png", ".webp"}
-_THUMB_DIM = 800
-_JPEG_QUALITY = 85
+_THUMB_DIM = 500       # _save_photo 와 일치
+_THUMB_QUALITY = 75    # _save_photo 와 일치
 
 
 def _save_kwargs(ext: str) -> dict:
     if ext in (".jpg", ".jpeg"):
-        return {"quality": _JPEG_QUALITY, "optimize": True, "progressive": True}
+        return {"quality": _THUMB_QUALITY, "optimize": True, "progressive": True}
     if ext == ".webp":
-        return {"quality": _JPEG_QUALITY, "method": 6}
+        return {"quality": _THUMB_QUALITY, "method": 6}
     if ext == ".png":
         return {"optimize": True}
     return {}
