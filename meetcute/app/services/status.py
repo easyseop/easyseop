@@ -6,7 +6,9 @@
   - 모두 종료(ENDED_*/MUTUAL_END)거나 만남 기록이 없으면 → AVAILABLE
 """
 from enum import Enum
+from typing import Optional
 from sqlmodel import Session, select, or_
+from sqlalchemy.orm import defer
 from ..models import Encounter, EncounterOutcome, Person
 
 
@@ -60,15 +62,18 @@ def status_for_person(session: Session, person_id: int) -> PersonStatus:
     return derive_status(encounters_for_person(session, person_id))
 
 
-def statuses_for_persons(
+def grouped_encounters_for_persons(
     session: Session, persons: list[Person]
-) -> dict[int, PersonStatus]:
-    """N+1 회피: 한 번에 모든 관련 Encounter 가져와서 그룹핑."""
+) -> dict[int, list[Encounter]]:
+    """N+1 회피: 한 번에 모든 관련 Encounter 가져와서 person_id 별로 그룹.
+    notes 컬럼은 암호화돼 있고 status/activity 계산엔 안 쓰니 defer."""
     if not persons:
         return {}
     ids = [p.id for p in persons if p.id is not None]
-    stmt = select(Encounter).where(
-        or_(Encounter.person_a_id.in_(ids), Encounter.person_b_id.in_(ids))
+    stmt = (
+        select(Encounter)
+        .options(defer(Encounter.notes))
+        .where(or_(Encounter.person_a_id.in_(ids), Encounter.person_b_id.in_(ids)))
     )
     grouped: dict[int, list[Encounter]] = {pid: [] for pid in ids}
     for e in session.exec(stmt).all():
@@ -76,4 +81,17 @@ def statuses_for_persons(
             grouped[e.person_a_id].append(e)
         if e.person_b_id in grouped:
             grouped[e.person_b_id].append(e)
-    return {pid: derive_status(grouped[pid]) for pid in ids}
+    return grouped
+
+
+def statuses_for_persons(
+    session: Session,
+    persons: list[Person],
+    grouped: Optional[dict[int, list[Encounter]]] = None,
+) -> dict[int, PersonStatus]:
+    """grouped 가 주어지면 재쿼리 안 함 — list view 에서 activity 와 공유."""
+    if not persons:
+        return {}
+    if grouped is None:
+        grouped = grouped_encounters_for_persons(session, persons)
+    return {pid: derive_status(encs) for pid, encs in grouped.items()}

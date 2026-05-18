@@ -39,6 +39,7 @@ from ..services.revisions import (
 from ..services.status import (
     encounters_for_person,
     derive_status,
+    grouped_encounters_for_persons,
     status_badge_class,
     status_label,
     statuses_for_persons,
@@ -166,8 +167,10 @@ def list_persons(
             rows = session.exec(select(User).where(User.id.in_(list(owner_ids)))).all()
             owner_map = {u.id: u for u in rows}
 
-    statuses = statuses_for_persons(session, persons)
-    stats = activity_for_persons(session, persons)
+    # Encounter 한 번만 가져와서 status/activity 양쪽에 재사용 (이전엔 2회 쿼리 + notes 복호화 2회)
+    grouped = grouped_encounters_for_persons(session, persons)
+    statuses = statuses_for_persons(session, persons, grouped=grouped)
+    stats = activity_for_persons(session, persons, grouped=grouped)
 
     # 상태 필터 (소개가능/진행중/매칭됨)
     if status in ("AVAILABLE", "IN_PROGRESS", "MATCHED"):

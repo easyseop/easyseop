@@ -12,6 +12,7 @@ from datetime import date
 from typing import Optional
 
 from sqlmodel import Session, select, or_
+from sqlalchemy.orm import defer
 
 from ..models import Encounter, EncounterOutcome, Person
 
@@ -63,20 +64,14 @@ def activity_for_person(session: Session, person_id: int) -> ActivityStats:
 
 
 def activity_for_persons(
-    session: Session, persons: list[Person]
+    session: Session,
+    persons: list[Person],
+    grouped: Optional[dict[int, list[Encounter]]] = None,
 ) -> dict[int, ActivityStats]:
+    """grouped 가 주어지면 재쿼리 안 함 — 같은 페이지에서 status 와 공유 가능."""
     if not persons:
         return {}
-    ids = [p.id for p in persons if p.id is not None]
-    encs = session.exec(
-        select(Encounter).where(
-            or_(Encounter.person_a_id.in_(ids), Encounter.person_b_id.in_(ids))
-        )
-    ).all()
-    grouped: dict[int, list[Encounter]] = {pid: [] for pid in ids}
-    for e in encs:
-        if e.person_a_id in grouped:
-            grouped[e.person_a_id].append(e)
-        if e.person_b_id in grouped:
-            grouped[e.person_b_id].append(e)
-    return {pid: _accumulate(grouped[pid]) for pid in ids}
+    if grouped is None:
+        from .status import grouped_encounters_for_persons
+        grouped = grouped_encounters_for_persons(session, persons)
+    return {pid: _accumulate(encs) for pid, encs in grouped.items()}

@@ -21,6 +21,7 @@ from .routers import activity, auth, compatibility, encounters, manual, persons,
 from .services.activity import activity_for_persons
 from .services.status import (
     PersonStatus,
+    grouped_encounters_for_persons,
     status_badge_class,
     status_label,
     statuses_for_persons,
@@ -115,8 +116,10 @@ def index(
     all_persons = session.exec(
         select(Person).options(defer(Person.ideal_type), defer(Person.notes))
     ).all()
-    statuses = statuses_for_persons(session, all_persons)
-    activities = activity_for_persons(session, all_persons)
+    # Encounter 한 번만 가져와서 status/activity 양쪽에 재사용
+    grouped = grouped_encounters_for_persons(session, all_persons)
+    statuses = statuses_for_persons(session, all_persons, grouped=grouped)
+    activities = activity_for_persons(session, all_persons, grouped=grouped)
 
     by_gender = {g: 0 for g in Gender}
     by_status = {s: 0 for s in PersonStatus}
