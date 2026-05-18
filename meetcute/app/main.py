@@ -8,6 +8,7 @@ from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from sqlmodel import Session, select
 from sqlalchemy.orm import defer
+from starlette.middleware.gzip import GZipMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
 from .auth import require_admin
@@ -61,6 +62,9 @@ app.add_middleware(
     https_only=PUBLIC_MODE,  # 외부 노출 시 자동 HTTPS-only 쿠키
     max_age=60 * 60 * 24 * 14,  # 2주
 )
+# 응답 gzip 압축 (1KB 이상). Tailwind class 가 매우 반복적이라 HTML 페이지가
+# 보통 5~10배 줄어듦 — 탭 이동 시 HTML 전송 시간이 가장 큰 병목이었음.
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 _STATIC_DIR = _Path(__file__).resolve().parent / "static"
 if _STATIC_DIR.is_dir():
     app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
