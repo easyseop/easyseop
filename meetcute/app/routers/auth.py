@@ -33,7 +33,8 @@ def _bypass_if_disabled():
 
 @router.get("/login", response_class=HTMLResponse)
 def login_form(
-    request: Request, session: Session = Depends(get_session), error: str = ""
+    request: Request, session: Session = Depends(get_session),
+    error: str = "", email: str = "",
 ):
     if (resp := _bypass_if_disabled()) is not None:
         return resp
@@ -41,7 +42,8 @@ def login_form(
         return RedirectResponse("/", status_code=303)
     no_users = user_count(session) == 0
     return templates.TemplateResponse(
-        request, "auth/login.html", {"error": error, "no_users": no_users}
+        request, "auth/login.html",
+        {"error": error, "email": email, "no_users": no_users},
     )
 
 
@@ -54,17 +56,19 @@ def login(
 ):
     if (resp := _bypass_if_disabled()) is not None:
         return resp
+    from urllib.parse import quote
+    email = email.strip().lower()
+    email_qs = "&email=" + quote(email) if email else ""
     if login_is_locked(request):
         return RedirectResponse(
-            "/auth/login?error=시도+너무+많음.+10분+후+다시.",
+            "/auth/login?error=" + quote("시도 너무 많음. 10분 후 다시.") + email_qs,
             status_code=303,
         )
-    email = email.strip().lower()
     user = find_user_by_email(session, email)
     if not user or not verify_password(password, user.password_hash):
         record_login_failure(request)
         return RedirectResponse(
-            "/auth/login?error=이메일+또는+비밀번호가+일치하지+않습니다",
+            "/auth/login?error=" + quote("이메일 또는 비밀번호가 일치하지 않습니다") + email_qs,
             status_code=303,
         )
     reset_login_failures(request)
@@ -76,7 +80,8 @@ def login(
 
 @router.get("/register", response_class=HTMLResponse)
 def register_form(
-    request: Request, session: Session = Depends(get_session), error: str = ""
+    request: Request, session: Session = Depends(get_session),
+    error: str = "", email: str = "",
 ):
     if (resp := _bypass_if_disabled()) is not None:
         return resp
@@ -84,7 +89,8 @@ def register_form(
         return RedirectResponse("/", status_code=303)
     is_first = user_count(session) == 0
     return templates.TemplateResponse(
-        request, "auth/register.html", {"error": error, "is_first": is_first}
+        request, "auth/register.html",
+        {"error": error, "email": email, "is_first": is_first},
     )
 
 
@@ -98,24 +104,30 @@ def register(
 ):
     if (resp := _bypass_if_disabled()) is not None:
         return resp
+    from urllib.parse import quote
     email = email.strip().lower()
+    email_qs = "&email=" + quote(email) if email else ""
     if not email or "@" not in email:
         return RedirectResponse(
-            "/auth/register?error=올바른+이메일을+입력해주세요", status_code=303
+            "/auth/register?error=" + quote("올바른 이메일을 입력해주세요") + email_qs,
+            status_code=303,
         )
     if len(password) < 8:
         return RedirectResponse(
-            "/auth/register?error=비밀번호는+최소+8자+이상이어야+합니다", status_code=303
+            "/auth/register?error=" + quote("비밀번호는 최소 8자 이상이어야 합니다") + email_qs,
+            status_code=303,
         )
     if password != password_confirm:
         return RedirectResponse(
-            "/auth/register?error=비밀번호+확인이+일치하지+않습니다", status_code=303
+            "/auth/register?error=" + quote("비밀번호 확인이 일치하지 않습니다") + email_qs,
+            status_code=303,
         )
 
     existing = find_user_by_email(session, email)
     if existing:
         return RedirectResponse(
-            "/auth/register?error=이미+가입된+이메일입니다", status_code=303
+            "/auth/register?error=" + quote("이미 가입된 이메일입니다") + email_qs,
+            status_code=303,
         )
 
     is_first = user_count(session) == 0
