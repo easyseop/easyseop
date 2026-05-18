@@ -6,6 +6,12 @@
     <div>
       <div class="text-sm text-neutral-500">매물</div>
       <h1 class="text-2xl font-bold flex items-center gap-2 flex-wrap">
+        <form method="post" action="/persons/{{ person.id }}/star" class="inline">
+          <button type="submit" class="hover:scale-110 transition-transform"
+                  title="{% if person.is_starred %}즐겨찾기 해제{% else %}즐겨찾기에 추가{% endif %}">
+            {% if person.is_starred %}<span class="text-yellow-500">⭐</span>{% else %}<span class="text-neutral-300">☆</span>{% endif %}
+          </button>
+        </form>
         {{ person.public_id }}
         <span class="text-sm font-normal text-neutral-500">{{ person.gender.label }} · {{ person.age }}세</span>
         <span class="px-2 py-0.5 rounded-full text-xs font-medium border {{ status_badge_class(status) }}">

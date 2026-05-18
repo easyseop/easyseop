@@ -113,6 +113,9 @@ class Person(SQLModel, table=True):
         default=PersonVisibility.PUBLIC,
         sa_column=_enum_col(PersonVisibility),
     )
+    # 즐겨찾기 마킹 — 마담뚜가 "이 매물 좀 더 신경쓰자" 표시.
+    # 정렬/필터에 사용. 단일 글로벌 플래그 (마담뚜별 개인 즐겨찾기 아님).
+    is_starred: bool = Field(default=False, index=True)
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 

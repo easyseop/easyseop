@@ -54,6 +54,8 @@ def _ensure_columns() -> None:
         ("user", "is_owner", "BOOLEAN NOT NULL DEFAULT 0"),
         ("introductionrequest", "last_reminded_at", "DATETIME"),
         ("person", "visibility", "VARCHAR(16) NOT NULL DEFAULT 'PUBLIC'"),
+        ("person", "is_starred", "BOOLEAN NOT NULL DEFAULT 0"),
+        ("encounter", "last_reminded_at", "DATETIME"),
     ]
     insp = inspect(engine)
     existing_tables = set(insp.get_table_names())

@@ -25,7 +25,7 @@
     </div>
   </div>
 
-  {% set _filter_count = (1 if q else 0) + (1 if gender else 0) + (1 if status else 0) + (1 if activity else 0) + (1 if owner else 0) + (1 if sort else 0) %}
+  {% set _filter_count = (1 if q else 0) + (1 if gender else 0) + (1 if status else 0) + (1 if activity else 0) + (1 if owner else 0) + (1 if starred else 0) + (1 if sort else 0) %}
   <details class="bg-white border border-neutral-200 rounded-xl" {% if _filter_count %}open{% endif %}>
     <summary class="cursor-pointer p-3 text-sm font-medium flex items-center justify-between hover:bg-neutral-50 rounded-xl">
       <span>🔍 검색 / 필터
@@ -51,6 +51,10 @@
       <option value="IN_PROGRESS" {% if status == 'IN_PROGRESS' %}selected{% endif %}>🟡 진행 중</option>
       <option value="MATCHED" {% if status == 'MATCHED' %}selected{% endif %}>💗 매칭됨</option>
     </select>
+    <label class="inline-flex items-center gap-1.5 px-3 py-1.5 border border-neutral-300 rounded-lg text-sm cursor-pointer hover:bg-neutral-50 {% if starred == '1' %}bg-yellow-50 border-yellow-300{% endif %}">
+      <input type="checkbox" name="starred" value="1" {% if starred == '1' %}checked{% endif %} class="accent-yellow-500" />
+      ⭐ 즐겨찾기만
+    </label>
     <select name="activity" class="px-3 py-1.5 border border-neutral-300 rounded-lg text-sm">
       <option value="">활동 무관</option>
       <option value="active" {% if activity == 'active' %}selected{% endif %}>진행 중 있음</option>
@@ -81,7 +85,7 @@
       <option value="dormant" {% if sort == 'dormant' %}selected{% endif %}>오래 잠자는순</option>
     </select>
     <button class="px-4 py-1.5 bg-neutral-800 text-white rounded-lg text-sm">적용</button>
-    {% if q or gender or status or activity or owner or sort %}
+    {% if q or gender or status or activity or owner or starred or sort %}
     <a href="/persons" class="text-xs text-neutral-500 underline">초기화</a>
     {% endif %}
   </form>
@@ -100,7 +104,7 @@
     {% set ow = owner_map.get(p.owner_user_id) %}
     <li>
       <a href="/persons/{{ p.id }}" class="flex items-center gap-3 px-3 py-2.5 hover:bg-neutral-50">
-        <span class="font-mono font-semibold text-sm shrink-0">{{ p.public_id }}</span>
+        <span class="font-mono font-semibold text-sm shrink-0">{% if p.is_starred %}<span class="text-yellow-500" title="즐겨찾기">⭐</span> {% endif %}{{ p.public_id }}</span>
         <span class="text-xs text-neutral-500 shrink-0">{{ p.gender.label }} · {{ p.age }}세 · {{ p.height_cm }}cm</span>
         <span class="text-xs text-neutral-600 truncate flex-1 min-w-0">
           {{ p.location }} · {{ p.workplace }}
@@ -163,7 +167,7 @@
           <div class="flex items-center justify-center h-full text-4xl text-neutral-300">📷</div>
         {% endif %}
         <span class="absolute top-2 left-2 bg-white/90 backdrop-blur px-2 py-0.5 rounded-full text-xs font-semibold pointer-events-none">
-          {{ p.public_id }}
+          {% if p.is_starred %}<span class="text-yellow-500" title="즐겨찾기">⭐</span> {% endif %}{{ p.public_id }}
         </span>
         {% set s = statuses.get(p.id) %}
         {% if s %}

@@ -132,6 +132,7 @@ def list_persons(
     status: Optional[str] = None,    # 'AVAILABLE' | 'IN_PROGRESS' | 'MATCHED' | None
     activity: Optional[str] = None,  # 'never' | 'dormant' | 'active' | None
     owner: Optional[str] = None,     # 'mine' | 'unassigned' | 'user:<id>' | 'others' | None
+    starred: Optional[str] = None,   # '1' = 별표만
     sort: Optional[str] = None,      # 'recent_activity' | 'dormant' | 'created' (default)
     view: Optional[str] = None,      # 'list' | 'card' (default 'card')
     session: Session = Depends(get_session),
@@ -151,6 +152,8 @@ def list_persons(
     stmt = select(Person).options(defer(Person.ideal_type), defer(Person.notes))
     if gender_enum:
         stmt = stmt.where(Person.gender == gender_enum)
+    if starred == "1":
+        stmt = stmt.where(Person.is_starred == True)  # noqa: E712
     if q:
         like = f"%{q}%"
         # 거주지/직장은 암호화 저장 → DB LIKE 가 안 됨. 검색은 public_id / alias 만.
@@ -254,6 +257,7 @@ def list_persons(
             "status": status or "",
             "activity": activity or "",
             "owner": owner or "",
+            "starred": starred or "",
             "sort": sort or "",
             "view": view if view in ("card", "list") else "card",
         },
@@ -605,6 +609,32 @@ async def update_person(
         session.add(Photo(person_id=person.id, filename=rel, order=existing_count + i))
     session.commit()
     return RedirectResponse(f"/persons/{person.id}", status_code=303)
+
+
+@router.post("/{person_id}/star")
+def toggle_star(
+    person_id: int,
+    request: Request,
+    session: Session = Depends(get_session),
+):
+    """⭐ 즐겨찾기 토글. 매물을 볼 수 있으면 토글 가능 (공개 범위 안의 모든 마담뚜).
+    포스트 후엔 referer 로 돌아가 — 카드 그리드에서도, 상세 페이지에서도 무방하게."""
+    person = session.get(Person, person_id)
+    if not person:
+        raise HTTPException(404, "Person not found")
+    _require_view(person, request, session)
+    person.is_starred = not person.is_starred
+    session.add(person)
+    actor = get_current_user(request, session)
+    log_activity(
+        session, actor,
+        "person.star" if person.is_starred else "person.unstar",
+        target_type="person", target_id=person.id,
+        summary=f"{person.public_id} {'⭐' if person.is_starred else '☆'}",
+    )
+    session.commit()
+    back = request.headers.get("referer", f"/persons/{person.id}")
+    return RedirectResponse(back, status_code=303)
 
 
 @router.post("/{person_id}/delete")
