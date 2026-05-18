@@ -218,15 +218,25 @@
         window.scrollTo(0, 0);
       });
     }
-    // 모바일 햄버거 메뉴 — 스크롤 시작하면 자동으로 닫힘 (열어둔 채로 본문 스크롤하면 거슬림)
-    let _menuLastY = window.scrollY;
-    window.addEventListener('scroll', () => {
+    // 모바일 햄버거 메뉴 자동닫힘 — 어느 쪽이든 둘 다:
+    //   (a) 페이지 스크롤이 일어나면 (방향/거리 무관, 한 번이라도 발생하면 닫음)
+    //   (b) 메뉴 / 햄버거 외부를 톡 치면 (pointerdown — 마우스/터치 동시 커버)
+    function _closeMobileMenu() {
       const menu = document.getElementById('mobile-menu');
       if (menu && !menu.classList.contains('hidden')) {
-        const dy = Math.abs(window.scrollY - _menuLastY);
-        if (dy > 20) menu.classList.add('hidden');
+        menu.classList.add('hidden');
       }
-      _menuLastY = window.scrollY;
+    }
+    // (a) 스크롤
+    window.addEventListener('scroll', _closeMobileMenu, { passive: true });
+    // (b) 외부 톡 치기
+    document.addEventListener('pointerdown', (e) => {
+      const menu = document.getElementById('mobile-menu');
+      if (!menu || menu.classList.contains('hidden')) return;
+      // 메뉴 내부 or 햄버거 버튼 클릭은 무시
+      if (menu.contains(e.target)) return;
+      if (e.target.closest('button[aria-label="메뉴"]')) return;
+      _closeMobileMenu();
     }, { passive: true });
   </script>
 </body>
