@@ -21,6 +21,7 @@ ACTION_LABEL: dict[str, str] = {
     "user.register": "🆕 가입",
     "user.promote": "👑 권한 변경",
     "user.delete": "❌ 유저 삭제",
+    "user.password_change": "🔑 비밀번호 변경",
     "person.create": "🆕 매물 등록",
     "person.update": "✏️ 매물 수정",
     "person.delete": "🗑 매물 삭제",

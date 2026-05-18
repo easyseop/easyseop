@@ -3,12 +3,13 @@ import json
 import urllib.error
 import urllib.request
 from pathlib import Path
+from typing import Optional
 
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlmodel import Session, func, select
 
-from ..auth import require_admin, require_login
+from ..auth import hash_password, require_admin, require_login, verify_password
 from ..config import AUTH_ENABLED, DATABASE_URL, UPLOAD_DIR
 from ..database import get_session
 from ..models import (
@@ -21,6 +22,7 @@ from ..models import (
     User,
 )
 from ..notifications import BOT_TOKEN, SSL_CONTEXT, send_telegram, telegram_enabled
+from ..services.activity_log import log_activity
 from ..templating import templates
 
 
@@ -222,6 +224,84 @@ def reroll_nickname(
     session.add(user)
     session.commit()
     return RedirectResponse(f"/settings?flash=새+닉네임+'{user.nickname}'", status_code=303)
+
+
+# 흔한 약한 비밀번호 차단 (대소문자 무관). 실제로 자주 시도되는 것들.
+_COMMON_WEAK_PASSWORDS = {
+    "password", "12345678", "qwerty12", "qwerty123", "abcd1234", "1q2w3e4r",
+    "password1", "password123", "admin1234", "iloveyou", "1234567890",
+    "qwertyuiop", "letmein123", "welcome1", "p@ssw0rd",
+}
+
+
+def _validate_new_password(pw: str, email: str = "") -> Optional[str]:
+    """새 비밀번호 검증. 통과 시 None, 실패 시 사용자 친화 메시지 반환.
+    규칙: 10자+, 숫자+영문 혼합, 흔한 비밀번호/이메일 일부 포함 X."""
+    if len(pw) < 10:
+        return "비밀번호는 10자 이상이어야 합니다"
+    has_letter = any(c.isalpha() for c in pw)
+    has_digit = any(c.isdigit() for c in pw)
+    if not (has_letter and has_digit):
+        return "비밀번호에 영문과 숫자를 모두 포함해야 합니다"
+    if pw.lower() in _COMMON_WEAK_PASSWORDS:
+        return "너무 흔한 비밀번호입니다"
+    if email:
+        # 이메일 로컬파트 (@ 앞) 가 비밀번호에 그대로 들어있으면 거부
+        local = email.split("@", 1)[0].lower()
+        if local and len(local) >= 4 and local in pw.lower():
+            return "이메일이 그대로 들어간 비밀번호는 피해주세요"
+    return None
+
+
+@router.post("/password")
+def change_password(
+    request: Request,
+    old_password: str = Form(...),
+    new_password: str = Form(...),
+    new_password_confirm: str = Form(...),
+    current_user: User = Depends(require_login),
+    session: Session = Depends(get_session),
+):
+    if not AUTH_ENABLED:
+        return RedirectResponse("/", status_code=303)
+    user = session.get(User, current_user.id)
+    if not user:
+        return RedirectResponse("/auth/login", status_code=303)
+
+    from urllib.parse import quote
+
+    # 1) 현재 비밀번호 확인
+    if not verify_password(old_password, user.password_hash):
+        return RedirectResponse(
+            "/settings?err=" + quote("현재 비밀번호가 맞지 않습니다"),
+            status_code=303,
+        )
+    # 2) 새 비밀번호 두 칸 일치
+    if new_password != new_password_confirm:
+        return RedirectResponse(
+            "/settings?err=" + quote("새 비밀번호 확인이 일치하지 않습니다"),
+            status_code=303,
+        )
+    # 3) 옛것 = 새것 거부
+    if new_password == old_password:
+        return RedirectResponse(
+            "/settings?err=" + quote("새 비밀번호가 현재와 같습니다"),
+            status_code=303,
+        )
+    # 4) 강도 검증
+    if (err := _validate_new_password(new_password, user.email)):
+        return RedirectResponse("/settings?err=" + quote(err), status_code=303)
+
+    # 5) 저장
+    user.password_hash = hash_password(new_password)
+    session.add(user)
+    log_activity(session, user, "user.password_change",
+                 target_type="user", target_id=user.id,
+                 summary="본인 비밀번호 변경")
+    session.commit()
+    return RedirectResponse(
+        "/settings?ok=" + quote("비밀번호 변경 완료"), status_code=303
+    )
 
 
 @router.post("/telegram")

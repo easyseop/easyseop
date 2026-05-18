@@ -15,6 +15,25 @@
   {% endif %}
 
   <div class="bg-white border border-neutral-200 rounded-xl p-6 space-y-3">
+    <h2 class="font-semibold">🔑 비밀번호 변경</h2>
+    <p class="text-sm text-neutral-600">
+      10자 이상 · 영문+숫자 혼합 · 흔한 비밀번호/이메일 포함 X.
+    </p>
+    <form method="post" action="/settings/password" class="space-y-2">
+      <input type="password" name="old_password" autocomplete="current-password" required
+             placeholder="현재 비밀번호"
+             class="w-full px-3 py-2 border border-neutral-300 rounded-lg" />
+      <input type="password" name="new_password" autocomplete="new-password" minlength="10" required
+             placeholder="새 비밀번호 (10자 이상)"
+             class="w-full px-3 py-2 border border-neutral-300 rounded-lg" />
+      <input type="password" name="new_password_confirm" autocomplete="new-password" minlength="10" required
+             placeholder="새 비밀번호 확인"
+             class="w-full px-3 py-2 border border-neutral-300 rounded-lg" />
+      <button class="px-4 py-2 bg-pink-600 text-white rounded-lg text-sm hover:bg-pink-700">변경</button>
+    </form>
+  </div>
+
+  <div class="bg-white border border-neutral-200 rounded-xl p-6 space-y-3">
     <h2 class="font-semibold">🪪 닉네임</h2>
     <p class="text-sm text-neutral-600">
       다른 마담뚜한테 표시되는 이름입니다. <strong>이메일은 절대 노출되지 않아요.</strong>
