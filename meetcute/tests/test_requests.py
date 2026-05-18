@@ -68,10 +68,11 @@ def two_admins(client, session):
 
 
 def test_request_accept_creates_encounter(client, session, two_admins):
-    """boss(M 매물) → noob(F 매물) 소개 요청 → noob 수락 → Encounter 자동 생성."""
+    """양방 동의 모델: A 가 sender_consent=AGREED 로 보내고 B 가 수락(매물 동의)
+    하면 양쪽 다 AGREED 가 되니까 자동 Encounter 생성."""
     from app.models import (
         Encounter, EncounterOutcome, IntroductionRequest,
-        IntroRequestStatus, Person,
+        IntroRequestStatus, Person, SenderConsentStatus,
     )
     from sqlmodel import select
 
@@ -79,7 +80,7 @@ def test_request_accept_creates_encounter(client, session, two_admins):
     boss_person = next(p for p in persons if p.owner_user_id == two_admins["boss_id"])
     noob_person = next(p for p in persons if p.owner_user_id == two_admins["noob_id"])
 
-    # boss 가 본인 매물을 noob 매물에 소개 요청
+    # boss 가 본인 매물에 미리 OK 받았다 체크 → sender_consent = AGREED
     _login(client, "boss@x.com")
     r = client.post(
         "/requests",
@@ -87,6 +88,7 @@ def test_request_accept_creates_encounter(client, session, two_admins):
             "my_person_id": str(boss_person.id),
             "their_person_id": str(noob_person.id),
             "message": "잘 어울릴 거 같아요",
+            "sender_consent": "1",
         },
         follow_redirects=False,
     )
@@ -96,10 +98,10 @@ def test_request_accept_creates_encounter(client, session, two_admins):
     assert len(reqs) == 1
     req = reqs[0]
     assert req.status == IntroRequestStatus.PENDING
-    assert req.from_user_id == two_admins["boss_id"]
-    assert req.to_user_id == two_admins["noob_id"]
+    assert req.sender_own_consent == SenderConsentStatus.AGREED
+    assert req.receiver_own_consent == SenderConsentStatus.NOT_ASKED
 
-    # noob 가 수락
+    # noob 가 수락 → 본인 매물 동의 표시. 양쪽 다 AGREED → 자동 Encounter
     _login(client, "noob@x.com")
     r = client.post(
         f"/requests/{req.id}/accept",
@@ -112,12 +114,60 @@ def test_request_accept_creates_encounter(client, session, two_admins):
     session.expire_all()
     req = session.get(IntroductionRequest, req.id)
     assert req.status == IntroRequestStatus.ACCEPTED
+    assert req.sender_own_consent == SenderConsentStatus.AGREED
+    assert req.receiver_own_consent == SenderConsentStatus.AGREED
     assert req.resolved_encounter_id is not None
 
     enc = session.get(Encounter, req.resolved_encounter_id)
     assert enc is not None
     assert enc.outcome == EncounterOutcome.PENDING
     assert {enc.person_a_id, enc.person_b_id} == {boss_person.id, noob_person.id}
+
+
+def test_request_two_step_consent_then_match(client, session, two_admins):
+    """양방 동의 모델 — A 가 미동의로 보냈다가, B 동의 → A 동의 순으로
+    각각 표시. 마지막 동의 시점에 자동 Encounter."""
+    from app.models import (
+        Encounter, IntroductionRequest, IntroRequestStatus,
+        Person, SenderConsentStatus,
+    )
+    from sqlmodel import select
+
+    persons = session.exec(select(Person).order_by(Person.id)).all()
+    boss_person = next(p for p in persons if p.owner_user_id == two_admins["boss_id"])
+    noob_person = next(p for p in persons if p.owner_user_id == two_admins["noob_id"])
+
+    # boss 가 NOT_ASKED 로 보냄
+    _login(client, "boss@x.com")
+    client.post(
+        "/requests",
+        data={"my_person_id": str(boss_person.id),
+              "their_person_id": str(noob_person.id), "message": ""},
+        follow_redirects=False,
+    )
+    req = session.exec(select(IntroductionRequest)).first()
+    assert req.sender_own_consent == SenderConsentStatus.NOT_ASKED
+
+    # noob accept → receiver consent AGREED, status 는 PENDING 유지 (A 아직 NOT_ASKED)
+    _login(client, "noob@x.com")
+    r = client.post(f"/requests/{req.id}/accept", data={}, follow_redirects=False)
+    assert r.status_code == 303
+    assert "/requests" in r.headers["location"]  # encounters 가 아님
+    session.expire_all()
+    req = session.get(IntroductionRequest, req.id)
+    assert req.status == IntroRequestStatus.PENDING
+    assert req.receiver_own_consent == SenderConsentStatus.AGREED
+    assert req.resolved_encounter_id is None  # 아직 매칭 X
+
+    # boss 가 본인 매물 동의 표시 → 양쪽 AGREED → 자동 Encounter
+    _login(client, "boss@x.com")
+    r = client.post(f"/requests/{req.id}/consent-agree", data={}, follow_redirects=False)
+    assert r.status_code == 303
+    session.expire_all()
+    req = session.get(IntroductionRequest, req.id)
+    assert req.status == IntroRequestStatus.ACCEPTED
+    assert req.resolved_encounter_id is not None
+    assert session.get(Encounter, req.resolved_encounter_id) is not None
 
 
 def test_request_decline(client, session, two_admins):

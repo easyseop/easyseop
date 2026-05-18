@@ -58,6 +58,7 @@ def _ensure_columns() -> None:
         ("person", "birth_year", "TEXT NOT NULL DEFAULT ''"),
         ("encounter", "last_reminded_at", "DATETIME"),
         ("introductionrequest", "sender_own_consent", "VARCHAR(16) NOT NULL DEFAULT 'NOT_ASKED'"),
+        ("introductionrequest", "receiver_own_consent", "VARCHAR(16) NOT NULL DEFAULT 'NOT_ASKED'"),
     ]
     insp = inspect(engine)
     existing_tables = set(insp.get_table_names())
@@ -150,6 +151,31 @@ def _migrate_age_to_birth_year() -> None:
             s.commit()
 
 
+def _backfill_accepted_consent() -> None:
+    """양방 동의 모델 도입 전에 ACCEPTED 였던 요청은 양쪽 다 AGREED 로 채움.
+    이미 Encounter 자동 생성됐던 거니 의미상 양쪽 동의로 봐도 무방. idempotent."""
+    from .models import IntroductionRequest, IntroRequestStatus, SenderConsentStatus
+    with Session(engine) as s:
+        rows = s.exec(
+            select(IntroductionRequest).where(
+                IntroductionRequest.status == IntroRequestStatus.ACCEPTED
+            )
+        ).all()
+        changed = 0
+        for r in rows:
+            updated = False
+            if r.sender_own_consent != SenderConsentStatus.AGREED:
+                r.sender_own_consent = SenderConsentStatus.AGREED
+                updated = True
+            if r.receiver_own_consent != SenderConsentStatus.AGREED:
+                r.receiver_own_consent = SenderConsentStatus.AGREED
+                updated = True
+            if updated:
+                s.add(r); changed += 1
+        if changed:
+            s.commit()
+
+
 def init_db() -> None:
     _ensure_database_exists(DATABASE_URL)
     SQLModel.metadata.create_all(engine)
@@ -157,6 +183,7 @@ def init_db() -> None:
     _backfill_nicknames_and_owner()
     _encrypt_legacy_user_credentials()
     _migrate_age_to_birth_year()
+    _backfill_accepted_consent()
 
 
 def get_session():

@@ -25,7 +25,7 @@
         <option value="">선택</option>
         {% for p in my_persons %}
         <option value="{{ p.id }}">
-          {{ p.public_id }} · {{ p.gender.label }} · {{ p.year_label }} · {{ p.location }}{% if p.alias %} ({{ p.alias }}){% endif %}
+          {{ p.public_id }} · {{ p.gender.label }} · {{ p.year_label }} · {{ p.workplace }}{% if p.alias %} ({{ p.alias }}){% endif %}
         </option>
         {% endfor %}
       </select>

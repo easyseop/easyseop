@@ -234,8 +234,14 @@ class IntroductionRequest(SQLModel, table=True):
         sa_column=_enum_col(IntroRequestStatus),
     )
     response_note: str = Field(default="", sa_column=_legacy_enc_text_col())
-    # 보낸이가 본인 매물에 의향 물어본 상태. 기본 NOT_ASKED.
+    # 양방 매물 동의 상태. 둘 다 AGREED 되는 순간 → status=ACCEPTED + Encounter 자동 생성.
+    # sender_own_consent: 보낸이(A) 의 매물 동의 상태
+    # receiver_own_consent: 받은이(B) 의 매물 동의 상태
     sender_own_consent: SenderConsentStatus = Field(
+        default=SenderConsentStatus.NOT_ASKED,
+        sa_column=_enum_col(SenderConsentStatus),
+    )
+    receiver_own_consent: SenderConsentStatus = Field(
         default=SenderConsentStatus.NOT_ASKED,
         sa_column=_enum_col(SenderConsentStatus),
     )
