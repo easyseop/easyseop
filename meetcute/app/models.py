@@ -203,6 +203,17 @@ class IntroRequestStatus(str, Enum):
     WITHDRAWN = "WITHDRAWN"   # 보낸 사람이 취소
 
 
+class SenderConsentStatus(str, Enum):
+    """보낸이(A)가 본인 매물에게 의향 물어본 상태.
+    - NOT_ASKED: 아직 안 물어봄 (B 가 "먼저 물어봐줘" 회신 가능)
+    - AGREED: 매물 동의 — 정상 진행
+    - DECLINED: 매물 거절 — 요청 자동 종결 (status → WITHDRAWN)
+    """
+    NOT_ASKED = "NOT_ASKED"
+    AGREED = "AGREED"
+    DECLINED = "DECLINED"
+
+
 class IntroductionRequest(SQLModel, table=True):
     """A의 매물 (my_person) 을 B의 매물 (their_person) 에 소개해달라는 요청.
 
@@ -223,6 +234,11 @@ class IntroductionRequest(SQLModel, table=True):
         sa_column=_enum_col(IntroRequestStatus),
     )
     response_note: str = Field(default="", sa_column=_legacy_enc_text_col())
+    # 보낸이가 본인 매물에 의향 물어본 상태. 기본 NOT_ASKED.
+    sender_own_consent: SenderConsentStatus = Field(
+        default=SenderConsentStatus.NOT_ASKED,
+        sa_column=_enum_col(SenderConsentStatus),
+    )
     resolved_encounter_id: Optional[int] = Field(default=None, foreign_key="encounter.id")
     last_reminded_at: Optional[datetime] = Field(default=None)  # 마지막 재알림 시각 (없으면 한 번도 안 보냄)
     created_at: datetime = Field(default_factory=datetime.utcnow)

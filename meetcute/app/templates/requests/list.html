@@ -35,6 +35,9 @@
           <span class="px-2 py-0.5 rounded-full text-xs font-medium {{ STATUS_BADGE[r.status] }}">
             {{ STATUS_LABEL[r.status] }}
           </span>
+          <span class="px-2 py-0.5 rounded-full text-xs {{ CONSENT_BADGE[r.sender_own_consent] }}">
+            {{ CONSENT_LABEL[r.sender_own_consent] }}
+          </span>
           {% if r.status.value == 'PENDING' and r.last_reminded_at %}
           <span class="text-xs text-amber-600">⏰ 재알림 {{ r.last_reminded_at | human_time }}</span>
           {% endif %}
@@ -55,6 +58,15 @@
         {% endif %}
         {% if r.status.value == 'PENDING' %}
         <div class="border-t border-neutral-100 pt-3 space-y-2">
+          {# 보낸이 매물 의향 미확인 → 추가 옵션: "먼저 물어봐달라" 회신 #}
+          {% if r.sender_own_consent.value == 'NOT_ASKED' %}
+          <form method="post" action="/requests/{{ r.id }}/ping-sender"
+                onsubmit="return confirm('보낸이에게 본인 매물 의향 먼저 확인해달라고 회신할까요?')">
+            <button class="w-full px-3 py-2 border border-amber-300 bg-amber-50 text-amber-800 rounded-lg text-sm hover:bg-amber-100">
+              🔔 "본인 매물에 먼저 물어봐주세요" 회신
+            </button>
+          </form>
+          {% endif %}
           <form method="post" action="/requests/{{ r.id }}/accept" class="space-y-2">
             <input type="text" name="response_note" placeholder="응답 메모 (선택, 예: '한 번 물어볼게요')"
                    class="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm" />
@@ -99,6 +111,9 @@
           <span class="px-2 py-0.5 rounded-full text-xs font-medium {{ STATUS_BADGE[r.status] }}">
             {{ STATUS_LABEL[r.status] }}
           </span>
+          <span class="px-2 py-0.5 rounded-full text-xs {{ CONSENT_BADGE[r.sender_own_consent] }}">
+            {{ CONSENT_LABEL[r.sender_own_consent] }}
+          </span>
         </div>
         <div class="text-sm">
           <div><span class="text-neutral-500">받는이:</span> {{ user_chip(r.to_user_id) }}</div>
@@ -115,6 +130,25 @@
         </div>
         {% endif %}
         {% if r.status.value == 'PENDING' %}
+        {# 본인 매물 의향 미확인 상태면 사후 표시 가능. 동의 → AGREED. 거절 → WITHDRAWN 자동 종결. #}
+        {% if r.sender_own_consent.value == 'NOT_ASKED' %}
+        <div class="border-t border-neutral-100 pt-2 space-y-2">
+          <div class="text-xs text-amber-700">내 매물에 의향 물어본 후 결과 표시:</div>
+          <div class="flex gap-2">
+            <form method="post" action="/requests/{{ r.id }}/consent-agree" class="flex-1">
+              <button class="w-full px-3 py-2 border border-emerald-300 bg-emerald-50 text-emerald-800 rounded-lg text-sm hover:bg-emerald-100">
+                👍 내 매물 동의
+              </button>
+            </form>
+            <form method="post" action="/requests/{{ r.id }}/consent-decline" class="flex-1"
+                  onsubmit="return confirm('매물이 거절 → 요청 자동 종결. 진행할까요?')">
+              <button class="w-full px-3 py-2 border border-neutral-300 bg-neutral-50 text-neutral-700 rounded-lg text-sm hover:bg-neutral-100">
+                👎 내 매물 거절 (요청 종결)
+              </button>
+            </form>
+          </div>
+        </div>
+        {% endif %}
         <form method="post" action="/requests/{{ r.id }}/withdraw"
               onsubmit="return confirm('이 요청을 취소할까요?')" class="text-right">
           <button class="text-xs text-neutral-500 hover:text-red-600 underline">요청 취소</button>

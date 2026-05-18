@@ -27,6 +27,7 @@ from ..models import (
     IntroductionRequest,
     IntroRequestStatus,
     Person,
+    SenderConsentStatus,
     User,
 )
 from ..notifications import send_telegram, telegram_enabled
@@ -50,12 +51,27 @@ STATUS_BADGE = {
     IntroRequestStatus.WITHDRAWN: "bg-neutral-100 text-neutral-400",
 }
 
+CONSENT_LABEL = {
+    SenderConsentStatus.NOT_ASKED: "⚠️ 본인 매물 의향 미확인",
+    SenderConsentStatus.AGREED: "✅ 본인 매물 동의 완료",
+    SenderConsentStatus.DECLINED: "❌ 본인 매물 거절",
+}
+
+CONSENT_BADGE = {
+    SenderConsentStatus.NOT_ASKED: "bg-amber-50 text-amber-700 border border-amber-200",
+    SenderConsentStatus.AGREED: "bg-emerald-50 text-emerald-700 border border-emerald-200",
+    SenderConsentStatus.DECLINED: "bg-neutral-100 text-neutral-500 border border-neutral-200",
+}
+
 
 def _ctx_extras() -> dict:
     return {
         "STATUS_LABEL": STATUS_LABEL,
         "STATUS_BADGE": STATUS_BADGE,
         "IntroRequestStatus": IntroRequestStatus,
+        "CONSENT_LABEL": CONSENT_LABEL,
+        "CONSENT_BADGE": CONSENT_BADGE,
+        "SenderConsentStatus": SenderConsentStatus,
     }
 
 
@@ -185,6 +201,7 @@ def create_request(
     my_person_id: int = Form(...),
     their_person_id: int = Form(...),
     message: str = Form(""),
+    sender_consent: str = Form(""),  # "1" = 본인 매물 동의 받음, 빈값 = 안 물어봄
     current_user: User = Depends(require_admin),
     session: Session = Depends(get_session),
 ):
@@ -204,12 +221,15 @@ def create_request(
     if their_p.owner_user_id == current_user.id:
         raise HTTPException(400, "본인 매물에는 요청을 보낼 수 없습니다")
 
+    consent = (SenderConsentStatus.AGREED if sender_consent == "1"
+               else SenderConsentStatus.NOT_ASKED)
     req = IntroductionRequest(
         from_user_id=current_user.id,
         to_user_id=their_p.owner_user_id,
         my_person_id=my_p.id,
         their_person_id=their_p.id,
         message=message.strip(),
+        sender_own_consent=consent,
     )
     session.add(req)
     session.commit()
@@ -225,7 +245,8 @@ def create_request(
     to_user = session.get(User, their_p.owner_user_id)
     msg_text = (
         f"📨 <b>새 소개 요청 도착</b>\n"
-        f"<b>보낸 분:</b> {current_user.display_name}\n\n"
+        f"<b>보낸 분:</b> {current_user.display_name}\n"
+        f"<b>보낸이 매물 의향:</b> {CONSENT_LABEL[consent]}\n\n"
         f"<b>내 매물:</b> {_person_summary(their_p)}\n"
         f"<b>소개 매물:</b> {_person_summary(my_p)}\n"
     )
@@ -354,6 +375,109 @@ def decline_request(
     _notify(from_user, msg)
 
     return RedirectResponse("/requests", status_code=303)
+
+
+@router.post("/{request_id}/consent-agree")
+def mark_consent_agreed(
+    request_id: int,
+    current_user: User = Depends(require_admin),
+    session: Session = Depends(get_session),
+):
+    """A (보낸이) 가 본인 매물에게 물어봤더니 동의 → consent=AGREED. 받은이에게 알림."""
+    req = _get_owned_request(session, request_id, current_user, side="from")
+    if req.status != IntroRequestStatus.PENDING:
+        raise HTTPException(400, f"이미 처리된 요청입니다 ({req.status.value})")
+    if req.sender_own_consent == SenderConsentStatus.AGREED:
+        return RedirectResponse("/requests?flash=이미+동의+표시됨", status_code=303)
+    req.sender_own_consent = SenderConsentStatus.AGREED
+    req.updated_at = datetime.utcnow()
+    session.add(req)
+    from ..services.activity_log import log_activity
+    log_activity(session, current_user, "request.consent_agreed",
+                 target_type="request", target_id=req.id,
+                 summary=f"#{req.id} 본인 매물 동의 표시")
+    session.commit()
+    # 받은이에게 알림
+    to_user = session.get(User, req.to_user_id)
+    my_p = session.get(Person, req.my_person_id)
+    their_p = session.get(Person, req.their_person_id)
+    msg = (
+        f"✅ <b>보낸이가 본인 매물 동의 확인</b>\n"
+        f"<b>보낸 분:</b> {current_user.display_name}\n\n"
+        f"<b>내 매물:</b> {_person_summary(their_p)}\n"
+        f"<b>소개 매물:</b> {_person_summary(my_p)}\n\n"
+        f"이제 본인 매물에게 물어보세요.\n→ {_requests_link()}"
+    )
+    _notify(to_user, msg)
+    return RedirectResponse("/requests?ok=동의+표시+완료", status_code=303)
+
+
+@router.post("/{request_id}/consent-decline")
+def mark_consent_declined(
+    request_id: int,
+    current_user: User = Depends(require_admin),
+    session: Session = Depends(get_session),
+):
+    """A (보낸이) 가 본인 매물에게 물어봤더니 거절 → consent=DECLINED + 요청 자동 종결 (WITHDRAWN)."""
+    req = _get_owned_request(session, request_id, current_user, side="from")
+    if req.status != IntroRequestStatus.PENDING:
+        raise HTTPException(400, f"이미 처리된 요청입니다 ({req.status.value})")
+    req.sender_own_consent = SenderConsentStatus.DECLINED
+    req.status = IntroRequestStatus.WITHDRAWN
+    req.updated_at = datetime.utcnow()
+    session.add(req)
+    from ..services.activity_log import log_activity
+    log_activity(session, current_user, "request.consent_declined",
+                 target_type="request", target_id=req.id,
+                 summary=f"#{req.id} 본인 매물 거절 → 자동 종결")
+    session.commit()
+    # 받은이에게 알림
+    to_user = session.get(User, req.to_user_id)
+    my_p = session.get(Person, req.my_person_id)
+    their_p = session.get(Person, req.their_person_id)
+    msg = (
+        f"❌ <b>소개 요청 자동 종결</b>\n"
+        f"<b>보낸 분:</b> {current_user.display_name}\n"
+        f"본인 매물이 거절해서 요청 종결.\n\n"
+        f"<b>내 매물:</b> {_person_summary(their_p)}\n"
+        f"<b>소개 시도된 매물:</b> {_person_summary(my_p)}\n"
+    )
+    _notify(to_user, msg)
+    return RedirectResponse("/requests?ok=요청+자동+종결", status_code=303)
+
+
+@router.post("/{request_id}/ping-sender")
+def ping_sender_to_ask(
+    request_id: int,
+    current_user: User = Depends(require_admin),
+    session: Session = Depends(get_session),
+):
+    """B (받은이) 가 A (보낸이) 에게 '본인 매물에 먼저 물어봐주세요' 회신.
+    요청 상태/consent 는 그대로 PENDING/NOT_ASKED 유지. 텔레그램 알림만 보냄."""
+    req = _get_owned_request(session, request_id, current_user, side="to")
+    if req.status != IntroRequestStatus.PENDING:
+        raise HTTPException(400, f"이미 처리된 요청입니다 ({req.status.value})")
+    if req.sender_own_consent != SenderConsentStatus.NOT_ASKED:
+        raise HTTPException(400, "이미 보낸이가 본인 매물 의향 표시함")
+    from ..services.activity_log import log_activity
+    log_activity(session, current_user, "request.ping_consent",
+                 target_type="request", target_id=req.id,
+                 summary=f"#{req.id} 보낸이에 의향확인 회신")
+    session.commit()
+    # A 에게 알림
+    from_user = session.get(User, req.from_user_id)
+    my_p = session.get(Person, req.my_person_id)
+    their_p = session.get(Person, req.their_person_id)
+    msg = (
+        f"🔔 <b>본인 매물 의향 확인 요청</b>\n"
+        f"<b>받은 분:</b> {current_user.display_name}\n"
+        f"받은이가 본인 매물에 먼저 물어봐달라고 회신.\n\n"
+        f"<b>소개하려던 매물:</b> {_person_summary(my_p)}\n"
+        f"<b>상대 매물:</b> {_person_summary(their_p)}\n\n"
+        f"본인 매물에 의향 물어본 후 /requests 에서 '동의/거절' 표시.\n→ {_requests_link()}"
+    )
+    _notify(from_user, msg)
+    return RedirectResponse("/requests?ok=의향확인+회신+보냄", status_code=303)
 
 
 @router.post("/{request_id}/withdraw")
