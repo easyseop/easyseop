@@ -253,9 +253,32 @@
         cancelAnimationFrame(raf);
         raf = requestAnimationFrame(update);
       }, { passive: true });
+
+      // 카드 전체가 <a> 로 감싸여 있어 swipe 가 click 으로 인식되면 매물 상세로 튕김.
+      // touchmove 가 일정 거리 넘으면 그 직후 click 을 차단 → 진짜 탭은 통과, 스와이프는 슬라이드만.
+      let startX = 0, startY = 0, moved = false;
+      strip.addEventListener('touchstart', (e) => {
+        startX = e.touches[0].clientX;
+        startY = e.touches[0].clientY;
+        moved = false;
+      }, { passive: true });
+      strip.addEventListener('touchmove', (e) => {
+        const dx = Math.abs(e.touches[0].clientX - startX);
+        const dy = Math.abs(e.touches[0].clientY - startY);
+        if (dx > 8 || dy > 8) moved = true;
+      }, { passive: true });
+      strip.addEventListener('click', (e) => {
+        if (moved) {
+          e.preventDefault();
+          e.stopPropagation();
+          moved = false;
+        }
+      }, { capture: true });
     }
-    document.querySelectorAll('.mc-photo-strip').forEach(attach);
-    // htmx 로 페이지 swap 후 새 strip 도 바인딩
+    document.querySelectorAll('.mc-photo-strip').forEach(s => {
+      if (!s.dataset.mcBound) { s.dataset.mcBound = '1'; attach(s); }
+    });
+    // htmx 로 페이지 swap 후 새 strip 도 바인딩 (mcBound 가드로 중복 부착 방지)
     document.body.addEventListener('htmx:afterSwap', () => {
       document.querySelectorAll('.mc-photo-strip').forEach(s => {
         if (!s.dataset.mcBound) { s.dataset.mcBound = '1'; attach(s); }
