@@ -83,36 +83,39 @@ def _save_photo(person_id: int, upload: UploadFile) -> str:
             shutil.copyfileobj(upload.file, f)
         return f"{person_id}/{name}"
 
+    # progressive 만 켜고 optimize 는 끔 — 측정상 동일 사이즈에 시간만 더 듦.
     full_kwargs: dict = {}
     thumb_kwargs: dict = {}
     if ext in (".jpg", ".jpeg"):
-        full_kwargs = {"quality": PHOTO_JPEG_QUALITY, "optimize": True, "progressive": True}
-        thumb_kwargs = {"quality": PHOTO_THUMB_QUALITY, "optimize": True, "progressive": True}
+        full_kwargs = {"quality": PHOTO_JPEG_QUALITY, "progressive": True}
+        thumb_kwargs = {"quality": PHOTO_THUMB_QUALITY, "progressive": True}
     elif ext == ".webp":
-        full_kwargs = {"quality": PHOTO_WEBP_QUALITY, "method": 6}
-        thumb_kwargs = {"quality": PHOTO_THUMB_QUALITY, "method": 6}
+        full_kwargs = {"quality": PHOTO_WEBP_QUALITY, "method": 4}  # method 6 은 느리고 사이즈 차이 미미
+        thumb_kwargs = {"quality": PHOTO_THUMB_QUALITY, "method": 4}
     elif ext == ".png":
         full_kwargs = {"optimize": True}
         thumb_kwargs = {"optimize": True}
 
     try:
         img = Image.open(upload.file)
+        # JPEG draft: decoder 단계에서 미리 ~1/2 사이즈로 → 4000px 입력에서 큰 절감.
+        # 다른 포맷에선 noop.
+        if ext in (".jpg", ".jpeg"):
+            img.draft("RGB", (PHOTO_MAX_DIM, PHOTO_MAX_DIM))
         img = ImageOps.exif_transpose(img)
         # JPEG 는 RGBA 지원 X — 변환
         if ext in (".jpg", ".jpeg") and img.mode in ("RGBA", "P"):
             img = img.convert("RGB")
 
-        # 원본 (1600px)
-        full = img.copy()
-        if max(full.size) > PHOTO_MAX_DIM:
-            full.thumbnail((PHOTO_MAX_DIM, PHOTO_MAX_DIM), Image.LANCZOS)
-        full.save(dest, **full_kwargs)
+        # 원본 (1600px) — in-place thumbnail (copy 생략).
+        # 큰 → 작은 한 방향이라 원본 보존 필요 X.
+        img.thumbnail((PHOTO_MAX_DIM, PHOTO_MAX_DIM), Image.LANCZOS)
+        img.save(dest, **full_kwargs)
 
-        # 썸네일 (500px, quality 75) — 카드 그리드에서 사용
-        thumb = img.copy()
-        thumb.thumbnail((PHOTO_THUMB_DIM, PHOTO_THUMB_DIM), Image.LANCZOS)
+        # 썸네일 (500px) — 이미 1600px 된 img 를 또 줄임. 4000→500 직접보다 빠름.
+        img.thumbnail((PHOTO_THUMB_DIM, PHOTO_THUMB_DIM), Image.LANCZOS)
         thumb_dest = person_dir / f"{Path(name).stem}_thumb{ext}"
-        thumb.save(thumb_dest, **thumb_kwargs)
+        img.save(thumb_dest, **thumb_kwargs)
     except Exception:
         # 파싱 실패 시 원본 그대로 (썸네일 없음)
         upload.file.seek(0)
