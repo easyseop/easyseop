@@ -101,6 +101,13 @@
           → 자동 생성된 만남 기록 보기 (#{{ r.resolved_encounter_id }})
         </a>
         {% endif %}
+        {# 거절한 요청에 보낸이가 마지막 한 마디 남겼으면 표시 #}
+        {% if r.status.value == 'DECLINED' and r.final_note %}
+        <div class="text-sm whitespace-pre-wrap bg-pink-50 border border-pink-100 rounded-lg p-3 mt-2">
+          <div class="text-xs text-pink-700 mb-1">💌 보낸이의 마지막 한 마디</div>
+          {{ r.final_note }}
+        </div>
+        {% endif %}
       </li>
       {% endfor %}
     </ul>
@@ -173,6 +180,29 @@
         <a href="/encounters/{{ r.resolved_encounter_id }}" class="text-xs text-pink-600 hover:underline">
           → 자동 생성된 만남 기록 (#{{ r.resolved_encounter_id }})
         </a>
+        {% endif %}
+        {# 거절된 요청에 보낸이가 "마지막 한 마디" 한 번만 보낼 수 있음 (예: "혹시 나중에 상황 바뀌면 연락주세요"). #}
+        {% if r.status.value == 'DECLINED' %}
+          {% if r.final_note %}
+          <div class="text-sm whitespace-pre-wrap bg-pink-50 border border-pink-100 rounded-lg p-3 mt-2">
+            <div class="text-xs text-pink-700 mb-1">💌 내가 보낸 마지막 한 마디</div>
+            {{ r.final_note }}
+          </div>
+          {% else %}
+          <details class="border-t border-neutral-100 pt-2 mt-2">
+            <summary class="cursor-pointer text-xs text-pink-700 hover:text-pink-900">
+              💌 마지막 한 마디 남기기 (한 번만, 텔레그램으로 전송)
+            </summary>
+            <form method="post" action="/requests/{{ r.id }}/send-final-note" class="mt-2 space-y-2">
+              <textarea name="note" rows="2" maxlength="500" required
+                        placeholder="예: 혹시 나중에라도 마음 바뀌시면 연락주세요 ^^"
+                        class="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm"></textarea>
+              <button class="w-full px-3 py-2 border border-pink-300 bg-pink-50 text-pink-800 rounded-lg text-sm hover:bg-pink-100">
+                💌 보내기
+              </button>
+            </form>
+          </details>
+          {% endif %}
         {% endif %}
       </li>
       {% endfor %}

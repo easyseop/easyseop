@@ -559,6 +559,50 @@ def ping_sender_to_ask(
     return RedirectResponse("/requests?ok=의향확인+회신+보냄", status_code=303)
 
 
+@router.post("/{request_id}/send-final-note")
+def send_final_note(
+    request_id: int,
+    note: str = Form(...),
+    current_user: User = Depends(require_admin),
+    session: Session = Depends(get_session),
+):
+    """거절된 요청에 보낸이가 마지막 한 마디 (한 번만). 받은이에게 텔레그램 알림."""
+    req = _get_owned_request(session, request_id, current_user, side="from")
+    if req.status != IntroRequestStatus.DECLINED:
+        raise HTTPException(400, "거절된 요청에만 마지막 한 마디 가능합니다")
+    if req.final_note:
+        raise HTTPException(400, "이미 마지막 한 마디 보냈습니다 (한 번만 가능)")
+    note_clean = note.strip()
+    if not note_clean:
+        raise HTTPException(400, "빈 메모는 보낼 수 없습니다")
+    if len(note_clean) > 500:
+        raise HTTPException(400, "500자 이내로 작성해주세요")
+
+    req.final_note = note_clean
+    req.updated_at = datetime.utcnow()
+    session.add(req)
+    from ..services.activity_log import log_activity
+    log_activity(session, current_user, "request.final_note",
+                 target_type="request", target_id=req.id,
+                 summary=f"#{req.id} 거절 후 마지막 한 마디")
+    session.commit()
+
+    # 받은이에게 텔레그램
+    to_user = session.get(User, req.to_user_id)
+    my_p = session.get(Person, req.my_person_id)
+    their_p = session.get(Person, req.their_person_id)
+    msg = (
+        f"💌 <b>거절한 요청에 마지막 한 마디 도착</b>\n"
+        f"<b>보낸 분:</b> {current_user.display_name}\n\n"
+        f"<b>내 매물:</b> {_person_summary(their_p)}\n"
+        f"<b>상대 매물:</b> {_person_summary(my_p)}\n\n"
+        f"<i>{note_clean}</i>\n\n"
+        f"→ {_requests_link()}"
+    )
+    _notify(to_user, msg)
+    return RedirectResponse("/requests?ok=마지막+한+마디+전송됨", status_code=303)
+
+
 @router.post("/{request_id}/withdraw")
 def withdraw_request(
     request_id: int,

@@ -245,6 +245,10 @@ class IntroductionRequest(SQLModel, table=True):
         default=SenderConsentStatus.NOT_ASKED,
         sa_column=_enum_col(SenderConsentStatus),
     )
+    # 거절된 요청에 보낸이가 남기는 "마지막 한 마디" (한 번만 입력 가능).
+    # 예: "혹시 나중에 상황 바뀌면 언제든 연락주세요 ~"
+    # status==DECLINED 이고 비어있을 때만 입력 가능. 텔레그램으로 받은이에게 알림.
+    final_note: str = Field(default="", sa_column=_legacy_enc_text_col())
     resolved_encounter_id: Optional[int] = Field(default=None, foreign_key="encounter.id")
     last_reminded_at: Optional[datetime] = Field(default=None)  # 마지막 재알림 시각 (없으면 한 번도 안 보냄)
     created_at: datetime = Field(default_factory=datetime.utcnow)
