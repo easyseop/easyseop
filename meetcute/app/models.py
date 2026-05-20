@@ -267,6 +267,17 @@ class BlacklistedPair(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
+class Notice(SQLModel, table=True):
+    """기능 개선 알림 (release notes). notices.NOTICES 와 sync.
+    broadcast_at IS NULL 인 row 는 다음 부팅 시 모든 마담뚜에게 텔레그램 발송."""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    slug: str = Field(unique=True, max_length=64, index=True)
+    title: str = Field(max_length=200)
+    body: str = Field(default="", sa_column=_legacy_enc_text_col())
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    broadcast_at: Optional[datetime] = Field(default=None)
+
+
 class ActivityLog(SQLModel, table=True):
     """마담뚜 활동 통합 로그. 책임자가 누가-언제-뭘 했는지 한눈에 보려고.
 

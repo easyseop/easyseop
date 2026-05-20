@@ -47,6 +47,11 @@
       {% endif %}
     </div>
     <div class="flex gap-2 flex-wrap justify-end shrink-0">
+      <button type="button" onclick="mcCopyProfileToClipboard()"
+              class="px-3 py-1.5 border border-neutral-300 rounded-lg text-sm hover:bg-neutral-100"
+              title="카톡 등에 붙여넣을 수 있게 프로필 텍스트로 복사 (사진/내부메모 제외)">
+        📋 프로필 복사
+      </button>
       {% if can_send_intro_request %}
       <a href="/requests/new?their={{ person.id }}"
          class="px-3 py-1.5 bg-pink-600 text-white rounded-lg text-sm hover:bg-pink-700">📨 소개 요청</a>
@@ -58,6 +63,55 @@
       {% endif %}
     </div>
   </div>
+
+  {# 클립보드 복사용 plain text — 매물한테 카톡 보낼 때 사용. 사진/내부 메모/alias 제외. #}
+  {%- set _profile_lines = [] -%}
+  {%- set _ = _profile_lines.append('성별: ' ~ person.gender.label) -%}
+  {%- if person.year_label and person.year_label != '—' -%}
+    {%- set _ = _profile_lines.append('출생연도: ' ~ person.year_label) -%}
+  {%- endif -%}
+  {%- set _ = _profile_lines.append('키: ' ~ person.height_cm ~ 'cm') -%}
+  {%- if person.location -%}
+    {%- set _ = _profile_lines.append('거주지: ' ~ person.location) -%}
+  {%- endif -%}
+  {%- if person.workplace -%}
+    {%- set _ = _profile_lines.append('직장: ' ~ person.workplace) -%}
+  {%- endif -%}
+  {%- if person.ideal_type -%}
+    {%- set _ = _profile_lines.append('이상형: ' ~ person.ideal_type) -%}
+  {%- endif -%}
+  <textarea id="mc-profile-clipboard" class="sr-only" tabindex="-1" readonly>{{ _profile_lines | join('\n') }}</textarea>
+  <script>
+    async function mcCopyProfileToClipboard() {
+      const el = document.getElementById('mc-profile-clipboard');
+      const text = el.value;
+      let ok = false;
+      try {
+        if (navigator.clipboard && window.isSecureContext) {
+          await navigator.clipboard.writeText(text);
+          ok = true;
+        }
+      } catch (e) { /* 폴백으로 */ }
+      if (!ok) {
+        // 옛 브라우저 / 비-HTTPS 환경 폴백
+        el.classList.remove('sr-only');
+        el.style.position = 'fixed'; el.style.top = '-200px';
+        el.focus(); el.select();
+        try {
+          ok = document.execCommand('copy');
+        } catch (e) { ok = false; }
+        el.classList.add('sr-only');
+      }
+      // 토스트
+      const t = document.createElement('div');
+      t.textContent = ok ? '📋 프로필 복사됨 — 카톡 등에 붙여넣기' : '⚠️ 복사 실패 — 텍스트 영역을 직접 선택해 복사하세요';
+      t.className = 'fixed top-16 left-1/2 -translate-x-1/2 z-50 px-4 py-3 rounded-xl shadow-lg text-sm '
+                  + (ok ? 'bg-emerald-600 text-white' : 'bg-red-600 text-white');
+      document.body.appendChild(t);
+      setTimeout(() => { t.style.transition = 'opacity .4s'; t.style.opacity = '0'; }, 2500);
+      setTimeout(() => t.remove(), 3000);
+    }
+  </script>
 
   {% if photos %}
   <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">

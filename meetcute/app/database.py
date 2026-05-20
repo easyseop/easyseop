@@ -177,6 +177,70 @@ def _backfill_accepted_consent() -> None:
             s.commit()
 
 
+def _seed_notices_and_broadcast() -> None:
+    """app.notices.NOTICES 와 DB sync + 미발송 알림 텔레그램 broadcast.
+
+    동작:
+      1. notices.py 의 entry 중 DB 에 없는 것 (slug unique) 추가
+      2. broadcast_at IS NULL 인 Notice → 모든 마담뚜 텔레그램 발송 → 시각 기록
+      3. 텔레그램 비활성 또는 마담뚜 0명이면 발송 안 함, broadcast_at 도 갱신 X
+         (다음 부팅에 재시도)
+    """
+    from datetime import datetime as _dt
+    from .models import Notice, User
+    from .notices import NOTICES
+    from .notifications import send_telegram, telegram_enabled
+
+    with Session(engine) as s:
+        # 1) NOTICES 와 DB sync (slug 가 같으면 스킵)
+        for n in NOTICES:
+            existing = s.exec(
+                select(Notice).where(Notice.slug == n["slug"])
+            ).first()
+            if existing:
+                continue
+            s.add(Notice(slug=n["slug"], title=n["title"], body=n["body"]))
+        s.commit()
+
+        # 2) 텔레그램 비활성이면 broadcast 안 함
+        if not telegram_enabled():
+            return
+
+        # 3) 마담뚜 수신자 — chat_id 있고 admin 인 사람만
+        recipients = s.exec(
+            select(User).where(
+                User.is_admin == True,  # noqa: E712
+                User.telegram_chat_id != "",  # noqa: E712
+            )
+        ).all()
+        if not recipients:
+            return
+
+        unsent = s.exec(
+            select(Notice).where(Notice.broadcast_at == None)  # noqa: E711
+            .order_by(Notice.id)
+        ).all()
+        now = _dt.utcnow()
+        for notice in unsent:
+            msg = (
+                f"🆕 <b>기능 개선 알림</b>\n"
+                f"<b>{notice.title}</b>\n\n"
+                f"{notice.body}"
+            )
+            sent_any = False
+            for r in recipients:
+                try:
+                    ok, _ = send_telegram(r.telegram_chat_id, msg)
+                    if ok:
+                        sent_any = True
+                except Exception:
+                    pass
+            if sent_any:
+                notice.broadcast_at = now
+                s.add(notice)
+        s.commit()
+
+
 def init_db() -> None:
     _ensure_database_exists(DATABASE_URL)
     SQLModel.metadata.create_all(engine)
@@ -185,6 +249,7 @@ def init_db() -> None:
     _encrypt_legacy_user_credentials()
     _migrate_age_to_birth_year()
     _backfill_accepted_consent()
+    _seed_notices_and_broadcast()
 
 
 def get_session():
