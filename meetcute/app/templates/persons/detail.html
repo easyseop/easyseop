@@ -74,8 +74,8 @@
   {# 클립보드 복사용 plain text — 매물한테 카톡 보낼 때 사용. 사진/내부 메모/alias 제외. #}
   {%- set _profile_lines = [] -%}
   {%- set _ = _profile_lines.append('성별: ' ~ person.gender.label) -%}
-  {%- if person.years_old_approx and person.years_old_approx > 0 -%}
-    {%- set _ = _profile_lines.append('나이: ' ~ person.years_old_approx ~ '세') -%}
+  {%- if person.year_label and person.year_label != '—' -%}
+    {%- set _ = _profile_lines.append('나이: ' ~ person.year_label) -%}
   {%- endif -%}
   {%- set _ = _profile_lines.append('키: ' ~ person.height_cm ~ 'cm') -%}
   {%- if person.location -%}
