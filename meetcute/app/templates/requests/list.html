@@ -91,9 +91,25 @@
             <button class="px-4 py-2 border border-red-300 text-red-600 rounded-lg text-sm hover:bg-red-50">❌ 내 매물 거절</button>
           </form>
           {% else %}
-          <div class="text-xs text-emerald-700 bg-emerald-50 rounded-lg p-2">
-            ✅ 내 매물 동의 표시 완료. 보낸이 매물 동의 대기 중.
-          </div>
+          {# 내 매물 이미 동의 표시함. 보낸이 매물 상태에 따라 분기 #}
+            {% if r.sender_own_consent.value == 'AGREED' %}
+            {# 양방 동의 완료 → 연락처 전달 후 만남 생성 버튼 #}
+            <div class="border-t border-pink-200 pt-2 space-y-2">
+              <div class="text-xs text-pink-700 bg-pink-50 rounded-lg p-2">
+                💞 <b>양방 동의 완료!</b> 카톡/문자로 매물 연락처를 보낸이에게 직접 전달 후 아래 버튼.
+              </div>
+              <form method="post" action="/requests/{{ r.id }}/confirm-contact-exchanged"
+                    onsubmit="return confirm('연락처 전달 끝났으면 → 만남 기록 생성됩니다. 진행할까요?')">
+                <button class="w-full px-3 py-2 bg-pink-600 text-white rounded-lg text-sm hover:bg-pink-700 font-medium">
+                  📞 연락처 전달 완료 → 만남 기록 생성
+                </button>
+              </form>
+            </div>
+            {% else %}
+            <div class="text-xs text-emerald-700 bg-emerald-50 rounded-lg p-2">
+              ✅ 내 매물 동의 표시 완료. 보낸이 매물 동의 대기 중.
+            </div>
+            {% endif %}
           {% endif %}
         </div>
         {% elif r.status.value == 'ACCEPTED' and r.resolved_encounter_id %}
@@ -170,6 +186,19 @@
               </button>
             </form>
           </div>
+        </div>
+        {% elif r.sender_own_consent.value == 'AGREED' and r.receiver_own_consent.value == 'AGREED' %}
+        {# 양방 동의 완료 → 연락처 전달 후 만남 생성 버튼 #}
+        <div class="border-t border-pink-200 pt-2 space-y-2">
+          <div class="text-xs text-pink-700 bg-pink-50 rounded-lg p-2">
+            💞 <b>양방 동의 완료!</b> 카톡/문자로 매물 연락처를 상대에게 직접 전달 후 아래 버튼.
+          </div>
+          <form method="post" action="/requests/{{ r.id }}/confirm-contact-exchanged"
+                onsubmit="return confirm('연락처 전달 끝났으면 → 만남 기록 생성됩니다. 진행할까요?')">
+            <button class="w-full px-3 py-2 bg-pink-600 text-white rounded-lg text-sm hover:bg-pink-700 font-medium">
+              📞 연락처 전달 완료 → 만남 기록 생성
+            </button>
+          </form>
         </div>
         {% endif %}
         <form method="post" action="/requests/{{ r.id }}/withdraw"

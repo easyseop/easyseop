@@ -7,8 +7,18 @@ from sqlmodel import Session, select, or_
 from sqlalchemy.orm import defer
 
 from ..auth import get_current_user
+from ..config import AUTH_ENABLED
 from ..database import get_session
-from ..models import Encounter, EncounterEvent, EncounterOutcome, Person, User
+from ..models import (
+    Encounter,
+    EncounterEvent,
+    EncounterOutcome,
+    IntroductionRequest,
+    IntroRequestStatus,
+    Person,
+    SenderConsentStatus,
+    User,
+)
 from ..services.activity_log import log_activity
 from ..templating import templates
 
@@ -111,6 +121,32 @@ def list_encounters(
         stmt = stmt.where(Encounter.outcome == outcome_enum)
     encounters = session.exec(stmt).all()
     persons = _resolve_persons(session, encounters)
+
+    # 연락처 전달 대기 (양방 동의됐지만 아직 Encounter 안 만들어진 요청들).
+    # 현재 user 가 참여한 것만.
+    awaiting_contact = []
+    awaiting_persons: dict[int, Person] = {}
+    if AUTH_ENABLED:
+        current_user = get_current_user(request, session)
+        if current_user and current_user.id:
+            awaiting_contact = session.exec(
+                select(IntroductionRequest).where(
+                    IntroductionRequest.status == IntroRequestStatus.PENDING,
+                    IntroductionRequest.sender_own_consent == SenderConsentStatus.AGREED,
+                    IntroductionRequest.receiver_own_consent == SenderConsentStatus.AGREED,
+                    or_(
+                        IntroductionRequest.from_user_id == current_user.id,
+                        IntroductionRequest.to_user_id == current_user.id,
+                    ),
+                ).order_by(IntroductionRequest.updated_at.desc())
+            ).all()
+            if awaiting_contact:
+                pids = set()
+                for r in awaiting_contact:
+                    pids.add(r.my_person_id); pids.add(r.their_person_id)
+                rows = session.exec(select(Person).where(Person.id.in_(list(pids)))).all()
+                awaiting_persons = {p.id: p for p in rows}
+
     return templates.TemplateResponse(
         request,
         "encounters/list.html",
@@ -118,6 +154,8 @@ def list_encounters(
             "encounters": encounters,
             "persons": persons,
             "person_id": person_id,
+            "awaiting_contact": awaiting_contact,
+            "awaiting_persons": awaiting_persons,
             "outcome": outcome_enum,
             **_ctx_extras(),
         },

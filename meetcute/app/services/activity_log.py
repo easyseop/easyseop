@@ -40,6 +40,7 @@ ACTION_LABEL: dict[str, str] = {
     "request.consent_declined": "👎 본인 매물 거절 → 요청 종결",
     "request.ping_consent": "🔔 보낸이에 '먼저 물어봐달라' 회신",
     "request.final_note": "💌 거절 후 마지막 한 마디",
+    "request.contact_exchanged": "📞 연락처 전달 완료 → 만남 생성",
 }
 
 

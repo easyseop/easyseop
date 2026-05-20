@@ -11,6 +11,7 @@ AUTH=off 모드에선 admin이 1명뿐(LOCAL_ADMIN)이라 의미 없음 → /req
 """
 from datetime import date, datetime
 from typing import Optional
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -64,28 +65,61 @@ CONSENT_BADGE = {
 }
 
 
-def _both_agreed_maybe_match(
+def _both_agreed_notify_ready(
+    session: Session,
+    req: IntroductionRequest,
+    actor: Optional[User],
+) -> bool:
+    """양쪽 다 AGREED 면 양쪽에 "연락처 전달 단계" 알림. Encounter 자동 생성 X.
+
+    바뀐 흐름: 양방 AGREED → 알림만. 마담뚜가 카톡 등으로 매물 연락처 직접
+    전달한 후, /requests 또는 /encounters 에서 '📞 연락처 전달 완료' 버튼
+    눌러야 Encounter 생성됨. 매물 연락처는 앱 DB 안 거침.
+
+    Returns: 양방 AGREED 라 알림 보냈으면 True.
+    """
+    if req.sender_own_consent != SenderConsentStatus.AGREED:
+        return False
+    if req.receiver_own_consent != SenderConsentStatus.AGREED:
+        return False
+    if req.status != IntroRequestStatus.PENDING:
+        return False
+    my_p = session.get(Person, req.my_person_id)
+    their_p = session.get(Person, req.their_person_id)
+    if not my_p or not their_p:
+        return False
+    from_user = session.get(User, req.from_user_id)
+    to_user = session.get(User, req.to_user_id)
+    _url = current_public_url()
+    link = f'<a href="{_url}/requests">/requests</a>' if _url else "/requests"
+    base = (
+        f"💞 <b>상호 동의 완료 — 연락처 전달 단계</b>\n\n"
+        f"<b>매물 A:</b> {_person_summary(my_p)}\n"
+        f"<b>매물 B:</b> {_person_summary(their_p)}\n\n"
+        f"이제 카톡/문자/통화로 <b>매물 연락처를 상대 마담뚜에게 직접 전달</b>하세요.\n"
+        f"전달이 끝나면 {link} 에서 '📞 연락처 전달 완료' 버튼을 눌러 "
+        f"만남 기록을 생성합니다."
+    )
+    _notify(from_user, base)
+    _notify(to_user, base)
+    return True
+
+
+def _create_encounter_from_request(
     session: Session,
     req: IntroductionRequest,
     actor: Optional[User],
 ) -> Optional[Encounter]:
-    """양쪽 다 AGREED 면 status=ACCEPTED + Encounter 자동 생성. 아니면 None.
+    """연락처 전달 완료 버튼 클릭 시 호출 — Encounter 생성 + 요청 ACCEPTED.
 
-    호출자가 sender_own_consent 또는 receiver_own_consent 를 방금 AGREED 로
-    바꾼 직후에 부르면 자동 매칭 여부 결정됨.
+    호출 시점: 양방 AGREED + status==PENDING. 호출 측이 사전 검증.
     """
-    if req.sender_own_consent != SenderConsentStatus.AGREED:
-        return None
-    if req.receiver_own_consent != SenderConsentStatus.AGREED:
-        return None
-    if req.status != IntroRequestStatus.PENDING:
-        return None  # 이미 종결된 경우 (race condition 가드)
     my_p = session.get(Person, req.my_person_id)
     their_p = session.get(Person, req.their_person_id)
     if not my_p or not their_p:
-        return None  # 매물 삭제됐으면 생성 불가
+        return None
     enc_notes = (
-        f"📨 소개 요청 양방 동의 → 자동 매칭 (req#{req.id})\n"
+        f"📨 소개 요청 양방 동의 + 연락처 전달 완료 → 만남 생성 (req#{req.id})\n"
         f"보낸이: user#{req.from_user_id}"
     )
     if req.message:
@@ -107,7 +141,7 @@ def _both_agreed_maybe_match(
     session.add(EncounterEvent(
         encounter_id=enc.id,
         outcome=EncounterOutcome.PENDING,
-        note=f"양방 동의 완료 → 자동 매칭 (req#{req.id})",
+        note=f"연락처 전달 완료 → 만남 자동 생성 (req#{req.id})",
         changed_by_user_id=actor.id if actor and actor.id else None,
         changed_by_email=actor.display_name if actor else "",
     ))
@@ -346,53 +380,44 @@ def accept_request(
     req.updated_at = datetime.utcnow()
     session.add(req)
 
-    enc = _both_agreed_maybe_match(session, req, current_user)
+    both_ready = _both_agreed_notify_ready(session, req, current_user)
 
-    if enc:
+    if both_ready:
         log_activity(
             session, current_user, "request.accept",
             target_type="request", target_id=req.id,
-            summary=f"#{req.id} 양방 동의 완료 → 만남 #{enc.id} 자동 생성",
+            summary=f"#{req.id} 양방 동의 완료 → 연락처 전달 단계",
         )
     else:
         log_activity(
             session, current_user, "request.accept",
             target_type="request", target_id=req.id,
-            summary=f"#{req.id} 받은이 매물 동의 (A 동의 대기)",
+            summary=f"#{req.id} 받은이 매물 동의 (보낸이 동의 대기)",
         )
     session.commit()
 
-    # 발신자에게 알림
+    # 발신자에게 알림 (양방 ready 알림은 _both_agreed_notify_ready 가 양쪽에 보냄)
     from_user = session.get(User, req.from_user_id)
     my_p = session.get(Person, req.my_person_id)
     their_p = session.get(Person, req.their_person_id)
-    if enc:
-        msg = (
-            f"💞 <b>양방 동의 완료 → 자동 매칭</b>\n"
-            f"<b>응답한 분:</b> {current_user.display_name}\n\n"
-            f"<b>내 매물:</b> {_person_summary(my_p)}\n"
-            f"<b>상대 매물:</b> {_person_summary(their_p)}\n"
+    if both_ready:
+        return RedirectResponse(
+            "/requests?ok=" + quote("양방 동의 완료 — 연락처 전달 후 만남 생성"),
+            status_code=303,
         )
-        if response_note:
-            msg += f"\n<i>{response_note}</i>\n"
-        _url = current_public_url()
-        enc_link = f'<a href="{_url}/encounters/{enc.id}">#{enc.id}</a>' if _url else f"#{enc.id}"
-        msg += f"\n→ 만남 기록 자동 생성 {enc_link}"
-        _notify(from_user, msg)
-        return RedirectResponse(f"/encounters/{enc.id}", status_code=303)
     else:
         msg = (
             f"✅ <b>받은이 매물 동의 표시</b>\n"
             f"<b>응답한 분:</b> {current_user.display_name}\n\n"
             f"<b>내 매물 (소개 시도):</b> {_person_summary(my_p)}\n"
             f"<b>상대 매물:</b> {_person_summary(their_p)}\n\n"
-            f"이제 본인 매물에 의향 물어본 후 /requests 에서 '동의' 표시하면 자동 매칭됩니다."
+            f"이제 본인 매물에 의향 물어본 후 /requests 에서 '동의' 표시하세요."
         )
         if response_note:
             msg += f"\n\n<i>{response_note}</i>"
         msg += f"\n→ {_requests_link()}"
         _notify(from_user, msg)
-        return RedirectResponse("/requests?ok=동의+표시+(A+동의+대기)", status_code=303)
+        return RedirectResponse("/requests?ok=" + quote("동의 표시 (보낸이 동의 대기)"), status_code=303)
 
 
 @router.post("/{request_id}/decline")
@@ -452,43 +477,36 @@ def mark_consent_agreed(
     session.add(req)
     from ..services.activity_log import log_activity
 
-    enc = _both_agreed_maybe_match(session, req, current_user)
+    both_ready = _both_agreed_notify_ready(session, req, current_user)
 
-    if enc:
+    if both_ready:
         log_activity(session, current_user, "request.consent_agreed",
                      target_type="request", target_id=req.id,
-                     summary=f"#{req.id} 양방 동의 완료 → 만남 #{enc.id} 자동 생성")
+                     summary=f"#{req.id} 양방 동의 완료 → 연락처 전달 단계")
     else:
         log_activity(session, current_user, "request.consent_agreed",
                      target_type="request", target_id=req.id,
-                     summary=f"#{req.id} 보낸이 매물 동의 (B 동의 대기)")
+                     summary=f"#{req.id} 보낸이 매물 동의 (받은이 동의 대기)")
     session.commit()
-    # 받은이에게 알림
+    # 받은이에게 알림 (양방 ready 알림은 _both_agreed_notify_ready 가 양쪽에 보냄)
     to_user = session.get(User, req.to_user_id)
     my_p = session.get(Person, req.my_person_id)
     their_p = session.get(Person, req.their_person_id)
-    if enc:
-        msg = (
-            f"💞 <b>양방 동의 완료 → 자동 매칭</b>\n"
-            f"<b>보낸 분:</b> {current_user.display_name}\n\n"
-            f"<b>내 매물:</b> {_person_summary(their_p)}\n"
-            f"<b>소개 매물:</b> {_person_summary(my_p)}\n"
+    if both_ready:
+        return RedirectResponse(
+            "/requests?ok=" + quote("양방 동의 완료 — 연락처 전달 후 만남 생성"),
+            status_code=303,
         )
-        _url = current_public_url()
-        enc_link = f'<a href="{_url}/encounters/{enc.id}">#{enc.id}</a>' if _url else f"#{enc.id}"
-        msg += f"\n→ 만남 기록 자동 생성 {enc_link}"
-        _notify(to_user, msg)
-        return RedirectResponse(f"/encounters/{enc.id}", status_code=303)
     else:
         msg = (
             f"✅ <b>보낸이가 본인 매물 동의 확인</b>\n"
             f"<b>보낸 분:</b> {current_user.display_name}\n\n"
             f"<b>내 매물:</b> {_person_summary(their_p)}\n"
             f"<b>소개 매물:</b> {_person_summary(my_p)}\n\n"
-            f"본인 매물에 물어본 후 /requests 에서 '동의' 표시하면 자동 매칭됩니다.\n→ {_requests_link()}"
+            f"본인 매물에 물어본 후 /requests 에서 '동의' 표시하세요.\n→ {_requests_link()}"
         )
         _notify(to_user, msg)
-        return RedirectResponse("/requests?ok=동의+표시+(B+동의+대기)", status_code=303)
+        return RedirectResponse("/requests?ok=" + quote("동의 표시 (받은이 동의 대기)"), status_code=303)
 
 
 @router.post("/{request_id}/consent-decline")
@@ -601,6 +619,58 @@ def send_final_note(
     )
     _notify(to_user, msg)
     return RedirectResponse("/requests?ok=마지막+한+마디+전송됨", status_code=303)
+
+
+@router.post("/{request_id}/confirm-contact-exchanged")
+def confirm_contact_exchanged(
+    request_id: int,
+    current_user: User = Depends(require_admin),
+    session: Session = Depends(get_session),
+):
+    """양방 동의 완료된 요청에서 연락처 전달 후 누르는 버튼.
+    이때 Encounter 자동 생성 + IntroductionRequest 상태 ACCEPTED.
+    양쪽 마담뚜 누구나 누를 수 있음."""
+    if not AUTH_ENABLED:
+        raise HTTPException(400, "AUTH=off 모드에선 사용 불가")
+    req = session.get(IntroductionRequest, request_id)
+    if not req:
+        raise HTTPException(404, "요청을 찾을 수 없습니다")
+    if current_user.id not in (req.from_user_id, req.to_user_id):
+        raise HTTPException(403, "이 요청의 마담뚜가 아닙니다")
+    if req.status != IntroRequestStatus.PENDING:
+        raise HTTPException(400, f"이미 처리된 요청입니다 ({req.status.value})")
+    if (req.sender_own_consent != SenderConsentStatus.AGREED
+            or req.receiver_own_consent != SenderConsentStatus.AGREED):
+        raise HTTPException(400, "양방 동의가 아직 완료되지 않았습니다")
+
+    enc = _create_encounter_from_request(session, req, current_user)
+    if not enc:
+        raise HTTPException(400, "관련 매물이 삭제됐습니다 — 만남 생성 불가")
+
+    from ..services.activity_log import log_activity
+    log_activity(
+        session, current_user, "request.contact_exchanged",
+        target_type="request", target_id=req.id,
+        summary=f"#{req.id} 연락처 전달 완료 → 만남 #{enc.id} 생성",
+    )
+    session.commit()
+
+    # 상대 마담뚜에게 알림
+    other_id = req.to_user_id if current_user.id == req.from_user_id else req.from_user_id
+    other_user = session.get(User, other_id)
+    my_p = session.get(Person, req.my_person_id)
+    their_p = session.get(Person, req.their_person_id)
+    _url = current_public_url()
+    enc_link = f'<a href="{_url}/encounters/{enc.id}">#{enc.id}</a>' if _url else f"#{enc.id}"
+    msg = (
+        f"💞 <b>연락처 전달 완료 → 만남 기록 생성</b>\n"
+        f"<b>확인한 분:</b> {current_user.display_name}\n\n"
+        f"<b>매물 A:</b> {_person_summary(my_p)}\n"
+        f"<b>매물 B:</b> {_person_summary(their_p)}\n\n"
+        f"→ 만남 기록 {enc_link}"
+    )
+    _notify(other_user, msg)
+    return RedirectResponse(f"/encounters/{enc.id}", status_code=303)
 
 
 @router.post("/{request_id}/withdraw")

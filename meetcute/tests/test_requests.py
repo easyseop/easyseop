@@ -67,9 +67,9 @@ def two_admins(client, session):
     return {"boss_id": boss_id, "noob_id": noob_id}
 
 
-def test_request_accept_creates_encounter(client, session, two_admins):
-    """양방 동의 모델: A 가 sender_consent=AGREED 로 보내고 B 가 수락(매물 동의)
-    하면 양쪽 다 AGREED 가 되니까 자동 Encounter 생성."""
+def test_request_both_agreed_then_contact_exchange(client, session, two_admins):
+    """양방 동의만으론 Encounter 안 생김 → '연락처 전달 완료' 버튼 클릭 시 생성.
+    바뀐 흐름: 양방 AGREED → status PENDING 유지 → confirm-contact-exchanged → ACCEPTED + Encounter."""
     from app.models import (
         Encounter, EncounterOutcome, IntroductionRequest,
         IntroRequestStatus, Person, SenderConsentStatus,
@@ -94,34 +94,67 @@ def test_request_accept_creates_encounter(client, session, two_admins):
     )
     assert r.status_code == 303
 
-    reqs = session.exec(select(IntroductionRequest)).all()
-    assert len(reqs) == 1
-    req = reqs[0]
+    req = session.exec(select(IntroductionRequest)).first()
     assert req.status == IntroRequestStatus.PENDING
     assert req.sender_own_consent == SenderConsentStatus.AGREED
-    assert req.receiver_own_consent == SenderConsentStatus.NOT_ASKED
 
-    # noob 가 수락 → 본인 매물 동의 표시. 양쪽 다 AGREED → 자동 Encounter
+    # noob 가 수락 → 본인 매물 동의 표시. 양쪽 다 AGREED 지만 Encounter 안 생김.
     _login(client, "noob@x.com")
-    r = client.post(
-        f"/requests/{req.id}/accept",
-        data={"response_note": "좋아요"},
-        follow_redirects=False,
-    )
+    r = client.post(f"/requests/{req.id}/accept", data={}, follow_redirects=False)
     assert r.status_code == 303
-    assert r.headers["location"].startswith("/encounters/")
+    assert "/requests" in r.headers["location"]  # encounters 가 아님
+
+    session.expire_all()
+    req = session.get(IntroductionRequest, req.id)
+    assert req.status == IntroRequestStatus.PENDING  # 아직 PENDING
+    assert req.sender_own_consent == SenderConsentStatus.AGREED
+    assert req.receiver_own_consent == SenderConsentStatus.AGREED
+    assert req.resolved_encounter_id is None
+    assert session.exec(select(Encounter)).all() == []  # Encounter 0
+
+    # 연락처 전달 완료 버튼 클릭 → Encounter 생성
+    r = client.post(f"/requests/{req.id}/confirm-contact-exchanged", follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"].startswith("/encounters/")
 
     session.expire_all()
     req = session.get(IntroductionRequest, req.id)
     assert req.status == IntroRequestStatus.ACCEPTED
-    assert req.sender_own_consent == SenderConsentStatus.AGREED
-    assert req.receiver_own_consent == SenderConsentStatus.AGREED
     assert req.resolved_encounter_id is not None
-
     enc = session.get(Encounter, req.resolved_encounter_id)
     assert enc is not None
     assert enc.outcome == EncounterOutcome.PENDING
     assert {enc.person_a_id, enc.person_b_id} == {boss_person.id, noob_person.id}
+
+    # 보낸이 (boss) 도 같은 버튼 클릭 가능 (양쪽 누구나)
+    # — 다만 이번 케이스는 이미 ACCEPTED 이라 더 진행하면 400 거부
+    _login(client, "boss@x.com")
+    r2 = client.post(f"/requests/{req.id}/confirm-contact-exchanged", follow_redirects=False)
+    assert r2.status_code == 400
+
+
+def test_confirm_contact_exchanged_blocks_until_both_agreed(client, session, two_admins):
+    """한 쪽만 AGREED 일 때 confirm-contact-exchanged 시도 → 400 거부."""
+    from app.models import IntroductionRequest, Person
+    from sqlmodel import select
+
+    persons = session.exec(select(Person).order_by(Person.id)).all()
+    boss_person = next(p for p in persons if p.owner_user_id == two_admins["boss_id"])
+    noob_person = next(p for p in persons if p.owner_user_id == two_admins["noob_id"])
+
+    _login(client, "boss@x.com")
+    client.post(
+        "/requests",
+        data={
+            "my_person_id": str(boss_person.id),
+            "their_person_id": str(noob_person.id),
+            "message": "", "sender_consent": "1",
+        },
+        follow_redirects=False,
+    )
+    req = session.exec(select(IntroductionRequest)).first()
+    # sender 만 AGREED, receiver 는 NOT_ASKED 인 상태 → confirm 시도하면 거부
+    r = client.post(f"/requests/{req.id}/confirm-contact-exchanged", follow_redirects=False)
+    assert r.status_code == 400
 
 
 def test_request_two_step_consent_then_match(client, session, two_admins):
@@ -159,9 +192,20 @@ def test_request_two_step_consent_then_match(client, session, two_admins):
     assert req.receiver_own_consent == SenderConsentStatus.AGREED
     assert req.resolved_encounter_id is None  # 아직 매칭 X
 
-    # boss 가 본인 매물 동의 표시 → 양쪽 AGREED → 자동 Encounter
+    # boss 가 본인 매물 동의 표시 → 양쪽 AGREED. 단 Encounter 안 생김 (연락처 전달 대기).
     _login(client, "boss@x.com")
     r = client.post(f"/requests/{req.id}/consent-agree", data={}, follow_redirects=False)
+    assert r.status_code == 303
+    session.expire_all()
+    req = session.get(IntroductionRequest, req.id)
+    assert req.status == IntroRequestStatus.PENDING  # 아직 PENDING (연락처 전달 대기)
+    assert req.sender_own_consent == SenderConsentStatus.AGREED
+    assert req.receiver_own_consent == SenderConsentStatus.AGREED
+    assert req.resolved_encounter_id is None
+    assert session.exec(select(Encounter)).all() == []  # 아직 Encounter 없음
+
+    # 연락처 전달 완료 버튼 → 만남 생성
+    r = client.post(f"/requests/{req.id}/confirm-contact-exchanged", follow_redirects=False)
     assert r.status_code == 303
     session.expire_all()
     req = session.get(IntroductionRequest, req.id)
