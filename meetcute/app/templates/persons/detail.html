@@ -2,18 +2,28 @@
 {% block title %}{{ person.public_id }} · meetcute{% endblock %}
 {% block content %}
 <div class="space-y-6">
-  <div class="flex items-center justify-between">
-    <div>
-      <div class="text-sm text-neutral-500">매물</div>
-      <h1 class="text-2xl font-bold flex items-center gap-2 flex-wrap">
-        <form method="post" action="/persons/{{ person.id }}/star" class="inline">
+  {# ── 헤더: 모바일에선 세로 stack, 데스크탑 (sm+) 에선 좌우 분리 ── #}
+  <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+    <div class="min-w-0 flex-1">
+      <div class="text-xs text-neutral-500">매물</div>
+      {# 1행: 별표 + ID + 📋 복사 버튼 (ID 바로 옆) #}
+      <h1 class="text-2xl font-bold flex items-center gap-2 flex-wrap mt-0.5">
+        <form method="post" action="/persons/{{ person.id }}/star" class="inline shrink-0">
           <button type="submit" class="hover:scale-110 transition-transform"
                   title="{% if person.is_starred %}즐겨찾기 해제{% else %}즐겨찾기에 추가{% endif %}">
             {% if person.is_starred %}<span class="text-yellow-500">⭐</span>{% else %}<span class="text-neutral-300">☆</span>{% endif %}
           </button>
         </form>
-        {{ person.public_id }}
-        <span class="text-sm font-normal text-neutral-500">{{ person.gender.label }} · {{ person.year_label }}</span>
+        <span>{{ person.public_id }}</span>
+        <button type="button" onclick="mcCopyProfileToClipboard()"
+                class="text-xs font-normal px-2 py-1 border border-neutral-300 rounded-md hover:bg-neutral-100 shrink-0"
+                title="카톡 등에 붙여넣을 텍스트로 복사 (사진/내부메모 제외)">
+          📋 복사
+        </button>
+      </h1>
+      {# 2행: 메타 정보 — gender / 출생연도 / status / 비공개 #}
+      <div class="flex items-center gap-2 flex-wrap text-sm text-neutral-500 mt-1">
+        <span>{{ person.gender.label }} · {{ person.year_label }}</span>
         <span class="px-2 py-0.5 rounded-full text-xs font-medium border {{ status_badge_class(status) }}">
           {{ status_label(status) }}
         </span>
@@ -22,7 +32,7 @@
           🔒 비공개
         </span>
         {% endif %}
-      </h1>
+      </div>
       {# 이름(alias) 은 owner 본인 또는 책임자에게만 노출 #}
       {% if person.alias and can_edit %}<div class="text-sm text-neutral-500 mt-1">이름: {{ person.alias }}</div>{% endif %}
       {% if AUTH_ENABLED %}
@@ -46,18 +56,15 @@
       </a>
       {% endif %}
     </div>
-    <div class="flex gap-2 flex-wrap justify-end shrink-0">
-      <button type="button" onclick="mcCopyProfileToClipboard()"
-              class="px-3 py-1.5 border border-neutral-300 rounded-lg text-sm hover:bg-neutral-100"
-              title="카톡 등에 붙여넣을 수 있게 프로필 텍스트로 복사 (사진/내부메모 제외)">
-        📋 프로필 복사
-      </button>
+    {# 액션 버튼 — 모바일에선 헤더 아래 한 줄, 데스크탑은 우측 정렬 #}
+    <div class="flex gap-2 flex-wrap sm:justify-end shrink-0 w-full sm:w-auto">
       {% if can_send_intro_request %}
       <a href="/requests/new?their={{ person.id }}"
-         class="px-3 py-1.5 bg-pink-600 text-white rounded-lg text-sm hover:bg-pink-700">📨 소개 요청</a>
+         class="flex-1 sm:flex-initial text-center px-3 py-1.5 bg-pink-600 text-white rounded-lg text-sm hover:bg-pink-700">📨 소개 요청</a>
       {% endif %}
       {% if can_edit %}
-      <a href="/persons/{{ person.id }}/edit" class="px-3 py-1.5 border border-neutral-300 rounded-lg text-sm hover:bg-neutral-100">✏️ 수정</a>
+      <a href="/persons/{{ person.id }}/edit"
+         class="flex-1 sm:flex-initial text-center px-3 py-1.5 border border-neutral-300 rounded-lg text-sm hover:bg-neutral-100">✏️ 수정</a>
       {% else %}
       <span class="text-xs text-neutral-400 self-center">🔒 등록한 마담뚜만 수정 가능</span>
       {% endif %}
