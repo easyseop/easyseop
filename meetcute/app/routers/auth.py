@@ -1,8 +1,13 @@
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlmodel import Session, select
 
 from ..auth import (
+    PASSWORD_RESET_TOKEN_TTL_MINUTES,
+    consume_password_reset_token,
+    create_password_reset_token,
     find_user_by_email,
     get_current_user,
     hash_password,
@@ -199,6 +204,122 @@ def logout(request: Request, session: Session = Depends(get_session)):
         session.commit()
     logout_user(request)
     return RedirectResponse("/auth/login", status_code=303)
+
+
+@router.get("/forgot", response_class=HTMLResponse)
+def forgot_form(
+    request: Request, session: Session = Depends(get_session),
+    error: str = "", ok: str = "", email: str = "",
+):
+    if (resp := _bypass_if_disabled()) is not None:
+        return resp
+    return templates.TemplateResponse(
+        request, "auth/forgot.html",
+        {"error": error, "ok": ok, "email": email,
+         "ttl_minutes": PASSWORD_RESET_TOKEN_TTL_MINUTES},
+    )
+
+
+@router.post("/forgot")
+def forgot_submit(
+    request: Request,
+    email: str = Form(...),
+    session: Session = Depends(get_session),
+):
+    """이메일 입력 → 텔레그램으로 reset 링크 발송.
+    이메일 enumeration 방지: 일치/불일치 / 텔레그램 미연동 모두 같은 성공 메시지."""
+    if (resp := _bypass_if_disabled()) is not None:
+        return resp
+    from urllib.parse import quote
+    from ..notifications import send_telegram, telegram_enabled
+    from ..url_watcher import current_public_url
+    ok_msg = (
+        "이메일이 등록돼 있고 텔레그램 연동돼 있으면 재설정 링크를 보냈어요. "
+        f"{PASSWORD_RESET_TOKEN_TTL_MINUTES}분 안에 클릭하세요. "
+        "오지 않으면 책임자에게 문의해주세요."
+    )
+    email_norm = (email or "").strip().lower()
+    user = find_user_by_email(session, email_norm)
+    if user and user.telegram_chat_id and telegram_enabled():
+        try:
+            raw = create_password_reset_token(session, user)
+            url = current_public_url()
+            link = f"{url}/auth/reset/{raw}" if url else f"/auth/reset/{raw}"
+            msg = (
+                f"🔑 <b>비밀번호 재설정 요청</b>\n\n"
+                f"<a href=\"{link}\">{link}</a>\n\n"
+                f"이 링크는 {PASSWORD_RESET_TOKEN_TTL_MINUTES}분 동안 유효. "
+                f"본인이 요청한 게 아니면 무시하세요 (요청한 사람만 링크 알 수 있음)."
+            )
+            send_telegram(user.telegram_chat_id, msg)
+            log_activity(session, user, "user.password_reset_request",
+                         target_type="user", target_id=user.id,
+                         summary="비번 재설정 토큰 발급 (텔레그램 전송)")
+            session.commit()
+        except Exception:
+            pass  # 실패해도 enumeration 방지 위해 성공 메시지
+    return RedirectResponse("/auth/forgot?ok=" + quote(ok_msg), status_code=303)
+
+
+@router.get("/reset/{token}", response_class=HTMLResponse)
+def reset_form(
+    request: Request, token: str,
+    session: Session = Depends(get_session),
+    error: str = "",
+):
+    if (resp := _bypass_if_disabled()) is not None:
+        return resp
+    # GET 은 token 소모하지 않고 검증만. 실제 소모는 POST.
+    from ..auth import _hash_reset_token
+    from ..models import PasswordResetToken
+    h = _hash_reset_token(token)
+    t = session.exec(
+        select(PasswordResetToken).where(
+            PasswordResetToken.token_hash == h,
+            PasswordResetToken.used_at == None,  # noqa: E711
+        )
+    ).first()
+    valid = bool(t and datetime.utcnow() <= t.expires_at)
+    return templates.TemplateResponse(
+        request, "auth/reset.html",
+        {"token": token, "valid": valid, "error": error},
+    )
+
+
+@router.post("/reset/{token}")
+def reset_submit(
+    request: Request, token: str,
+    new_password: str = Form(...),
+    new_password_confirm: str = Form(...),
+    session: Session = Depends(get_session),
+):
+    if (resp := _bypass_if_disabled()) is not None:
+        return resp
+    from urllib.parse import quote
+    if len(new_password) < 10:
+        return RedirectResponse(
+            f"/auth/reset/{token}?error=" + quote("비밀번호는 최소 10자 이상이어야 합니다"),
+            status_code=303,
+        )
+    if new_password != new_password_confirm:
+        return RedirectResponse(
+            f"/auth/reset/{token}?error=" + quote("비밀번호 확인이 일치하지 않습니다"),
+            status_code=303,
+        )
+    user = consume_password_reset_token(session, token)
+    if not user:
+        return RedirectResponse(
+            "/auth/forgot?error=" + quote("링크가 만료됐거나 이미 사용됨"),
+            status_code=303,
+        )
+    user.password_hash = hash_password(new_password)
+    session.add(user)
+    log_activity(session, user, "user.password_reset",
+                 target_type="user", target_id=user.id,
+                 summary="비번 재설정 완료")
+    session.commit()
+    login_user(request, user)
+    return RedirectResponse("/?ok=" + quote("비밀번호 재설정 완료 — 로그인됨"), status_code=303)
 
 
 @router.get("/pending", response_class=HTMLResponse)

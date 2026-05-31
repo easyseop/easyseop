@@ -10,9 +10,11 @@
   - 로그인 무차별 대입: 동일 IP 가 LOGIN_LOCKOUT_THRESHOLD 회 실패하면
     LOGIN_LOCKOUT_WINDOW 초 동안 잠금. 인메모리 (재시작 시 리셋).
 """
+import hashlib
+import secrets
 import time
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 
 import bcrypt
@@ -21,7 +23,10 @@ from sqlmodel import Session, func, select
 
 from .config import AUTH_ENABLED
 from .database import get_session
-from .models import User
+from .models import PasswordResetToken, User
+
+
+PASSWORD_RESET_TOKEN_TTL_MINUTES = 30
 
 
 # 인증이 꺼졌을 때 모든 라우터가 받게 되는 가짜 관리자. DB에 저장되지 않음.
@@ -49,6 +54,62 @@ def verify_password(password: str, password_hash: str) -> bool:
 
 def user_count(session: Session) -> int:
     return session.exec(select(func.count()).select_from(User)).one()
+
+
+def _hash_reset_token(raw: str) -> str:
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+def create_password_reset_token(session: Session, user: User) -> str:
+    """user 에 대한 새 reset token 발급. 같은 user 의 기존 미사용 토큰은 즉시 만료.
+    raw token (URL-safe 43자) 반환 — 호출 측이 텔레그램으로 보냄."""
+    # 동일 user 의 기존 활성 토큰 무효화 (이중 발급 방지)
+    existing = session.exec(
+        select(PasswordResetToken).where(
+            PasswordResetToken.user_id == user.id,
+            PasswordResetToken.used_at == None,  # noqa: E711
+        )
+    ).all()
+    now = datetime.utcnow()
+    for t in existing:
+        t.used_at = now
+        session.add(t)
+    raw = secrets.token_urlsafe(32)
+    token = PasswordResetToken(
+        user_id=user.id,
+        token_hash=_hash_reset_token(raw),
+        expires_at=now + timedelta(minutes=PASSWORD_RESET_TOKEN_TTL_MINUTES),
+    )
+    session.add(token)
+    session.commit()
+    return raw
+
+
+def consume_password_reset_token(
+    session: Session, raw_token: str
+) -> Optional[User]:
+    """raw token 검증 + 즉시 used_at 마킹 (atomic 의도). 성공 시 User, 실패 시 None.
+    비번 변경은 호출 측이 별도로 진행 — 이 함수는 token 만 소모."""
+    if not raw_token:
+        return None
+    h = _hash_reset_token(raw_token)
+    token = session.exec(
+        select(PasswordResetToken).where(
+            PasswordResetToken.token_hash == h,
+            PasswordResetToken.used_at == None,  # noqa: E711
+        )
+    ).first()
+    if not token:
+        return None
+    if datetime.utcnow() > token.expires_at:
+        return None
+    user = session.get(User, token.user_id)
+    if not user:
+        return None
+    token.used_at = datetime.utcnow()
+    session.add(token)
+    session.commit()
+    return user
 
 
 def find_user_by_email(session: Session, email: str) -> Optional[User]:

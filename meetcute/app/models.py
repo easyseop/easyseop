@@ -281,6 +281,17 @@ class Notice(SQLModel, table=True):
     broadcast_at: Optional[datetime] = Field(default=None)
 
 
+class PasswordResetToken(SQLModel, table=True):
+    """비밀번호 재설정 1회용 토큰. token_hash 는 raw token 의 sha256 hex (64자).
+    raw token 은 URL 로만 전달, DB 에 평문 저장 X. 만료 30분, used_at 세팅되면 재사용 X."""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(foreign_key="user.id", index=True)
+    token_hash: str = Field(index=True, max_length=64)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    expires_at: datetime
+    used_at: Optional[datetime] = Field(default=None)
+
+
 class ActivityLog(SQLModel, table=True):
     """마담뚜 활동 통합 로그. 책임자가 누가-언제-뭘 했는지 한눈에 보려고.
 
