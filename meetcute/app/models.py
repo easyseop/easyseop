@@ -130,20 +130,23 @@ class Person(SQLModel, table=True):
 
     @property
     def year_label(self) -> str:
-        """'99년생' 같은 표시. birth_year 가 0 이면 (옛 데이터) age 폴백."""
-        if self.birth_year and self.birth_year > 0:
-            return f"{self.birth_year:02d}년생"
-        if self.age and self.age > 0:
-            return f"{self.age}세"  # 마이그레이션 전 옛 데이터 폴백
-        return "—"
+        """'99년생' 같은 표시. 0 은 00년생(2000) 으로 유효.
+        브랜드 신규 entry 는 폼에서 birth_year required (0~99). 옛 미마이그레이션
+        데이터만 birth_year=0 + age>0 케이스가 있을 수 있어 age 폴백 유지.
+        """
+        # age>0 인데 birth_year=0 인 케이스만 옛 미마이그레이션 데이터 — age 표시.
+        # init_db 의 _migrate_age_to_birth_year 가 startup 마다 돌아 (2026-age)%100
+        # 으로 birth_year 채워주는데, 2000년생은 결과가 0 이라 'age>0 AND
+        # birth_year=0' 인 채로 남음 → 그래도 의도된 값(2000년생). 그래서
+        # 마이그레이션 후엔 birth_year 가 0 이라도 00년생으로 신뢰.
+        return f"{self.birth_year:02d}년생"
 
     @property
     def years_old_approx(self) -> int:
-        """birth_year 에서 추정한 만 나이 (생일 모르니 ±1 오차). 호환성 등에 사용."""
-        if not self.birth_year:
-            return self.age or 0
+        """birth_year 에서 추정한 만 나이 (생일 모르니 ±1 오차). 0=2000년생."""
         from datetime import date
         today = date.today()
+        # 50 이상 → 19xx, 미만 → 20xx (00 = 2000년생)
         full_year = 1900 + self.birth_year if self.birth_year >= 50 else 2000 + self.birth_year
         return today.year - full_year
 
