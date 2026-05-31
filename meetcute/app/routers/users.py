@@ -1,9 +1,11 @@
-"""책임자 (is_owner) 전용 유저 관리. 권한 토글 및 사용자 삭제."""
-from fastapi import APIRouter, Depends, HTTPException, Request
+"""책임자 (is_owner) 전용 유저 관리. 권한 토글 / 삭제 / 비번 강제 리셋."""
+import secrets
+
+from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlmodel import Session, select
 
-from ..auth import require_owner
+from ..auth import hash_password, require_owner
 from ..database import get_session
 from ..models import User
 from ..services.activity_log import log_activity
@@ -55,6 +57,42 @@ def toggle_admin(
     )
     session.commit()
     return RedirectResponse("/users", status_code=303)
+
+
+def _generate_temp_password() -> str:
+    """임시 비번 — 책임자가 외부 채널로 전달용. 한 번 보여주고 사라짐.
+    구성: 영문(대소문자) + 숫자, 14자. URL-safe 문자만 (구두점 안 섞음 — 받아쓰기 좋게)."""
+    alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789"  # 헷갈리는 0,O,1,l,I 제외
+    return "".join(secrets.choice(alphabet) for _ in range(14))
+
+
+@router.post("/{user_id}/reset-password", response_class=HTMLResponse)
+def reset_password(
+    request: Request,
+    user_id: int,
+    current_user: User = Depends(require_owner),
+    session: Session = Depends(get_session),
+):
+    """책임자가 다른 마담뚜 비밀번호 강제 리셋. 임시 비번 한 번 표시.
+    텔레그램 미연동 마담뚜용 — 임시 비번은 외부 채널(전화/SMS/대면)로 전달."""
+    target = session.get(User, user_id)
+    if not target:
+        raise HTTPException(404, "User not found")
+    temp = _generate_temp_password()
+    target.password_hash = hash_password(temp)
+    session.add(target)
+    log_activity(
+        session, current_user, "user.password_force_reset",
+        target_type="user", target_id=target.id,
+        summary=f"{target.display_name} 비번 강제 리셋 (책임자)",
+    )
+    session.commit()
+    # 임시 비번은 한 번만 노출. 페이지 새로고침 X → URL 에 안 박음.
+    return templates.TemplateResponse(
+        request,
+        "users/temp_password.html",
+        {"target": target, "temp_password": temp, "current_user": current_user},
+    )
 
 
 @router.post("/{user_id}/delete")

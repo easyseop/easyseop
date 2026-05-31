@@ -63,7 +63,19 @@ def _hash_reset_token(raw: str) -> str:
 def create_password_reset_token(session: Session, user: User) -> str:
     """user 에 대한 새 reset token 발급. 같은 user 의 기존 미사용 토큰은 즉시 만료.
     raw token (URL-safe 43자) 반환 — 호출 측이 텔레그램으로 보냄."""
-    # 동일 user 의 기존 활성 토큰 무효화 (이중 발급 방지)
+    return _create_password_reset_secret(session, user, secrets.token_urlsafe(32))
+
+
+def create_password_reset_code(session: Session, user: User) -> str:
+    """user 에 대한 6자리 숫자 코드 발급. 같은 user 의 기존 미사용 토큰 무효화.
+    코드는 텔레그램으로 발송, 사용자는 웹 페이지에서 직접 입력."""
+    # secrets.randbelow 로 균등분포 6자리 (000000-999999)
+    code = f"{secrets.randbelow(1_000_000):06d}"
+    return _create_password_reset_secret(session, user, code)
+
+
+def _create_password_reset_secret(session: Session, user: User, raw: str) -> str:
+    """공통 발급 로직 — 기존 활성 토큰 무효화 + 새 토큰 row 추가."""
     existing = session.exec(
         select(PasswordResetToken).where(
             PasswordResetToken.user_id == user.id,
@@ -74,7 +86,6 @@ def create_password_reset_token(session: Session, user: User) -> str:
     for t in existing:
         t.used_at = now
         session.add(t)
-    raw = secrets.token_urlsafe(32)
     token = PasswordResetToken(
         user_id=user.id,
         token_hash=_hash_reset_token(raw),
@@ -86,30 +97,35 @@ def create_password_reset_token(session: Session, user: User) -> str:
 
 
 def consume_password_reset_token(
-    session: Session, raw_token: str
+    session: Session, raw_token: str, user: Optional[User] = None,
 ) -> Optional[User]:
-    """raw token 검증 + 즉시 used_at 마킹 (atomic 의도). 성공 시 User, 실패 시 None.
-    비번 변경은 호출 측이 별도로 진행 — 이 함수는 token 만 소모."""
+    """raw token 검증 + 즉시 used_at 마킹. 성공 시 User, 실패 시 None.
+
+    user 지정 시: 그 user 의 활성 토큰 중 hash 일치하는 것만 매칭 (코드 모드: 다른
+    user 의 코드 충돌 방지). user=None: 전역 hash 매칭 (링크 모드 — 토큰 자체가
+    글로벌 unique 보장).
+    """
     if not raw_token:
         return None
     h = _hash_reset_token(raw_token)
-    token = session.exec(
-        select(PasswordResetToken).where(
-            PasswordResetToken.token_hash == h,
-            PasswordResetToken.used_at == None,  # noqa: E711
-        )
-    ).first()
+    q = select(PasswordResetToken).where(
+        PasswordResetToken.token_hash == h,
+        PasswordResetToken.used_at == None,  # noqa: E711
+    )
+    if user is not None:
+        q = q.where(PasswordResetToken.user_id == user.id)
+    token = session.exec(q).first()
     if not token:
         return None
     if datetime.utcnow() > token.expires_at:
         return None
-    user = session.get(User, token.user_id)
-    if not user:
+    target_user = user if user is not None else session.get(User, token.user_id)
+    if not target_user:
         return None
     token.used_at = datetime.utcnow()
     session.add(token)
     session.commit()
-    return user
+    return target_user
 
 
 def find_user_by_email(session: Session, email: str) -> Optional[User]:

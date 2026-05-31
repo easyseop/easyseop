@@ -7,6 +7,7 @@ from sqlmodel import Session, select
 from ..auth import (
     PASSWORD_RESET_TOKEN_TTL_MINUTES,
     consume_password_reset_token,
+    create_password_reset_code,
     create_password_reset_token,
     find_user_by_email,
     get_current_user,
@@ -224,23 +225,92 @@ def forgot_form(
 def forgot_submit(
     request: Request,
     email: str = Form(...),
+    delivery: str = Form("link"),  # "link" = URL via telegram, "code" = 6-digit code
     session: Session = Depends(get_session),
 ):
-    """이메일 입력 → 텔레그램으로 reset 링크 발송.
-    이메일 enumeration 방지: 일치/불일치 / 텔레그램 미연동 모두 같은 성공 메시지."""
+    """이메일 입력 → delivery 에 따라 텔레그램 링크 or 6자리 코드 발송.
+    이메일 enumeration 방지: 일치/불일치 / 텔레그램 미연동 모두 동일 응답."""
     if (resp := _bypass_if_disabled()) is not None:
         return resp
     from urllib.parse import quote
     from ..notifications import send_telegram, telegram_enabled
     from ..url_watcher import current_public_url
+
+    email_norm = (email or "").strip().lower()
+    user = find_user_by_email(session, email_norm)
+    can_send = bool(user and user.telegram_chat_id and telegram_enabled())
+
+    if delivery == "owner":
+        # 텔레그램 미연동 마담뚜용: 책임자들에게 비번 리셋 요청 알림.
+        # 책임자가 /users 에서 직접 리셋 후 임시 비번을 외부 채널로 전달.
+        try:
+            if telegram_enabled():
+                owners = session.exec(
+                    select(User).where(
+                        User.is_owner == True,  # noqa: E712
+                        User.telegram_chat_id != "",  # noqa: E712
+                    )
+                ).all()
+                url = current_public_url()
+                users_link = f"{url}/users" if url else "/users"
+                msg = (
+                    f"🔑 <b>비밀번호 리셋 요청 (텔레그램 미연동 마담뚜)</b>\n\n"
+                    f"<b>요청 이메일:</b> <code>{email_norm}</code>\n\n"
+                    f"본인 확인 후 <a href=\"{users_link}\">/users</a> 에서 "
+                    f"<b>🔑 비번 리셋</b> 클릭 → 임시 비번을 외부 채널(전화/SMS) 로 전달.\n"
+                    f"⚠️ 본인 맞는지 다른 방법으로 검증 후 진행."
+                )
+                for o in owners:
+                    try:
+                        send_telegram(o.telegram_chat_id, msg)
+                    except Exception:
+                        pass
+            if user:
+                log_activity(session, user, "user.password_reset_request_owner",
+                             target_type="user", target_id=user.id,
+                             summary="비번 리셋 요청 — 책임자 직접 처리")
+                session.commit()
+        except Exception:
+            pass
+        ok_msg2 = (
+            "책임자에게 비번 리셋 요청이 전달됐어요. "
+            "본인 확인 후 책임자가 임시 비번을 외부 채널(전화/SMS 등)로 전달해드립니다."
+        )
+        return RedirectResponse(
+            "/auth/forgot?ok=" + quote(ok_msg2), status_code=303,
+        )
+
+    if delivery == "code":
+        # 코드 방식: 텔레그램으로 6자리 코드 발송 → /auth/forgot/code 페이지에서 입력
+        if can_send:
+            try:
+                code = create_password_reset_code(session, user)
+                msg = (
+                    f"🔢 <b>비밀번호 재설정 코드</b>\n\n"
+                    f"인증 코드: <code>{code}</code>\n\n"
+                    f"이 코드는 {PASSWORD_RESET_TOKEN_TTL_MINUTES}분 동안 유효. "
+                    f"웹 페이지 (/auth/forgot/code) 에 입력하세요. "
+                    f"본인이 요청한 게 아니면 무시."
+                )
+                send_telegram(user.telegram_chat_id, msg)
+                log_activity(session, user, "user.password_reset_request",
+                             target_type="user", target_id=user.id,
+                             summary="비번 재설정 6자리 코드 발송")
+                session.commit()
+            except Exception:
+                pass
+        return RedirectResponse(
+            "/auth/forgot/code?email=" + quote(email_norm),
+            status_code=303,
+        )
+
+    # 기본 = 링크 방식
     ok_msg = (
         "이메일이 등록돼 있고 텔레그램 연동돼 있으면 재설정 링크를 보냈어요. "
         f"{PASSWORD_RESET_TOKEN_TTL_MINUTES}분 안에 클릭하세요. "
         "오지 않으면 책임자에게 문의해주세요."
     )
-    email_norm = (email or "").strip().lower()
-    user = find_user_by_email(session, email_norm)
-    if user and user.telegram_chat_id and telegram_enabled():
+    if can_send:
         try:
             raw = create_password_reset_token(session, user)
             url = current_public_url()
@@ -257,8 +327,82 @@ def forgot_submit(
                          summary="비번 재설정 토큰 발급 (텔레그램 전송)")
             session.commit()
         except Exception:
-            pass  # 실패해도 enumeration 방지 위해 성공 메시지
+            pass
     return RedirectResponse("/auth/forgot?ok=" + quote(ok_msg), status_code=303)
+
+
+@router.get("/forgot/code", response_class=HTMLResponse)
+def forgot_code_form(
+    request: Request, session: Session = Depends(get_session),
+    email: str = "", error: str = "",
+):
+    if (resp := _bypass_if_disabled()) is not None:
+        return resp
+    return templates.TemplateResponse(
+        request, "auth/forgot_code.html",
+        {"email": email, "error": error,
+         "ttl_minutes": PASSWORD_RESET_TOKEN_TTL_MINUTES},
+    )
+
+
+@router.post("/forgot/code")
+def forgot_code_submit(
+    request: Request,
+    email: str = Form(...),
+    code: str = Form(...),
+    new_password: str = Form(...),
+    new_password_confirm: str = Form(...),
+    session: Session = Depends(get_session),
+):
+    """이메일 + 6자리 코드 + 새 비번 → 검증 + 비번 변경 + 자동 로그인.
+    한 페이지 안에서 완결되는 흐름 (링크 클릭 없음)."""
+    if (resp := _bypass_if_disabled()) is not None:
+        return resp
+    from urllib.parse import quote
+    if login_is_locked(request):
+        return RedirectResponse(
+            "/auth/forgot/code?email=" + quote(email)
+            + "&error=" + quote("시도 너무 많음. 10분 후 다시."),
+            status_code=303,
+        )
+    if len(new_password) < 10:
+        return RedirectResponse(
+            "/auth/forgot/code?email=" + quote(email)
+            + "&error=" + quote("비밀번호는 최소 10자 이상"),
+            status_code=303,
+        )
+    if new_password != new_password_confirm:
+        return RedirectResponse(
+            "/auth/forgot/code?email=" + quote(email)
+            + "&error=" + quote("비밀번호 확인이 일치하지 않습니다"),
+            status_code=303,
+        )
+    email_norm = (email or "").strip().lower()
+    code_norm = (code or "").strip()
+    user = find_user_by_email(session, email_norm)
+    consumed = (
+        consume_password_reset_token(session, code_norm, user=user)
+        if user else None
+    )
+    if not consumed:
+        record_login_failure(request)
+        return RedirectResponse(
+            "/auth/forgot/code?email=" + quote(email_norm)
+            + "&error=" + quote("코드가 잘못됐거나 만료됨"),
+            status_code=303,
+        )
+    reset_login_failures(request)
+    consumed.password_hash = hash_password(new_password)
+    session.add(consumed)
+    log_activity(session, consumed, "user.password_reset",
+                 target_type="user", target_id=consumed.id,
+                 summary="비번 재설정 완료 (코드 방식)")
+    session.commit()
+    login_user(request, consumed)
+    return RedirectResponse(
+        "/?ok=" + quote("비밀번호 재설정 완료 — 로그인됨"),
+        status_code=303,
+    )
 
 
 @router.get("/reset/{token}", response_class=HTMLResponse)

@@ -34,7 +34,7 @@
       {% if current_user.is_owner and u.telegram_chat_id %}
       <div class="text-xs text-neutral-400 font-mono">📱 {{ u.telegram_chat_id }}</div>
       {% endif %}
-      <div class="flex gap-2">
+      <div class="flex gap-2 flex-wrap">
         <form method="post" action="/users/{{ u.id }}/toggle-admin" class="flex-1"
               onsubmit="return confirm('{% if u.is_admin %}마담뚜 강등?{% else %}마담뚜로 승격?{% endif %}')">
           <button class="w-full text-xs px-3 py-2 border border-neutral-300 rounded-lg hover:bg-neutral-100">
@@ -42,6 +42,10 @@
           </button>
         </form>
         {% if u.id != current_user.id %}
+        <form method="post" action="/users/{{ u.id }}/reset-password" class="flex-1"
+              onsubmit="return confirm('{{ u.display_name }} 의 비밀번호를 임시 비번으로 강제 리셋합니다. 임시 비번은 한 번만 화면에 표시 — 본인에게 외부 채널로 전달해주세요. 진행?')">
+          <button class="w-full text-xs px-3 py-2 border border-amber-300 bg-amber-50 text-amber-700 rounded-lg hover:bg-amber-100">🔑 비번 리셋</button>
+        </form>
         <form method="post" action="/users/{{ u.id }}/delete"
               onsubmit="return confirm('정말 삭제? 되돌릴 수 없습니다.')">
           <button class="text-xs px-3 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50">삭제</button>
@@ -105,6 +109,10 @@
               </button>
             </form>
             {% if u.id != current_user.id %}
+            <form method="post" action="/users/{{ u.id }}/reset-password" class="inline"
+                  onsubmit="return confirm('{{ u.display_name }} 비번 강제 리셋 — 임시 비번 한 번 표시. 본인에게 외부 채널로 전달해주세요. 진행?')">
+              <button class="text-xs px-2 py-1 border border-amber-300 bg-amber-50 text-amber-700 rounded hover:bg-amber-100">🔑 비번리셋</button>
+            </form>
             <form method="post" action="/users/{{ u.id }}/delete" class="inline"
                   onsubmit="return confirm('정말 삭제? 되돌릴 수 없습니다.')">
               <button class="text-xs px-2 py-1 border border-red-300 text-red-600 rounded hover:bg-red-50">삭제</button>

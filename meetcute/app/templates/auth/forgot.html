@@ -4,7 +4,7 @@
 <div class="max-w-sm mx-auto mt-12">
   <div class="text-center mb-6">
     <h1 class="text-2xl font-bold">🔑 비밀번호 재설정</h1>
-    <p class="text-sm text-neutral-500 mt-1">텔레그램으로 재설정 링크를 보내드려요</p>
+    <p class="text-sm text-neutral-500 mt-1">텔레그램으로 받는 방식 두 가지 중 선택</p>
   </div>
 
   {% if ok %}
@@ -14,20 +14,34 @@
   <div class="bg-red-50 border border-red-200 text-red-700 rounded-lg p-3 mb-4 text-sm">{{ error }}</div>
   {% endif %}
 
-  <form method="post" action="/auth/forgot" class="bg-white border border-neutral-200 rounded-xl p-6 space-y-3">
+  <form method="post" action="/auth/forgot" class="bg-white border border-neutral-200 rounded-xl p-6 space-y-4">
     <div>
       <label class="block text-sm font-medium mb-1">이메일</label>
       <input type="email" name="email" required autofocus value="{{ email or '' }}"
              class="w-full px-3 py-2 border border-neutral-300 rounded-lg" />
     </div>
     <div class="text-xs text-neutral-500 leading-relaxed">
-      <p>• 이 이메일로 가입된 계정이 있고 <b>텔레그램 chat_id 가 등록</b>돼 있어야 링크가 발송됩니다.</p>
-      <p>• 링크는 {{ ttl_minutes }}분 후 만료.</p>
-      <p>• 텔레그램 연동 안 한 경우 책임자에게 직접 문의.</p>
+      <p>• 이 이메일로 가입된 계정이 있고 <b>텔레그램 chat_id 가 등록</b>돼 있어야 발송됩니다.</p>
+      <p>• 발송된 링크/코드는 {{ ttl_minutes }}분 후 만료.</p>
+      <p>• 텔레그램 연동 안 한 경우 책임자에게 문의.</p>
     </div>
-    <button class="w-full bg-pink-600 text-white py-2 rounded-lg font-medium hover:bg-pink-700">
-      재설정 링크 받기
-    </button>
+    <div class="grid grid-cols-1 gap-2 pt-2">
+      <button name="delivery" value="code"
+              class="w-full bg-pink-600 text-white py-2 rounded-lg font-medium hover:bg-pink-700">
+        🔢 코드 받아서 화면에서 바로 변경 (추천)
+      </button>
+      <button name="delivery" value="link"
+              class="w-full border border-pink-300 text-pink-700 py-2 rounded-lg font-medium hover:bg-pink-50">
+        🔗 텔레그램 링크 받기
+      </button>
+      <button name="delivery" value="owner"
+              class="w-full border border-neutral-300 text-neutral-700 py-2 rounded-lg text-sm hover:bg-neutral-50">
+        📞 텔레그램 미연동 — 책임자에게 요청
+      </button>
+    </div>
+    <div class="text-xs text-neutral-500 pt-1">
+      ↑ '책임자에게 요청' 은 책임자가 외부 채널(전화/SMS)로 임시 비번을 알려줘요.
+    </div>
   </form>
 
   <div class="text-center text-sm text-neutral-500 mt-4">
