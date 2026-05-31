@@ -72,6 +72,12 @@
           {% endif %}
           {# 내 매물 아직 동의 표시 안 함 → accept 버튼 ("내 매물 동의" 의미) + decline #}
           {% if r.receiver_own_consent.value == 'NOT_ASKED' %}
+          {# 라이트 회신: '확인했어요 답 오면 알려줄게요' — DB 변화 없이 보낸이에 텔레그램만 #}
+          <form method="post" action="/requests/{{ r.id }}/acknowledge">
+            <button class="w-full px-3 py-2 border border-sky-300 bg-sky-50 text-sky-800 rounded-lg text-sm hover:bg-sky-100">
+              👀 확인했어요 (회신 대기 — 보낸이에게 알림만)
+            </button>
+          </form>
           <form method="post" action="/requests/{{ r.id }}/accept" class="space-y-2">
             <input type="text" name="response_note" placeholder="응답 메모 (선택)"
                    class="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm" />

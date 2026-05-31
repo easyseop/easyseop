@@ -577,6 +577,37 @@ def ping_sender_to_ask(
     return RedirectResponse("/requests?ok=의향확인+회신+보냄", status_code=303)
 
 
+@router.post("/{request_id}/acknowledge")
+def acknowledge_request(
+    request_id: int,
+    current_user: User = Depends(require_admin),
+    session: Session = Depends(get_session),
+):
+    """B (받은이) 가 A (보낸이) 에게 '확인했어요, 매물 의향 물어보는 중' 라이트 회신.
+    DB 상태/consent 는 그대로 PENDING 유지. 텔레그램 알림만. 여러 번 눌러도 막지 않음."""
+    req = _get_owned_request(session, request_id, current_user, side="to")
+    if req.status != IntroRequestStatus.PENDING:
+        raise HTTPException(400, f"이미 처리된 요청입니다 ({req.status.value})")
+    from ..services.activity_log import log_activity
+    log_activity(session, current_user, "request.acknowledge",
+                 target_type="request", target_id=req.id,
+                 summary=f"#{req.id} 확인 회신")
+    session.commit()
+    from_user = session.get(User, req.from_user_id)
+    my_p = session.get(Person, req.my_person_id)
+    their_p = session.get(Person, req.their_person_id)
+    msg = (
+        f"👀 <b>요청 확인 — 회신 대기</b>\n"
+        f"<b>받은 분:</b> {current_user.display_name}\n"
+        f"받은이가 요청을 확인했고, 본인 매물에 의향 물어보는 중입니다.\n\n"
+        f"<b>소개한 매물:</b> {_person_summary(my_p)}\n"
+        f"<b>상대 매물:</b> {_person_summary(their_p)}\n\n"
+        f"답 오는 대로 다시 알림이 와요.\n→ {_requests_link()}"
+    )
+    _notify(from_user, msg)
+    return RedirectResponse("/requests?ok=" + quote("확인 회신 전송"), status_code=303)
+
+
 @router.post("/{request_id}/send-final-note")
 def send_final_note(
     request_id: int,
