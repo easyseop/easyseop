@@ -42,6 +42,16 @@ NOTICES = [
         ),
     },
     {
+        "slug": "2026-05-23-photos-save-to-album",
+        "title": "📲 매물 사진 앨범에 바로 저장 (모바일)",
+        "body": (
+            "iOS/Android 모바일에서 '📲 앨범에 저장' 버튼 → 공유 시트 → "
+            "'사진에 저장' 한 번 탭으로 모든 사진이 앨범에 들어가요.\n"
+            "(Web Share Level 2 미지원 브라우저에선 버튼 자동 숨김, "
+            "데스크탑은 기존 Zip 다운로드 사용)"
+        ),
+    },
+    {
         "slug": "2026-05-23-password-reset-code-and-owner",
         "title": "🔢 비번 재설정 — 코드 방식 + 책임자 직접 리셋",
         "body": (

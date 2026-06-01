@@ -121,14 +121,75 @@
   </script>
 
   {% if photos %}
-  <div class="flex items-center justify-between gap-2 mb-2">
+  <div class="flex items-center justify-between gap-2 mb-2 flex-wrap">
     <div class="text-sm text-neutral-500">📷 사진 {{ photos | length }}장</div>
-    <a href="/persons/{{ person.id }}/photos/zip"
-       class="text-xs px-3 py-1.5 border border-neutral-300 rounded-lg hover:bg-neutral-100"
-       title="모든 사진 원본을 zip 으로 다운로드">
-      ⬇️ 전체 다운로드 (zip)
-    </a>
+    <div class="flex gap-2 flex-wrap">
+      <button type="button" id="mc-save-album-btn"
+              onclick="mcSavePhotosToAlbum(this)"
+              data-public-id="{{ person.public_id }}"
+              class="hidden text-xs px-3 py-1.5 border border-pink-300 bg-pink-50 text-pink-700 rounded-lg hover:bg-pink-100"
+              title="iOS/Android: 공유 시트 → '사진에 저장' 한 번 탭으로 앨범에 모두 저장">
+        📲 앨범에 저장
+      </button>
+      <a href="/persons/{{ person.id }}/photos/zip"
+         class="text-xs px-3 py-1.5 border border-neutral-300 rounded-lg hover:bg-neutral-100"
+         title="모든 사진 원본을 zip 으로 다운로드 (데스크탑/PC 권장)">
+        ⬇️ Zip 다운로드
+      </a>
+    </div>
   </div>
+  <script>
+    // Web Share Level 2 (files) 지원되는 경우만 '앨범에 저장' 버튼 노출.
+    // iOS Safari 15+ / Android Chrome 89+ 지원. 데스크탑 브라우저 미지원이면 숨김.
+    (function() {
+      const probe = new File([new Blob(["x"])], "p.jpg", { type: "image/jpeg" });
+      if (navigator.canShare && navigator.canShare({ files: [probe] })) {
+        const btn = document.getElementById('mc-save-album-btn');
+        if (btn) btn.classList.remove('hidden');
+      }
+    })();
+
+    async function mcSavePhotosToAlbum(btn) {
+      const urls = [{% for ph in photos %}"/uploads/{{ ph.filename }}"{% if not loop.last %},{% endif %}{% endfor %}];
+      const publicId = btn.dataset.publicId;
+      const orig = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = '⏳ 준비 중…';
+      try {
+        const files = [];
+        for (let i = 0; i < urls.length; i++) {
+          const res = await fetch(urls[i]);
+          if (!res.ok) continue;
+          const blob = await res.blob();
+          const ext = (urls[i].split('.').pop() || 'jpg').toLowerCase();
+          const type = blob.type || ('image/' + (ext === 'jpg' ? 'jpeg' : ext));
+          files.push(new File([blob], `${publicId}_${i + 1}.${ext}`, { type }));
+        }
+        if (!files.length) {
+          alert('받을 사진이 없습니다');
+          return;
+        }
+        if (!navigator.canShare || !navigator.canShare({ files })) {
+          // 폴백: 공유 시트 불가 → zip 다운로드로 안내
+          if (confirm('이 브라우저는 앨범 직접 저장을 지원하지 않아요. Zip 다운로드로 진행할까요?')) {
+            window.location = `/persons/{{ person.id }}/photos/zip`;
+          }
+          return;
+        }
+        btn.textContent = '📲 공유 시트…';
+        await navigator.share({ files, title: `${publicId} 매물 사진` });
+        btn.textContent = '✓ 완료';
+        setTimeout(() => { btn.textContent = orig; btn.disabled = false; }, 1500);
+      } catch (e) {
+        // 사용자 취소 (AbortError) 면 조용히, 그 외엔 알림
+        if (e && e.name !== 'AbortError') {
+          alert('저장 실패: ' + (e.message || e));
+        }
+        btn.textContent = orig;
+        btn.disabled = false;
+      }
+    }
+  </script>
   <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
     {% for ph in photos %}
     <button type="button"
