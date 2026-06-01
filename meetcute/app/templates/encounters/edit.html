@@ -3,16 +3,16 @@
 
 {% macro person_card(pid, snapshot) %}
   {% set p = persons.get(pid) %}
-  <div class="flex-1 bg-neutral-50 rounded-xl p-4">
+  <div class="flex-1 bg-neutral-50 rounded-xl p-3 sm:p-4 min-w-0">
     {% if p %}
-      <a href="/persons/{{ p.id }}" class="font-mono text-lg font-bold hover:text-pink-600">{{ p.public_id }}</a>
-      <div class="text-sm text-neutral-600 mt-1">
+      <a href="/persons/{{ p.id }}" class="font-mono text-base sm:text-lg font-bold hover:text-pink-600">{{ p.public_id }}</a>
+      <div class="text-sm text-neutral-600 mt-0.5 sm:mt-1">
         {{ p.gender.label }} · {{ p.year_label }} · {{ p.height_cm }}cm
       </div>
-      <div class="text-sm text-neutral-500">{{ p.location }} · {{ p.workplace }}</div>
-      {% if p.alias %}<div class="text-xs text-neutral-400 mt-1">({{ p.alias }})</div>{% endif %}
+      <div class="text-xs sm:text-sm text-neutral-500 truncate">{{ p.location }} · {{ p.workplace }}</div>
+      {% if p.alias %}<div class="text-xs text-neutral-400 mt-1 truncate">({{ p.alias }})</div>{% endif %}
     {% else %}
-      <div class="font-mono text-lg text-neutral-400 line-through">{{ snapshot or '?' }}</div>
+      <div class="font-mono text-base sm:text-lg text-neutral-400 line-through">{{ snapshot or '?' }}</div>
       <div class="text-xs text-neutral-400 mt-1">삭제된 매물</div>
     {% endif %}
   </div>
@@ -20,16 +20,17 @@
 
 {% block content %}
 <div class="max-w-2xl mx-auto space-y-4">
-  <h1 class="text-2xl font-bold">만남 기록 편집</h1>
+  <h1 class="text-xl sm:text-2xl font-bold mt-1">만남 기록 편집</h1>
 
-  <div class="flex flex-col sm:flex-row gap-3 items-stretch">
+  {# 모바일: 카드 가로 컴팩트 (A × B 한 줄) — 세로 stack 의 큰 빈 공간 회피 #}
+  <div class="flex flex-row gap-2 sm:gap-3 items-stretch">
     {{ person_card(enc.person_a_id, enc.person_a_snapshot) }}
-    <div class="flex items-center justify-center text-2xl text-pink-400 sm:px-2">×</div>
+    <div class="flex items-center justify-center text-lg sm:text-2xl text-pink-400 shrink-0">×</div>
     {{ person_card(enc.person_b_id, enc.person_b_snapshot) }}
   </div>
 
-  <form method="post" action="/encounters/{{ enc.id }}" class="bg-white border border-neutral-200 rounded-xl p-6 space-y-4">
-    <div class="grid grid-cols-2 gap-3">
+  <form method="post" action="/encounters/{{ enc.id }}" class="bg-white border border-neutral-200 rounded-xl p-4 sm:p-6 space-y-4">
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
       <div>
         <label class="block text-sm font-medium mb-1">만남 날짜</label>
         <input type="date" name="met_on" required value="{{ enc.met_on.isoformat() }}"

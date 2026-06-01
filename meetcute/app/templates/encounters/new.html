@@ -2,10 +2,10 @@
 {% block title %}새 만남 · meetcute{% endblock %}
 {% block content %}
 <div class="max-w-2xl mx-auto space-y-4">
-  <h1 class="text-2xl font-bold">새 만남 기록</h1>
+  <h1 class="text-xl sm:text-2xl font-bold mt-1">새 만남 기록</h1>
 
-  <form method="post" action="/encounters" class="bg-white border border-neutral-200 rounded-xl p-6 space-y-4">
-    <div class="grid grid-cols-2 gap-3">
+  <form method="post" action="/encounters" class="bg-white border border-neutral-200 rounded-xl p-4 sm:p-6 space-y-4">
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
       <div>
         <label class="block text-sm font-medium mb-1">매물 A <span class="text-pink-600">*</span></label>
         <select name="person_a_id" required class="w-full px-3 py-2 border border-neutral-300 rounded-lg">
@@ -30,7 +30,7 @@
       </div>
     </div>
 
-    <div class="grid grid-cols-2 gap-3">
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
       <div>
         <label class="block text-sm font-medium mb-1">만남 날짜 <span class="text-pink-600">*</span></label>
         <input type="date" name="met_on" required value="{{ today }}"
