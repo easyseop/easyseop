@@ -121,6 +121,14 @@
   </script>
 
   {% if photos %}
+  <div class="flex items-center justify-between gap-2 mb-2">
+    <div class="text-sm text-neutral-500">📷 사진 {{ photos | length }}장</div>
+    <a href="/persons/{{ person.id }}/photos/zip"
+       class="text-xs px-3 py-1.5 border border-neutral-300 rounded-lg hover:bg-neutral-100"
+       title="모든 사진 원본을 zip 으로 다운로드">
+      ⬇️ 전체 다운로드 (zip)
+    </a>
+  </div>
   <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
     {% for ph in photos %}
     <button type="button"

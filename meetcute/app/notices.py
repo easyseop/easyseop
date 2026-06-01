@@ -33,6 +33,15 @@ NOTICES = [
         ),
     },
     {
+        "slug": "2026-05-23-photos-zip-download",
+        "title": "📷 매물 사진 일괄 다운로드 (zip)",
+        "body": (
+            "매물 상세 페이지 사진 영역 위 '⬇️ 전체 다운로드 (zip)' 버튼. "
+            "원본 사진 전체를 {public_id}_photos.zip 으로 받아요. "
+            "안엔 {public_id}_1.jpg, _2.jpg 순서대로 저장."
+        ),
+    },
+    {
         "slug": "2026-05-23-password-reset-code-and-owner",
         "title": "🔢 비번 재설정 — 코드 방식 + 책임자 직접 리셋",
         "body": (

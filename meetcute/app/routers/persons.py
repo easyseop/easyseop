@@ -710,6 +710,53 @@ def delete_person(person_id: int, request: Request, session: Session = Depends(g
     return RedirectResponse("/persons", status_code=303)
 
 
+@router.get("/{person_id}/photos/zip")
+def download_photos_zip(
+    person_id: int, request: Request, session: Session = Depends(get_session)
+):
+    """매물의 모든 사진을 zip 으로 일괄 다운로드. 썸네일 제외, 원본만.
+    파일명: {public_id}_photos.zip / 안에 {public_id}_1.jpg, _2.jpg ... 순서대로."""
+    import io
+    import zipfile
+    from fastapi.responses import StreamingResponse
+
+    person = session.get(Person, person_id)
+    if not person:
+        raise HTTPException(404, "매물을 찾을 수 없습니다")
+    _require_view(person, request, session)
+
+    photos = sorted(person.photos, key=lambda p: p.order)
+    if not photos:
+        raise HTTPException(404, "이 매물엔 사진이 없습니다")
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_STORED) as zf:
+        added = 0
+        for i, p in enumerate(photos, 1):
+            src = UPLOAD_DIR / p.filename
+            if not src.exists():
+                continue  # DB 엔 있는데 파일 사라진 경우 스킵
+            ext = src.suffix.lower() or ".jpg"
+            arcname = f"{person.public_id}_{i}{ext}"
+            zf.write(src, arcname)
+            added += 1
+    if added == 0:
+        raise HTTPException(404, "사진 파일을 찾을 수 없습니다 (디스크에서 누락)")
+    buf.seek(0)
+    log_activity(
+        session, get_current_user(request, session), "person.photos_zip",
+        target_type="person", target_id=person.id,
+        summary=f"{person.public_id} 사진 {added}장 zip 다운로드",
+    )
+    session.commit()
+    filename = f"{person.public_id}_photos.zip"
+    return StreamingResponse(
+        iter([buf.getvalue()]),
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
 @router.post("/{person_id}/photos/{photo_id}/delete")
 def delete_photo(
     person_id: int, photo_id: int, request: Request, session: Session = Depends(get_session)
