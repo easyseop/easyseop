@@ -292,6 +292,48 @@ class PasswordResetToken(SQLModel, table=True):
     used_at: Optional[datetime] = Field(default=None)
 
 
+class ChatRoom(SQLModel, table=True):
+    """마담뚜 간 임시 1:1 대화방. 마지막 메시지로부터 TTL(기본 72h) 후 자동 삭제(휘발).
+
+    - 두 참여자(user_a, user_b)만 입장/전송. 책임자(is_owner)는 열람만 가능.
+    - expires_at = last_message_at + TTL. reminders 의 청소 루프가 expires_at < now
+      인 방을 메시지까지 통째로 삭제.
+    - 메시지 본문은 Fernet 암호화 저장 (ChatMessage.body)."""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_a_id: int = Field(foreign_key="user.id", index=True)
+    user_b_id: int = Field(foreign_key="user.id", index=True)
+    topic: str = Field(default="", sa_column=_enc_text_col())  # 자유 주제 메모 (예: "M-011 × F-010 건")
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    last_message_at: datetime = Field(default_factory=datetime.utcnow, index=True)
+    expires_at: datetime  # last_message_at + TTL. 청소 루프 기준.
+    messages: list["ChatMessage"] = Relationship(
+        back_populates="room",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
+    )
+
+    def has_access(self, user) -> bool:
+        """참여자이거나 책임자면 열람 가능."""
+        if not user:
+            return False
+        return user.id in (self.user_a_id, self.user_b_id) or bool(user.is_owner)
+
+    def is_participant(self, user) -> bool:
+        return bool(user and user.id in (self.user_a_id, self.user_b_id))
+
+    def other_user_id(self, user_id: int) -> int:
+        return self.user_b_id if user_id == self.user_a_id else self.user_a_id
+
+
+class ChatMessage(SQLModel, table=True):
+    """대화방 메시지. body 는 Fernet 암호화. 방 삭제 시 cascade 로 함께 삭제."""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    room_id: int = Field(foreign_key="chatroom.id", index=True)
+    sender_user_id: int = Field(foreign_key="user.id", index=True)
+    body: str = Field(sa_column=_enc_text_col_required())
+    created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
+    room: Optional[ChatRoom] = Relationship(back_populates="messages")
+
+
 class ActivityLog(SQLModel, table=True):
     """마담뚜 활동 통합 로그. 책임자가 누가-언제-뭘 했는지 한눈에 보려고.
 

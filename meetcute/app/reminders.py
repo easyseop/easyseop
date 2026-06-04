@@ -157,31 +157,61 @@ def _send_encounter_followups() -> int:
     return sent
 
 
+def _purge_expired_chats() -> int:
+    """만료된 대화방(expires_at < now) 을 메시지까지 통째로 삭제. 텔레그램과 무관.
+    반환: 삭제한 방 개수."""
+    from .models import ChatRoom
+
+    now = datetime.utcnow()
+    purged = 0
+    with Session(engine) as session:
+        expired = session.exec(
+            select(ChatRoom).where(ChatRoom.expires_at < now)
+        ).all()
+        for room in expired:
+            session.delete(room)  # cascade 로 ChatMessage 도 삭제
+            purged += 1
+        if purged:
+            session.commit()
+    return purged
+
+
 async def reminder_loop():
-    """FastAPI lifespan 에서 백그라운드 task 로 실행."""
+    """FastAPI lifespan 에서 백그라운드 task 로 실행.
+
+    텔레그램이 꺼져 있어도 대화방 청소(_purge_expired_chats) 는 돌아야 하므로,
+    AUTH 만 켜져 있으면 루프를 돌리고 텔레그램 알림은 가능할 때만 보낸다."""
     if not AUTH_ENABLED:
         logger.info("reminder loop disabled: AUTH=off")
         return
-    if not telegram_enabled():
-        logger.info("reminder loop disabled: no MEETCUTE_TELEGRAM_BOT_TOKEN")
-        return
-    logger.info(
-        f"reminder loop started: every {CHECK_INTERVAL_SECONDS}s, "
-        f"threshold {REMINDER_INTERVAL_HOURS}h"
-    )
+    tg = telegram_enabled()
+    if not tg:
+        logger.info("reminder loop: telegram off — chat purge only")
+    else:
+        logger.info(
+            f"reminder loop started: every {CHECK_INTERVAL_SECONDS}s, "
+            f"threshold {REMINDER_INTERVAL_HOURS}h"
+        )
     # 첫 체크는 시작 후 1분 뒤 (startup 부담 분리)
     await asyncio.sleep(60)
     while True:
+        if tg:
+            try:
+                n_req = _send_pending_reminders()
+                if n_req:
+                    logger.info(f"sent {n_req} request reminder(s)")
+            except Exception as e:
+                logger.exception(f"request reminder loop error: {e}")
+            try:
+                n_enc = _send_encounter_followups()
+                if n_enc:
+                    logger.info(f"sent {n_enc} encounter followup(s)")
+            except Exception as e:
+                logger.exception(f"encounter followup loop error: {e}")
         try:
-            n_req = _send_pending_reminders()
-            if n_req:
-                logger.info(f"sent {n_req} request reminder(s)")
+            n_chat = _purge_expired_chats()
+            if n_chat:
+                logger.info(f"purged {n_chat} expired chat room(s)")
         except Exception as e:
-            logger.exception(f"request reminder loop error: {e}")
-        try:
-            n_enc = _send_encounter_followups()
-            if n_enc:
-                logger.info(f"sent {n_enc} encounter followup(s)")
-        except Exception as e:
-            logger.exception(f"encounter followup loop error: {e}")
+            logger.exception(f"chat purge loop error: {e}")
         await asyncio.sleep(CHECK_INTERVAL_SECONDS)

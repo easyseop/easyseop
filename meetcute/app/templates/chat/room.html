@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}대화 · meetcute{% endblock %}
+{% block content %}
+<div class="max-w-2xl mx-auto space-y-3">
+  <div class="flex items-center justify-between gap-2">
+    <a href="/chat" class="text-sm text-neutral-500 hover:text-pink-600">← 대화 목록</a>
+    <div class="text-[11px] text-neutral-400">⏳ 마지막 메시지 후 {{ ttl_hours }}시간 지나면 자동 삭제</div>
+  </div>
+
+  <div class="flex items-center justify-between gap-2 bg-white border border-neutral-200 rounded-xl px-4 py-3">
+    <div class="min-w-0">
+      <div class="font-bold truncate">💬 {{ other_user.display_name if other_user else '상대' }}</div>
+      {% if room.topic %}<div class="text-xs text-neutral-500 truncate">{{ room.topic }}</div>{% endif %}
+      {% if not is_participant %}
+      <div class="text-[11px] text-amber-600 mt-0.5">👑 책임자 열람 모드 (전송 불가)</div>
+      {% endif %}
+    </div>
+    {% if is_participant %}
+    <form method="post" action="/chat/{{ room.id }}/close"
+          onsubmit="return confirm('대화방을 닫으면 메시지가 모두 삭제됩니다. 진행할까요?')">
+      <button class="text-xs px-2.5 py-1.5 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 whitespace-nowrap">🗑️ 방 닫기</button>
+    </form>
+    {% endif %}
+  </div>
+
+  {# 메시지 영역: 3초마다 폴링. 전역 hx-select="main" 을 덮어쓰려 명시적 속성 지정. #}
+  <div id="chat-msgs"
+       class="bg-neutral-50 border border-neutral-200 rounded-xl p-3 h-[55vh] overflow-y-auto"
+       hx-get="/chat/{{ room.id }}/messages"
+       hx-trigger="every 3s"
+       hx-target="#chat-msgs"
+       hx-swap="innerHTML"
+       hx-select="#chat-msgs-list">
+    {% include "chat/_messages.html" %}
+  </div>
+
+  {% if is_participant %}
+  <form action="/chat/{{ room.id }}/send" method="post"
+        hx-post="/chat/{{ room.id }}/send"
+        hx-target="#chat-msgs"
+        hx-swap="innerHTML"
+        hx-select="#chat-msgs-list"
+        hx-on::after-request="if(event.detail.successful){this.reset();}"
+        class="flex gap-2">
+    <textarea name="body" rows="1" required placeholder="메시지 입력…"
+              class="flex-1 px-3 py-2 border border-neutral-300 rounded-lg resize-none"
+              onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();this.form.requestSubmit();}"></textarea>
+    <button class="px-4 py-2 bg-pink-600 text-white rounded-lg font-medium hover:bg-pink-700 shrink-0">전송</button>
+  </form>
+  {% endif %}
+</div>
+
+<script>
+  // 새 메시지 swap 후 항상 맨 아래로 스크롤.
+  (function() {
+    function scrollBottom() {
+      var c = document.getElementById('chat-msgs');
+      if (c) c.scrollTop = c.scrollHeight;
+    }
+    scrollBottom();
+    document.body.addEventListener('htmx:afterSwap', function(e) {
+      if (e.target && e.target.id === 'chat-msgs') scrollBottom();
+    });
+  })();
+</script>
+{% endblock %}

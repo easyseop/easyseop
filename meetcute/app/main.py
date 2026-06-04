@@ -18,7 +18,7 @@ from .reminders import reminder_loop
 from .url_watcher import url_watcher_loop
 from .database import get_session, init_db
 from .models import Encounter, EncounterOutcome, Gender, Person, User
-from .routers import activity, auth, blacklist, compatibility, encounters, manual, persons, requests as requests_router, settings as settings_router, users
+from .routers import activity, auth, blacklist, chat, compatibility, encounters, manual, persons, requests as requests_router, settings as settings_router, users
 from .services.activity import activity_for_persons
 from .services.status import (
     PersonStatus,
@@ -122,6 +122,7 @@ app.include_router(encounters.router, dependencies=admin_dep)
 app.include_router(compatibility.router, dependencies=admin_dep)
 app.include_router(blacklist.router, dependencies=admin_dep)
 app.include_router(requests_router.router)  # 내부에서 require_admin 직접 사용
+app.include_router(chat.router)  # 마담뚜 임시 대화방. 내부에서 require_admin 직접 사용
 app.include_router(settings_router.router)  # 내부에서 require_login 직접 사용
 app.include_router(users.router)  # 라우터 내부에서 require_admin 직접 의존
 app.include_router(activity.router)  # 책임자 전용. 라우터 내부에서 require_owner

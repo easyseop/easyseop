@@ -1,0 +1,24 @@
+{# 메시지 말풍선 목록 partial. room.html 에 include + 폴링/전송 응답으로도 반환.
+   폴링 측에서 hx-select="#chat-msgs-list" 로 이 루트를 추출해 swap 함. #}
+<div id="chat-msgs-list" class="flex flex-col gap-2">
+  {% if not messages %}
+  <div class="text-center text-sm text-neutral-400 py-8">아직 메시지가 없어요. 첫 메시지를 보내보세요.</div>
+  {% endif %}
+  {% for m in messages %}
+  {% set mine = (m.sender_user_id == current_user.id) %}
+  <div class="flex {% if mine %}justify-end{% else %}justify-start{% endif %}">
+    <div class="max-w-[78%] {% if mine %}items-end{% else %}items-start{% endif %} flex flex-col">
+      {% if not mine %}
+      <div class="text-[11px] text-neutral-400 mb-0.5 px-1">
+        {{ (users.get(m.sender_user_id).display_name) if users.get(m.sender_user_id) else '?' }}
+      </div>
+      {% endif %}
+      <div class="px-3 py-2 rounded-2xl text-sm whitespace-pre-wrap break-words
+                  {% if mine %}bg-pink-600 text-white rounded-br-sm{% else %}bg-neutral-100 text-neutral-900 rounded-bl-sm{% endif %}">
+        {{ m.body }}
+      </div>
+      <div class="text-[10px] text-neutral-400 mt-0.5 px-1">{{ m.created_at | human_time }}</div>
+    </div>
+  </div>
+  {% endfor %}
+</div>

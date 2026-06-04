@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}대화 · meetcute{% endblock %}
+{% block content %}
+<div class="max-w-2xl mx-auto space-y-4">
+  <div class="flex items-center justify-between">
+    <h1 class="text-xl sm:text-2xl font-bold mt-1">💬 마담뚜 대화</h1>
+  </div>
+
+  <div class="bg-pink-50 border border-pink-200 rounded-xl p-3 text-xs text-pink-800">
+    마담뚜끼리 매칭 조율용 임시 대화방이에요. 마지막 메시지 후 <b>{{ ttl_hours }}시간</b> 지나면 자동으로 사라집니다.
+  </div>
+
+  {# 새 대화 시작 #}
+  <form method="post" action="/chat" class="bg-white border border-neutral-200 rounded-xl p-4 space-y-3">
+    <div class="text-sm font-medium">+ 새 대화 시작</div>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+      <select name="other_user_id" required class="px-3 py-2 border border-neutral-300 rounded-lg">
+        <option value="">상대 마담뚜 선택</option>
+        {% for u in others %}
+        <option value="{{ u.id }}">{{ u.display_name }}{% if u.is_owner %} 👑{% endif %}</option>
+        {% endfor %}
+      </select>
+      <input type="text" name="topic" maxlength="200" placeholder="주제 (선택, 예: M-011 × F-010 건)"
+             class="px-3 py-2 border border-neutral-300 rounded-lg" />
+    </div>
+    <button class="w-full sm:w-auto px-4 py-2 bg-pink-600 text-white rounded-lg text-sm font-medium hover:bg-pink-700">대화 시작</button>
+  </form>
+
+  {# 활성 대화방 목록 #}
+  {% if rooms %}
+  <ul class="space-y-2">
+    {% for r in rooms %}
+    {% set other_id = r.user_b_id if r.user_a_id == current_user.id else r.user_a_id %}
+    {% set other = users.get(other_id) %}
+    {% set preview = last_preview.get(r.id) %}
+    <li>
+      <a href="/chat/{{ r.id }}"
+         class="block bg-white border border-neutral-200 rounded-xl px-4 py-3 hover:bg-neutral-50">
+        <div class="flex items-center justify-between gap-2">
+          <div class="font-medium truncate">💬 {{ other.display_name if other else '상대' }}</div>
+          {% if preview %}<div class="text-[11px] text-neutral-400 whitespace-nowrap">{{ preview.created_at | human_time }}</div>{% endif %}
+        </div>
+        {% if r.topic %}<div class="text-xs text-neutral-500 truncate">{{ r.topic }}</div>{% endif %}
+        {% if preview %}
+        <div class="text-sm text-neutral-500 truncate mt-0.5">
+          {% if preview.sender_user_id == current_user.id %}<span class="text-neutral-400">나: </span>{% endif %}{{ preview.body }}
+        </div>
+        {% else %}
+        <div class="text-sm text-neutral-300 mt-0.5">(메시지 없음)</div>
+        {% endif %}
+      </a>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <div class="text-center text-sm text-neutral-400 py-8">활성 대화방이 없어요.</div>
+  {% endif %}
+</div>
+{% endblock %}
