@@ -182,6 +182,10 @@ def view_room(
     room = _get_room_or_404(session, room_id)
     if not room.has_access(current_user):
         raise HTTPException(403, "이 대화방에 접근할 권한이 없습니다")
+    # 참여자가 열람 → 읽음 시각 갱신
+    if room.mark_read(current_user.id, datetime.utcnow()):
+        session.add(room)
+        session.commit()
     msgs = _messages(session, room.id)
     users = _user_map(session, {room.user_a_id, room.user_b_id})
     return templates.TemplateResponse(
@@ -194,6 +198,7 @@ def view_room(
             "current_user": current_user,
             "is_participant": room.is_participant(current_user),
             "other_user": users.get(room.other_user_id(current_user.id)),
+            "other_last_read": room.other_last_read(current_user.id),
             "ttl_hours": CHAT_TTL_HOURS,
         },
     )
@@ -212,12 +217,19 @@ def poll_messages(
     room = _get_room_or_404(session, room_id)
     if not room.has_access(current_user):
         raise HTTPException(403)
+    # 폴링 = 방을 보고 있는 것 → 읽음 시각 갱신
+    if room.mark_read(current_user.id, datetime.utcnow()):
+        session.add(room)
+        session.commit()
     msgs = _messages(session, room.id)
     users = _user_map(session, {room.user_a_id, room.user_b_id})
     return templates.TemplateResponse(
         request,
         "chat/_messages.html",
-        {"messages": msgs, "users": users, "current_user": current_user},
+        {
+            "messages": msgs, "users": users, "current_user": current_user,
+            "other_last_read": room.other_last_read(current_user.id),
+        },
     )
 
 
@@ -252,6 +264,7 @@ def send_message(
     session.add(msg)
     room.last_message_at = now
     room.expires_at = _ttl_from(now)
+    room.mark_read(current_user.id, now)  # 보낸 사람은 자기 메시지까지 읽은 상태
     session.add(room)
     session.commit()
 
@@ -282,7 +295,10 @@ def send_message(
         return templates.TemplateResponse(
             request,
             "chat/_messages.html",
-            {"messages": msgs, "users": users, "current_user": current_user},
+            {
+                "messages": msgs, "users": users, "current_user": current_user,
+                "other_last_read": room.other_last_read(current_user.id),
+            },
         )
     return RedirectResponse(f"/chat/{room.id}", status_code=303)
 

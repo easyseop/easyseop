@@ -60,6 +60,8 @@ def _ensure_columns() -> None:
         ("introductionrequest", "sender_own_consent", "VARCHAR(16) NOT NULL DEFAULT 'NOT_ASKED'"),
         ("introductionrequest", "receiver_own_consent", "VARCHAR(16) NOT NULL DEFAULT 'NOT_ASKED'"),
         ("introductionrequest", "final_note", "TEXT NOT NULL DEFAULT ''"),
+        ("chatroom", "last_read_a", "DATETIME"),
+        ("chatroom", "last_read_b", "DATETIME"),
     ]
     insp = inspect(engine)
     existing_tables = set(insp.get_table_names())

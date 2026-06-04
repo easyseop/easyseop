@@ -306,6 +306,9 @@ class ChatRoom(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.utcnow)
     last_message_at: datetime = Field(default_factory=datetime.utcnow, index=True)
     expires_at: datetime  # last_message_at + TTL. 청소 루프 기준.
+    # 각 참여자가 방을 마지막으로 본 시각 → 읽음 여부 계산용.
+    last_read_a: Optional[datetime] = Field(default=None)
+    last_read_b: Optional[datetime] = Field(default=None)
     messages: list["ChatMessage"] = Relationship(
         back_populates="room",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
@@ -322,6 +325,26 @@ class ChatRoom(SQLModel, table=True):
 
     def other_user_id(self, user_id: int) -> int:
         return self.user_b_id if user_id == self.user_a_id else self.user_a_id
+
+    def last_read_for(self, user_id: int) -> Optional[datetime]:
+        if user_id == self.user_a_id:
+            return self.last_read_a
+        if user_id == self.user_b_id:
+            return self.last_read_b
+        return None
+
+    def other_last_read(self, user_id: int) -> Optional[datetime]:
+        return self.last_read_for(self.other_user_id(user_id))
+
+    def mark_read(self, user_id: int, when: datetime) -> bool:
+        """참여자의 마지막 읽은 시각 갱신. 변경됐으면 True (커밋 필요)."""
+        if user_id == self.user_a_id:
+            self.last_read_a = when
+            return True
+        if user_id == self.user_b_id:
+            self.last_read_b = when
+            return True
+        return False  # 책임자 등 비참여자는 읽음 표시 안 남김
 
 
 class ChatMessage(SQLModel, table=True):

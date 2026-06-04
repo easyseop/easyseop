@@ -209,6 +209,36 @@ def test_close_room_deletes(client, session, three_admins):
     assert session.get(ChatRoom, room_id) is None
 
 
+def test_read_receipt_flow(client, session, three_admins):
+    """a 가 보낸 메시지는 b 가 방을 보기 전엔 '안읽음', 본 뒤엔 '읽음'."""
+    from app.models import ChatRoom
+    from sqlmodel import select
+
+    b_id = three_admins["b@x.com"]
+    _login(client, "a@x.com")
+    client.post("/chat", data={"other_user_id": str(b_id)}, follow_redirects=False)
+    room = session.exec(select(ChatRoom)).first()
+    client.post(f"/chat/{room.id}/send", data={"body": "읽어주세요"},
+                headers={"HX-Request": "true"}, follow_redirects=False)
+
+    # a 가 폴링 → 상대(b)는 아직 안 봄 → '안읽음'
+    r = client.get(f"/chat/{room.id}/messages")
+    assert r.status_code == 200
+    assert "안읽음" in r.text
+
+    # b 가 방을 봄 → b 의 last_read 갱신
+    _login(client, "b@x.com")
+    r = client.get(f"/chat/{room.id}")
+    assert r.status_code == 200
+
+    # a 가 다시 폴링 → 이제 '읽음'
+    _login(client, "a@x.com")
+    r = client.get(f"/chat/{room.id}/messages")
+    assert r.status_code == 200
+    assert "읽음" in r.text
+    assert "안읽음" not in r.text
+
+
 def test_expired_room_not_listed_or_viewable(client, session, three_admins):
     from app.models import ChatRoom
     from sqlmodel import select

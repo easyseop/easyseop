@@ -17,7 +17,16 @@
                   {% if mine %}bg-pink-600 text-white rounded-br-sm{% else %}bg-neutral-100 text-neutral-900 rounded-bl-sm{% endif %}">
         {{ m.body }}
       </div>
-      <div class="text-[10px] text-neutral-400 mt-0.5 px-1">{{ m.created_at | human_time }}</div>
+      <div class="text-[10px] text-neutral-400 mt-0.5 px-1 flex items-center gap-1 {% if mine %}justify-end{% endif %}">
+        {% if mine %}
+          {% if other_last_read and other_last_read >= m.created_at %}
+          <span class="text-pink-500">읽음</span>
+          {% else %}
+          <span class="text-neutral-300">안읽음</span>
+          {% endif %}
+        {% endif %}
+        <span>{{ m.created_at | kst_clock }}</span>
+      </div>
     </div>
   </div>
   {% endfor %}

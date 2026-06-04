@@ -70,8 +70,21 @@ def _thumb_url(filename: str) -> str:
     return str(p.with_name(p.stem + "_thumb" + p.suffix))
 
 
+def _kst_clock(value) -> str:
+    """UTC datetime → 한국시간(KST, +9) '오전/오후 H:MM'. 채팅 메시지 시각용.
+    DB 는 UTC(utcnow) 저장이라 표시할 때 +9 변환."""
+    if not isinstance(value, datetime):
+        return ""
+    from datetime import timedelta
+    kst = value + timedelta(hours=9)
+    ampm = "오전" if kst.hour < 12 else "오후"
+    h12 = kst.hour % 12 or 12
+    return f"{ampm} {h12}:{kst.minute:02d}"
+
+
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 templates.env.globals["AUTH_ENABLED"] = AUTH_ENABLED
 templates.env.globals["PUBLIC_MODE"] = PUBLIC_MODE
 templates.env.filters["human_time"] = _human_time
 templates.env.filters["thumb_url"] = _thumb_url
+templates.env.filters["kst_clock"] = _kst_clock
