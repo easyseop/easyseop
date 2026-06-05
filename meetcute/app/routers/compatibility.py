@@ -9,7 +9,7 @@ from ..database import get_session
 from ..models import Encounter, Person
 from ..routers.blacklist import is_blacklisted
 from ..services.status import (
-    derive_status,
+    effective_status,
     encounters_for_person,
     status_badge_class,
     status_label,
@@ -48,8 +48,8 @@ def compatibility(
         if person_a.id == person_b.id:
             notes.append({"level": "warn", "text": "같은 매물입니다."})
         shared = _shared_encounters(session, person_a.id, person_b.id)
-        a_status = derive_status(encounters_for_person(session, person_a.id))
-        b_status = derive_status(encounters_for_person(session, person_b.id))
+        a_status = effective_status(person_a, encounters_for_person(session, person_a.id))
+        b_status = effective_status(person_b, encounters_for_person(session, person_b.id))
 
         if is_blacklisted(session, person_a.id, person_b.id):
             notes.append({

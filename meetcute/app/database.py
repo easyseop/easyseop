@@ -62,6 +62,7 @@ def _ensure_columns() -> None:
         ("introductionrequest", "final_note", "TEXT NOT NULL DEFAULT ''"),
         ("chatroom", "last_read_a", "DATETIME"),
         ("chatroom", "last_read_b", "DATETIME"),
+        ("person", "status_override", "VARCHAR(16)"),
     ]
     insp = inspect(engine)
     existing_tables = set(insp.get_table_names())

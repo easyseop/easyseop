@@ -68,6 +68,16 @@ class PersonVisibility(str, Enum):
     RESTRICTED = "RESTRICTED"  # owner + 책임자 + 명시된 admin 만
 
 
+class PersonStatus(str, Enum):
+    """매물 소개 가능 상태. 기본은 Encounter 들로부터 derive 되지만,
+    Person.status_override 에 값이 있으면 그게 우선. UNAVAILABLE("불가") 는
+    오버라이드 전용 — 매물 휴식기/본인 사정 등으로 잠시 못 소개할 때 담당자가 수동 지정."""
+    AVAILABLE = "AVAILABLE"        # 소개 가능
+    IN_PROGRESS = "IN_PROGRESS"    # 진행 중
+    MATCHED = "MATCHED"            # 매칭됨
+    UNAVAILABLE = "UNAVAILABLE"    # 불가 (수동 오버라이드 전용)
+
+
 class User(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     # 이메일/비밀번호는 암호화 저장. Fernet 은 비결정적이라 DB unique/index 무의미.
@@ -120,6 +130,12 @@ class Person(SQLModel, table=True):
     # 즐겨찾기 마킹 — 마담뚜가 "이 매물 좀 더 신경쓰자" 표시.
     # 정렬/필터에 사용. 단일 글로벌 플래그 (마담뚜별 개인 즐겨찾기 아님).
     is_starred: bool = Field(default=False, index=True)
+    # 담당자가 수동 지정한 상태 오버라이드. NULL 이면 Encounter 들로부터 derive,
+    # 값 있으면 그게 우선. UNAVAILABLE("불가") 는 derive 로 안 나오니 여기로만 진입.
+    status_override: Optional[PersonStatus] = Field(
+        default=None,
+        sa_column=Column(SAEnum(PersonStatus), nullable=True),
+    )
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 

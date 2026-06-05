@@ -37,8 +37,9 @@ from ..services.revisions import (
     revisions_for_person,
 )
 from ..services.status import (
+    PersonStatus,
+    effective_status,
     encounters_for_person,
-    derive_status,
     grouped_encounters_for_persons,
     status_badge_class,
     status_label,
@@ -426,7 +427,7 @@ def person_detail(
     _require_view(person, request, session)
     photos = sorted(person.photos, key=lambda p: p.order)
     encs = encounters_for_person(session, person.id)
-    status = derive_status(encs)
+    status = effective_status(person, encs)
     activity = activity_for_person(session, person.id)
     revisions = revisions_for_person(session, person.id)
 
@@ -613,6 +614,57 @@ async def update_person(
         session.add(Photo(person_id=person.id, filename=rel, order=existing_count + i))
     session.commit()
     return RedirectResponse(f"/persons/{person.id}", status_code=303)
+
+
+@router.post("/{person_id}/status")
+def set_status_override(
+    person_id: int,
+    request: Request,
+    status: str = Form(...),  # "auto" 또는 PersonStatus 값
+    session: Session = Depends(get_session),
+):
+    """담당자가 매물 상태를 수동 오버라이드.
+    - status="auto" → 오버라이드 해제 (다시 Encounter 들로부터 derive)
+    - status=<PersonStatus> → 그 값으로 고정 (UNAVAILABLE 포함 4개)
+
+    권한: _require_edit (owner 본인 또는 책임자). 수정 가능한 사람만 변경 가능."""
+    person = session.get(Person, person_id)
+    if not person:
+        raise HTTPException(404, "Person not found")
+    _require_edit(person, request, session)
+    actor = get_current_user(request, session)
+
+    before = person.status_override.value if person.status_override else "auto"
+    new_value: Optional[PersonStatus]
+    if status == "auto":
+        new_value = None
+    else:
+        try:
+            new_value = PersonStatus(status)
+        except ValueError:
+            raise HTTPException(400, f"잘못된 상태값: {status}")
+
+    if person.status_override == new_value:
+        # 변경 없음 → 그대로 redirect
+        return RedirectResponse(
+            request.headers.get("referer") or f"/persons/{person.id}",
+            status_code=303,
+        )
+
+    person.status_override = new_value
+    person.updated_at = datetime.utcnow()
+    session.add(person)
+    after = new_value.value if new_value else "auto"
+    log_activity(
+        session, actor, "person.status_override",
+        target_type="person", target_id=person.id,
+        summary=f"{person.public_id} 상태 {before} → {after}",
+    )
+    session.commit()
+    return RedirectResponse(
+        request.headers.get("referer") or f"/persons/{person.id}",
+        status_code=303,
+    )
 
 
 @router.post("/{person_id}/star")
