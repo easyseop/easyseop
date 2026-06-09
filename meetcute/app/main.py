@@ -40,6 +40,13 @@ async def lifespan(app: FastAPI):
             "MEETCUTE_SECRET 환경변수가 설정되지 않았습니다 (개발용 기본키 사용 중). "
             "운영 시 반드시 강한 임의값으로 지정하세요."
         )
+    # 서버 시작 알림 (콜드 부팅 시 1회. 30분 cooldown 으로 hot reload 도배 방지).
+    # 텔레그램 API 호출이라 별도 thread 로 (uvicorn 시작 안 막게).
+    try:
+        from .startup_notice import send_startup_notification
+        asyncio.create_task(asyncio.to_thread(send_startup_notification))
+    except Exception as e:
+        logger.warning(f"startup notice failed to schedule: {e}")
     reminder_task = asyncio.create_task(reminder_loop())
     bot_task = asyncio.create_task(bot_poll_loop())
     url_task = asyncio.create_task(url_watcher_loop())

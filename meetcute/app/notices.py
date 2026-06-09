@@ -14,6 +14,15 @@ init_db 의 _seed_notices_and_broadcast 가 자동으로:
 
 NOTICES = [
     {
+        "slug": "2026-05-23-startup-notification",
+        "title": "🚀 서버 시작 알림 (콜드 부팅)",
+        "body": (
+            "사이트가 켜질 때 모든 마담뚜에게 '🚀 서버 시작' 텔레그램 알림이 가요. "
+            "코드 변경(hot reload) 으론 도배 안 되도록 30분 cooldown.\n"
+            "→ 맥북 재부팅 후 ./dev.sh 다시 띄울 때 '아 살아있구나' 즉시 확인 가능."
+        ),
+    },
+    {
         "slug": "2026-05-23-status-override",
         "title": "🔧 매물 상태 수동 변경 + '불가' 상태 추가",
         "body": (
