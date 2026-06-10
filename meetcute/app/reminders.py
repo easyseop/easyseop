@@ -74,7 +74,7 @@ def _send_pending_reminders() -> int:
             if r.message:
                 msg += f"\n<i>{r.message}</i>\n"
             _url = current_public_url()
-            link = f'<a href="{_url}/requests">/requests</a>' if _url else "/requests"
+            link = f'<a href="{_url}/requests">요청 보기</a>' if _url else "요청 보기 (/requests)"
             msg += f"\n→ {link} 에서 응답 (수락/거절)"
             ok, _ = send_telegram(recipient.telegram_chat_id, msg)
             if ok:
@@ -141,7 +141,10 @@ def _send_encounter_followups() -> int:
                 f"<b>{ask}</b>"
             )
             _url = current_public_url()
-            link = f'<a href="{_url}/encounters/{e.id}">/encounters/{e.id}</a>' if _url else f"/encounters/{e.id}"
+            link = (
+                f'<a href="{_url}/encounters/{e.id}">만남 #{e.id} 보기</a>'
+                if _url else f"만남 #{e.id} 보기 (/encounters/{e.id})"
+            )
             msg += f"\n→ {link} 에서 결과 업데이트"
 
             any_ok = False

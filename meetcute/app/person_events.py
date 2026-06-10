@@ -68,7 +68,7 @@ def notify_new_person(person_id: int, registered_by_user_id: Optional[int] = Non
         url = current_public_url()
         link = (
             f"\n→ <a href=\"{url}/persons/{person.id}\">매물 자세히 보기</a>"
-            if url else f"\n→ /persons/{person.id}"
+            if url else f"\n→ 매물 자세히 보기: /persons/{person.id}"
         )
         vis_note = (
             "\n🔒 비공개 매물 (허락된 admin 만 접근)"

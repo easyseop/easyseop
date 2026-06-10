@@ -14,6 +14,16 @@ init_db 의 _seed_notices_and_broadcast 가 자동으로:
 
 NOTICES = [
     {
+        "slug": "2026-05-23-notification-labels-fallback",
+        "title": "🔧 텔레그램 알림 — URL 없을 때도 한국어 라벨 유지",
+        "body": (
+            "공개 URL 이 잠시 없을 때 (cloudflared 가 .public_url 미기록 등) "
+            "'/persons/61' 같은 raw 경로만 나오던 거 → '매물 자세히 보기: /persons/61' "
+            "형태로 한국어 라벨 유지하도록 폴백 정정. 요청/만남 리마인더도 동일.\n"
+            "👉 다시 강조: cloudflared 는 ./tunnel.sh 로 띄워야 URL 자동 갱신 + 링크 정상."
+        ),
+    },
+    {
         "slug": "2026-05-23-startup-notification",
         "title": "🚀 서버 시작 알림 (콜드 부팅)",
         "body": (
