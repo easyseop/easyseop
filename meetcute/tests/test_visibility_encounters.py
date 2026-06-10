@@ -136,6 +136,29 @@ def test_new_encounter_form_hides_restricted_from_unauthorized(client, three_adm
     assert fix["pub_person"].public_id in r.text
 
 
+def test_dashboard_hides_restricted_from_new_and_encounter_cards(client, three_admins_one_restricted):
+    """대시보드(/) 의 '신규 매물' 카드 + '진행 중 매칭' 만남 카드에서도 RESTRICTED 가려짐."""
+    fix = three_admins_one_restricted
+    _login(client, "a@x.com")
+    r = client.get("/")
+    assert r.status_code == 200
+    # 신규 매물 그리드에서 비공개 매물 자체가 안 보임 (사진+public_id 노출 X)
+    assert fix["restricted_person"].public_id not in r.text
+    # 진행 중 매칭 카드의 chip 도 마스킹
+    assert "🔒 비공개 매물" in r.text
+    # 내 매물은 정상 노출
+    assert fix["pub_person"].public_id in r.text
+
+
+def test_dashboard_owner_sees_restricted_in_new_list(client, three_admins_one_restricted):
+    """책임자는 신규 매물에 RESTRICTED 도 그대로 봄."""
+    fix = three_admins_one_restricted
+    _login(client, "boss@x.com")
+    r = client.get("/")
+    assert r.status_code == 200
+    assert fix["restricted_person"].public_id in r.text
+
+
 def test_person_detail_history_masks_other_restricted(client, three_admins_one_restricted):
     """a 가 자기 PUBLIC 매물 상세를 볼 때 만남 이력에 등장하는 RESTRICTED 상대를 마스킹."""
     fix = three_admins_one_restricted

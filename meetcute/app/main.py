@@ -27,6 +27,7 @@ from .services.status import (
     status_label,
     statuses_for_persons,
 )
+from .services.visibility import allowed_set_for_user, can_see_person
 from .templating import templates
 
 logger = logging.getLogger("meetcute")
@@ -145,6 +146,13 @@ def index(
     all_persons = session.exec(
         select(Person).options(defer(Person.ideal_type), defer(Person.notes))
     ).all()
+    # 비공개(RESTRICTED) 매물은 권한 없는 마담뚜에게 신규/잠자는 리스트와
+    # 만남 카드에서 가려진다. 카운트는 시스템 전체 기준 유지.
+    allowed_visible = allowed_set_for_user(session, current_user)
+    visible_person_ids = {
+        p.id for p in all_persons
+        if can_see_person(p, current_user, allowed_set=allowed_visible)
+    }
     # Encounter 한 번만 가져와서 status/activity 양쪽에 재사용
     grouped = grouped_encounters_for_persons(session, all_persons)
     statuses = statuses_for_persons(session, all_persons, grouped=grouped)
@@ -169,6 +177,9 @@ def index(
     new_persons: list = []
     dormant_candidates: list = []
     for p in all_persons:
+        # 비공개 매물은 권한 없는 마담뚜 화면에 안 띄움 (사진/public_id 보호)
+        if p.id not in visible_person_ids:
+            continue
         age_days = (now - p.created_at).days
         s = statuses.get(p.id)
         a = activities.get(p.id)
@@ -209,6 +220,8 @@ def index(
     ).all()
 
     person_map = {p.id: p for p in all_persons}
+    # 진행중/최근 만남 카드에서 RESTRICTED 매물 마스킹용
+    visible = {pid: (pid in visible_person_ids) for pid in person_map}
 
     from .routers.encounters import OUTCOME_BADGE, OUTCOME_LABEL
 
@@ -228,6 +241,7 @@ def index(
             "active_encs": active_encs,
             "recent_encs": recent_encs,
             "person_map": person_map,
+            "visible": visible,
             "new_persons": new_persons,
             "new_threshold_days": new_threshold_days,
             "dormant_persons": dormant_persons,
