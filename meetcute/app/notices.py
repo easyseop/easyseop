@@ -14,6 +14,18 @@ init_db 의 _seed_notices_and_broadcast 가 자동으로:
 
 NOTICES = [
     {
+        "slug": "2026-05-23-encounter-visibility-mask",
+        "title": "🔒 비공개 매물 — 만남 화면에서도 보호",
+        "body": (
+            "지금까지 RESTRICTED 매물이라도 만남 기록(/encounters) 으론 그대로 노출되던 "
+            "구멍 정정. 권한 없는 마담뚜에겐:\n"
+            "  • 목록/상세에서 그 매물 자리에 '🔒 비공개 매물' 표시\n"
+            "  • 새 만남 폼 매물 드롭다운에서 제외\n"
+            "  • 매물 상세의 만남 이력에 등장하는 다른 RESTRICTED 매물도 마스킹\n"
+            "책임자(👑) 와 owner 본인 + PersonAllowedAdmin 으로 명시된 마담뚜는 그대로 봅니다."
+        ),
+    },
+    {
         "slug": "2026-05-23-notification-labels-fallback",
         "title": "🔧 텔레그램 알림 — URL 없을 때도 한국어 라벨 유지",
         "body": (

@@ -282,30 +282,9 @@ def _can_see_person(
     allowed_set: Optional[set[int]] = None,
     session: Optional[Session] = None,
 ) -> bool:
-    """RESTRICTED 매물은 owner + 책임자 + 허용된 admin 만 볼 수 있음.
-    PUBLIC 은 모든 admin. AUTH=off 면 항상 허용."""
-    if not AUTH_ENABLED:
-        return True
-    if not user or not user.id:
-        return False
-    if user.is_owner:
-        return True
-    if person.owner_user_id == user.id:
-        return True
-    if person.visibility == PersonVisibility.PUBLIC:
-        return True
-    # RESTRICTED
-    if allowed_set is not None:
-        return person.id in allowed_set
-    if session is None:
-        return False
-    paa = session.exec(
-        select(PersonAllowedAdmin).where(
-            PersonAllowedAdmin.person_id == person.id,
-            PersonAllowedAdmin.user_id == user.id,
-        )
-    ).first()
-    return paa is not None
+    """services/visibility.can_see_person 으로 위임. 기존 호출처 호환용 thin wrapper."""
+    from ..services.visibility import can_see_person
+    return can_see_person(person, user, allowed_set=allowed_set, session=session)
 
 
 def _require_view(person: Person, request: Request, session: Session) -> None:
@@ -455,16 +434,24 @@ def person_detail(
             diff = diff_between(rev.snapshot_json, revisions[i - 1].snapshot_json)
         revision_diffs.append((rev, diff))
 
-    # 상대방 매물 정보 매핑 (삭제된 경우 None)
+    # 상대방 매물 정보 매핑 (삭제된 경우 None) + 비공개 매물 가림 처리
     other_ids = {
         (e.person_b_id if e.person_a_id == person.id else e.person_a_id)
         for e in encs
     }
     other_ids.discard(None)
     others = {}
+    others_visible: dict[int, bool] = {}
     if other_ids:
         rows = session.exec(select(Person).where(Person.id.in_(list(other_ids)))).all()
         others = {p.id: p for p in rows}
+        # 상대 매물별 가시성 — RESTRICTED 인데 권한 없으면 카드 마스킹용
+        from ..services.visibility import allowed_set_for_user, can_see_person
+        allowed = allowed_set_for_user(session, current_user)
+        others_visible = {
+            pid: can_see_person(p, current_user, allowed_set=allowed)
+            for pid, p in others.items()
+        }
     from .encounters import OUTCOME_LABEL, OUTCOME_BADGE  # 순환 import 회피
     return templates.TemplateResponse(
         request,
@@ -474,6 +461,7 @@ def person_detail(
             "photos": photos,
             "encounters": encs,
             "others": others,
+            "others_visible": others_visible,
             "status": status,
             "activity": activity,
             "revision_diffs": revision_diffs,

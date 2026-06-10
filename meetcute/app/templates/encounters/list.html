@@ -4,8 +4,13 @@
 {% macro person_chip(pid, snapshot) %}
   {% set p = persons.get(pid) %}
   {% if p %}
-    <a href="/persons/{{ p.id }}" class="font-mono font-semibold hover:text-pink-600">{{ p.public_id }}</a>
-    <span class="text-neutral-400">· {{ p.year_label }} · {{ p.location }}</span>
+    {% if visible is defined and visible.get(pid) == False %}
+      {# 비공개 매물 마스킹 — public_id 끝자리도 가림 #}
+      <span class="font-mono text-neutral-500" title="비공개 매물 (열람 권한 없음)">🔒 비공개 매물</span>
+    {% else %}
+      <a href="/persons/{{ p.id }}" class="font-mono font-semibold hover:text-pink-600">{{ p.public_id }}</a>
+      <span class="text-neutral-400">· {{ p.year_label }} · {{ p.location }}</span>
+    {% endif %}
   {% else %}
     <span class="font-mono text-neutral-400 line-through">{{ snapshot or '?' }}</span>
   {% endif %}

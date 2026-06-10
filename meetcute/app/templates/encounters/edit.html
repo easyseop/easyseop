@@ -3,17 +3,21 @@
 
 {% macro person_card(pid, snapshot) %}
   {% set p = persons.get(pid) %}
+  {% set _visible = visible is not defined or visible.get(pid) != False %}
   <div class="flex-1 bg-neutral-50 rounded-xl p-3 sm:p-4 min-w-0">
-    {% if p %}
+    {% if not p %}
+      <div class="font-mono text-base sm:text-lg text-neutral-400 line-through">{{ snapshot or '?' }}</div>
+      <div class="text-xs text-neutral-400 mt-1">삭제된 매물</div>
+    {% elif not _visible %}
+      <div class="font-mono text-base sm:text-lg text-neutral-500">🔒 비공개 매물</div>
+      <div class="text-xs text-neutral-400 mt-1">이 매물 정보 열람 권한이 없습니다</div>
+    {% else %}
       <a href="/persons/{{ p.id }}" class="font-mono text-base sm:text-lg font-bold hover:text-pink-600">{{ p.public_id }}</a>
       <div class="text-sm text-neutral-600 mt-0.5 sm:mt-1">
         {{ p.gender.label }} · {{ p.year_label }} · {{ p.height_cm }}cm
       </div>
       <div class="text-xs sm:text-sm text-neutral-500 truncate">{{ p.location }} · {{ p.workplace }}</div>
       {% if p.alias %}<div class="text-xs text-neutral-400 mt-1 truncate">({{ p.alias }})</div>{% endif %}
-    {% else %}
-      <div class="font-mono text-base sm:text-lg text-neutral-400 line-through">{{ snapshot or '?' }}</div>
-      <div class="text-xs text-neutral-400 mt-1">삭제된 매물</div>
     {% endif %}
   </div>
 {% endmacro %}

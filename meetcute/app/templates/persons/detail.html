@@ -446,8 +446,12 @@
         <div class="flex items-center gap-2 mt-0.5 text-sm">
           <span class="text-neutral-400">→</span>
           {% if other %}
-          <a href="/persons/{{ other.id }}" class="font-mono font-semibold hover:text-pink-600">{{ other.public_id }}</a>
-          <span class="text-neutral-500 text-xs">{{ other.year_label }} · {{ other.location }}</span>
+            {% if others_visible is defined and others_visible.get(other_id) == False %}
+            <span class="font-mono text-neutral-500" title="비공개 매물 — 열람 권한 없음">🔒 비공개 매물</span>
+            {% else %}
+            <a href="/persons/{{ other.id }}" class="font-mono font-semibold hover:text-pink-600">{{ other.public_id }}</a>
+            <span class="text-neutral-500 text-xs">{{ other.year_label }} · {{ other.location }}</span>
+            {% endif %}
           {% else %}
           <span class="font-mono text-neutral-400 line-through">{{ other_snap or '?' }}</span>
           {% endif %}

@@ -252,6 +252,22 @@ MEETCUTE_AUTH=on uvicorn app.main:app --reload
 - 매물 수정 페이지에서 개별 사진 삭제 가능 (호버 시 × 버튼)
 - **일괄 다운로드**: 상세 페이지의 `⬇️ 전체 다운로드 (zip)` 버튼 → `{public_id}_photos.zip` 으로 원본 받아요 (썸네일 제외)
 
+### 2.5 공개 범위 (PUBLIC / RESTRICTED) 🔒
+
+매물 수정 페이지에서 **공개 범위** 를 설정할 수 있어요.
+
+| 범위 | 보는 사람 |
+|---|---|
+| 🌐 PUBLIC (기본) | 모든 마담뚜 |
+| 🔒 RESTRICTED | 담당 마담뚜(owner) + 책임자(👑) + 명시적으로 허용한 admin (PersonAllowedAdmin) |
+
+**만남 화면에서도 보호됩니다.** RESTRICTED 매물이 끼어 있는 만남이라도 권한 없는 마담뚜에겐 그 매물 자리에 **`🔒 비공개 매물`** 로 마스킹돼 표시 (public_id / 거주지 / 직장 / 나이 등 모두 가려짐). 적용 위치:
+- `/encounters` 목록과 `/encounters/{id}` 상세
+- `/encounters/new` 의 매물 드롭다운에서도 제외
+- 매물 상세 페이지의 만남 이력에 등장하는 다른 RESTRICTED 매물
+
+**우회 불가**: 권한 없는 마담뚜가 URL 을 직접 알아내도 `/persons/{id}` 는 403, encounter 페이지에선 마스킹돼서 정보 노출 없음.
+
 ---
 
 ## 3. 매물 상태 (자동 계산 + 수동 오버라이드)

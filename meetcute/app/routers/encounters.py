@@ -20,7 +20,22 @@ from ..models import (
     User,
 )
 from ..services.activity_log import log_activity
+from ..services.visibility import allowed_set_for_user, can_see_person
 from ..templating import templates
+
+
+def _visible_map(
+    session: Session, persons: dict[int, Person], user: Optional[User]
+) -> dict[int, bool]:
+    """persons dict 의 각 id 가 user 에게 보이는지 batch 로 계산.
+    RESTRICTED 매물의 PersonAllowedAdmin 도 한 번에 로드해서 N+1 회피."""
+    if not persons:
+        return {}
+    allowed = allowed_set_for_user(session, user)
+    return {
+        pid: can_see_person(p, user, allowed_set=allowed)
+        for pid, p in persons.items()
+    }
 
 router = APIRouter(prefix="/encounters", tags=["encounters"])
 
@@ -121,13 +136,14 @@ def list_encounters(
         stmt = stmt.where(Encounter.outcome == outcome_enum)
     encounters = session.exec(stmt).all()
     persons = _resolve_persons(session, encounters)
+    current_user = get_current_user(request, session)
+    visible = _visible_map(session, persons, current_user)
 
     # 연락처 전달 대기 (양방 동의됐지만 아직 Encounter 안 만들어진 요청들).
-    # 현재 user 가 참여한 것만.
+    # 현재 user 가 참여한 것만 — 본인이 참여자라 visibility 무관 (요청 양 owner).
     awaiting_contact = []
     awaiting_persons: dict[int, Person] = {}
     if AUTH_ENABLED:
-        current_user = get_current_user(request, session)
         if current_user and current_user.id:
             awaiting_contact = session.exec(
                 select(IntroductionRequest).where(
@@ -153,6 +169,7 @@ def list_encounters(
         {
             "encounters": encounters,
             "persons": persons,
+            "visible": visible,
             "person_id": person_id,
             "awaiting_contact": awaiting_contact,
             "awaiting_persons": awaiting_persons,
@@ -169,7 +186,11 @@ def new_encounter_form(
     b: Optional[int] = None,
     session: Session = Depends(get_session),
 ):
-    all_persons = session.exec(select(Person).order_by(Person.public_id)).all()
+    # 비공개 매물은 권한 없는 마담뚜에겐 드롭다운에서 숨김
+    current_user = get_current_user(request, session)
+    allowed = allowed_set_for_user(session, current_user)
+    rows = session.exec(select(Person).order_by(Person.public_id)).all()
+    all_persons = [p for p in rows if can_see_person(p, current_user, allowed_set=allowed)]
     return templates.TemplateResponse(
         request,
         "encounters/new.html",
@@ -234,11 +255,14 @@ def encounter_detail(
     if not enc:
         raise HTTPException(404, "Encounter not found")
     persons = _resolve_persons(session, [enc])
+    current_user = get_current_user(request, session)
+    visible = _visible_map(session, persons, current_user)
     events = _events_for(session, enc.id)
     return templates.TemplateResponse(
         request,
         "encounters/edit.html",
-        {"enc": enc, "persons": persons, "events": events, **_ctx_extras()},
+        {"enc": enc, "persons": persons, "visible": visible,
+         "events": events, **_ctx_extras()},
     )
 
 
