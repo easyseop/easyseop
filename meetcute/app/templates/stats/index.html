@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+{% block title %}통계 · meetcute{% endblock %}
+{% block content %}
+<div class="space-y-6 max-w-3xl mx-auto">
+  <h1 class="text-xl sm:text-2xl font-bold mt-1">📊 통계</h1>
+
+  {# ── 핵심 지표 카드 ───────────────────────────── #}
+  <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+    <div class="bg-white border border-neutral-200 rounded-xl p-4 text-center">
+      <div class="text-2xl font-bold">{{ total_encounters }}</div>
+      <div class="text-xs text-neutral-500 mt-1">전체 만남</div>
+    </div>
+    <div class="bg-pink-50 border border-pink-200 rounded-xl p-4 text-center">
+      <div class="text-2xl font-bold text-pink-700">{{ matched }}</div>
+      <div class="text-xs text-pink-700 mt-1">💞 매칭 성공</div>
+    </div>
+    <div class="bg-white border border-neutral-200 rounded-xl p-4 text-center">
+      <div class="text-2xl font-bold">{{ couple_rate }}%</div>
+      <div class="text-xs text-neutral-500 mt-1">커플 성사율</div>
+      <div class="text-[10px] text-neutral-400">(결정된 {{ decided }}건 중)</div>
+    </div>
+    <div class="bg-white border border-neutral-200 rounded-xl p-4 text-center">
+      <div class="text-2xl font-bold">{{ accept_rate }}%</div>
+      <div class="text-xs text-neutral-500 mt-1">요청 수락률</div>
+      <div class="text-[10px] text-neutral-400">(응답 {{ req_accepted + req_declined }}건 중)</div>
+    </div>
+  </div>
+
+  <div class="text-xs text-neutral-500 bg-neutral-50 border border-neutral-200 rounded-lg p-3">
+    💡 <b>커플 성사율</b> = 매칭 성공 ÷ 결정된 만남(진행 중 제외). 진행 중 {{ active }}건은 아직 결과 미정이라 분모에서 뺐어요.
+    <br>💡 <b>전체 매칭률</b> (진행 중 포함 전체 대비) = {{ overall_match_rate }}%
+  </div>
+
+  {# ── 소개 요청 퍼널 ───────────────────────────── #}
+  <div class="bg-white border border-neutral-200 rounded-xl p-5 space-y-3">
+    <h2 class="font-semibold">📨 소개 요청 ({{ req_total }}건)</h2>
+    {% set fl = [
+      ('수락 → 만남 생성', req_counts[IntroRequestStatus.ACCEPTED], 'bg-pink-500'),
+      ('거절', req_counts[IntroRequestStatus.DECLINED], 'bg-neutral-400'),
+      ('대기 중', req_counts[IntroRequestStatus.PENDING], 'bg-amber-400'),
+      ('취소', req_counts[IntroRequestStatus.WITHDRAWN], 'bg-neutral-300'),
+    ] %}
+    {% for label, cnt, color in fl %}
+    <div class="flex items-center gap-3 text-sm">
+      <div class="w-28 shrink-0 text-neutral-600">{{ label }}</div>
+      <div class="flex-1 bg-neutral-100 rounded-full h-5 overflow-hidden">
+        <div class="{{ color }} h-5 rounded-full" style="width: {{ ((cnt / req_total * 100) if req_total else 0) | round(1) }}%"></div>
+      </div>
+      <div class="w-10 text-right font-medium">{{ cnt }}</div>
+    </div>
+    {% endfor %}
+  </div>
+
+  {# ── 만남 결과 분포 ───────────────────────────── #}
+  <div class="bg-white border border-neutral-200 rounded-xl p-5 space-y-3">
+    <h2 class="font-semibold">💞 만남 결과 분포 ({{ total_encounters }}건)</h2>
+    {% for o in EncounterOutcome %}
+    {% set cnt = outcome_counts[o] %}
+    <div class="flex items-center gap-3 text-sm">
+      <div class="w-28 shrink-0">
+        <span class="px-2 py-0.5 rounded-full text-xs font-medium {{ OUTCOME_BADGE[o] }}">{{ OUTCOME_LABEL[o] }}</span>
+      </div>
+      <div class="flex-1 bg-neutral-100 rounded-full h-5 overflow-hidden">
+        <div class="bg-pink-400 h-5 rounded-full" style="width: {{ ((cnt / total_encounters * 100) if total_encounters else 0) | round(1) }}%"></div>
+      </div>
+      <div class="w-10 text-right font-medium">{{ cnt }}</div>
+    </div>
+    {% endfor %}
+  </div>
+
+  {# ── 월별 추이 ───────────────────────────── #}
+  {% if monthly %}
+  <div class="bg-white border border-neutral-200 rounded-xl p-5 space-y-3">
+    <h2 class="font-semibold">📈 월별 추이 (최근 {{ monthly | length }}개월)</h2>
+    <div class="text-xs text-neutral-500">막대 = 만남 수, 분홍 = 그 중 매칭</div>
+    {% for m in monthly %}
+    <div class="flex items-center gap-3 text-sm">
+      <div class="w-16 shrink-0 text-neutral-600 font-mono text-xs">{{ m.month }}</div>
+      <div class="flex-1 bg-neutral-100 rounded-full h-5 overflow-hidden relative">
+        <div class="bg-neutral-300 h-5 absolute left-0 top-0" style="width: {{ ((m.enc / monthly_max * 100) if monthly_max else 0) | round(1) }}%"></div>
+        <div class="bg-pink-500 h-5 absolute left-0 top-0" style="width: {{ ((m.matched / monthly_max * 100) if monthly_max else 0) | round(1) }}%"></div>
+      </div>
+      <div class="w-16 text-right text-xs">
+        <span class="font-medium">{{ m.enc }}</span><span class="text-pink-600"> / {{ m.matched }}</span>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {# ── 마담뚜별 성과 (책임자 전용) ───────────────────────────── #}
+  {% if current_user.is_owner %}
+  <div class="bg-white border border-neutral-200 rounded-xl p-5">
+    <h2 class="font-semibold mb-1">👑 마담뚜별 성과</h2>
+    <div class="text-xs text-neutral-400 mb-3">책임자만 보여요</div>
+    <div class="overflow-x-auto scroll-x">
+      <table class="w-full text-sm">
+        <thead class="text-neutral-500 text-xs border-b border-neutral-200">
+          <tr>
+            <th class="text-left py-2 pr-2">마담뚜</th>
+            <th class="text-right py-2 px-2">매물</th>
+            <th class="text-right py-2 px-2">만남</th>
+            <th class="text-right py-2 px-2">매칭</th>
+            <th class="text-right py-2 px-2">매칭률</th>
+            <th class="text-right py-2 px-2">요청</th>
+            <th class="text-right py-2 pl-2">수락률</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-neutral-100">
+          {% for s in matchmaker_stats %}
+          <tr class="hover:bg-neutral-50">
+            <td class="py-2 pr-2 font-medium truncate">
+              {{ s.name }}{% if s.user_id == current_user.id %} <span class="text-xs text-pink-500">(나)</span>{% endif %}
+            </td>
+            <td class="py-2 px-2 text-right">{{ s.persons }}</td>
+            <td class="py-2 px-2 text-right">{{ s.encounters }}</td>
+            <td class="py-2 px-2 text-right font-semibold text-pink-700">{{ s.matched }}</td>
+            <td class="py-2 px-2 text-right">{{ s.match_rate }}%</td>
+            <td class="py-2 px-2 text-right">{{ s.requests_sent }}</td>
+            <td class="py-2 pl-2 text-right">{{ s.accept_rate }}%</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
