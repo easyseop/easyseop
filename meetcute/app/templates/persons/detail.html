@@ -181,11 +181,14 @@
   <div class="flex items-center justify-between gap-2 mb-2 flex-wrap">
     <div class="text-sm text-neutral-500">📷 사진 {{ photos | length }}장</div>
     <div class="flex gap-2 flex-wrap">
+      {# 항상 노출. Web Share 미지원(데스크탑 등)이면 누를 때 Zip 으로 자동 폴백.
+         hidden gating 을 없애 HTMX 부분 교체(필터/검색 후 진입) 시에도 항상 보이게. #}
       <button type="button" id="mc-save-album-btn"
               onclick="mcSavePhotosToAlbum(this)"
               data-public-id="{{ person.public_id }}"
-              class="hidden text-xs px-3 py-1.5 border border-pink-300 bg-pink-50 text-pink-700 rounded-lg hover:bg-pink-100"
-              title="iOS/Android: 공유 시트 → '사진에 저장' 한 번 탭으로 앨범에 모두 저장">
+              data-zip="/persons/{{ person.id }}/photos/zip"
+              class="text-xs px-3 py-1.5 border border-pink-300 bg-pink-50 text-pink-700 rounded-lg hover:bg-pink-100"
+              title="모바일: 공유 시트 → '사진에 저장' 으로 앨범에 모두 저장 / 데스크탑: Zip 으로">
         📲 앨범에 저장
       </button>
       <a href="/persons/{{ person.id }}/photos/zip"
@@ -196,19 +199,17 @@
     </div>
   </div>
   <script>
-    // Web Share Level 2 (files) 지원되는 경우만 '앨범에 저장' 버튼 노출.
-    // iOS Safari 15+ / Android Chrome 89+ 지원. 데스크탑 브라우저 미지원이면 숨김.
-    (function() {
-      const probe = new File([new Blob(["x"])], "p.jpg", { type: "image/jpeg" });
-      if (navigator.canShare && navigator.canShare({ files: [probe] })) {
-        const btn = document.getElementById('mc-save-album-btn');
-        if (btn) btn.classList.remove('hidden');
-      }
-    })();
-
     async function mcSavePhotosToAlbum(btn) {
-      const urls = [{% for ph in photos %}"/uploads/{{ ph.filename }}"{% if not loop.last %},{% endif %}{% endfor %}];
       const publicId = btn.dataset.publicId;
+      const zipUrl = btn.dataset.zip;
+      // Web Share (파일) 미지원 환경(데스크탑 크롬 등) → 곧장 Zip 다운로드로 폴백.
+      // 미리 사진 fetch 하기 전에 체크해서 낭비 없앰.
+      const probe = new File([new Blob(["x"])], "p.jpg", { type: "image/jpeg" });
+      if (!(navigator.canShare && navigator.canShare({ files: [probe] }))) {
+        window.location = zipUrl;
+        return;
+      }
+      const urls = [{% for ph in photos %}"/uploads/{{ ph.filename }}"{% if not loop.last %},{% endif %}{% endfor %}];
       const orig = btn.textContent;
       btn.disabled = true;
       btn.textContent = '⏳ 준비 중…';
@@ -224,13 +225,11 @@
         }
         if (!files.length) {
           alert('받을 사진이 없습니다');
+          btn.textContent = orig; btn.disabled = false;
           return;
         }
         if (!navigator.canShare || !navigator.canShare({ files })) {
-          // 폴백: 공유 시트 불가 → zip 다운로드로 안내
-          if (confirm('이 브라우저는 앨범 직접 저장을 지원하지 않아요. Zip 다운로드로 진행할까요?')) {
-            window.location = `/persons/{{ person.id }}/photos/zip`;
-          }
+          window.location = zipUrl;  // 파일 종류상 공유 불가 → Zip
           return;
         }
         btn.textContent = '📲 공유 시트…';
