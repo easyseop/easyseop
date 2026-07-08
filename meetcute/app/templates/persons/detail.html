@@ -202,19 +202,17 @@
     async function mcSavePhotosToAlbum(btn) {
       const publicId = btn.dataset.publicId;
       const zipUrl = btn.dataset.zip;
-      // Web Share (파일) 미지원 환경(데스크탑 크롬 등) → 곧장 Zip 다운로드로 폴백.
-      // 미리 사진 fetch 하기 전에 체크해서 낭비 없앰.
-      const probe = new File([new Blob(["x"])], "p.jpg", { type: "image/jpeg" });
-      if (!(navigator.canShare && navigator.canShare({ files: [probe] }))) {
-        window.location = zipUrl;
-        return;
-      }
-      const urls = [{% for ph in photos %}"/uploads/{{ ph.filename }}"{% if not loop.last %},{% endif %}{% endfor %}];
       const orig = btn.textContent;
+      const reset = () => { btn.textContent = orig; btn.disabled = false; };
+
+      // Web Share API 자체가 없으면 (주로 데스크탑) → Zip.
+      if (!navigator.share) { window.location = zipUrl; return; }
+
+      const urls = [{% for ph in photos %}"/uploads/{{ ph.filename }}"{% if not loop.last %},{% endif %}{% endfor %}];
       btn.disabled = true;
       btn.textContent = '⏳ 준비 중…';
+      let files = [];
       try {
-        const files = [];
         for (let i = 0; i < urls.length; i++) {
           const res = await fetch(urls[i]);
           if (!res.ok) continue;
@@ -223,26 +221,21 @@
           const type = blob.type || ('image/' + (ext === 'jpg' ? 'jpeg' : ext));
           files.push(new File([blob], `${publicId}_${i + 1}.${ext}`, { type }));
         }
-        if (!files.length) {
-          alert('받을 사진이 없습니다');
-          btn.textContent = orig; btn.disabled = false;
-          return;
-        }
-        if (!navigator.canShare || !navigator.canShare({ files })) {
-          window.location = zipUrl;  // 파일 종류상 공유 불가 → Zip
-          return;
-        }
+      } catch (e) {
+        window.location = zipUrl; return;   // 사진 fetch 실패 → Zip
+      }
+      if (!files.length) { alert('받을 사진이 없습니다'); reset(); return; }
+
+      // canShare 사전검사로 막지 않고 바로 공유 시도 (일부 브라우저는 canShare=false
+      // 라도 실제 share 는 됨). 실패(진짜 미지원)하면 그때 Zip 으로 폴백.
+      try {
         btn.textContent = '📲 공유 시트…';
         await navigator.share({ files, title: `${publicId} 매물 사진` });
         btn.textContent = '✓ 완료';
-        setTimeout(() => { btn.textContent = orig; btn.disabled = false; }, 1500);
+        setTimeout(reset, 1500);
       } catch (e) {
-        // 사용자 취소 (AbortError) 면 조용히, 그 외엔 알림
-        if (e && e.name !== 'AbortError') {
-          alert('저장 실패: ' + (e.message || e));
-        }
-        btn.textContent = orig;
-        btn.disabled = false;
+        if (e && e.name === 'AbortError') { reset(); return; }  // 사용자가 취소
+        window.location = zipUrl;   // 파일 공유 미지원 → Zip 폴백
       }
     }
   </script>
