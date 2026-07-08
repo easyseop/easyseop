@@ -12,7 +12,7 @@ from sqlalchemy.orm import defer
 from ..auth import get_current_user
 from ..config import AUTH_ENABLED, UPLOAD_DIR
 from ..database import get_session, next_public_id
-from ..person_events import notify_new_person
+from ..person_events import notify_new_person, notify_person_audience
 from ..models import (
     Encounter,
     Gender,
@@ -539,6 +539,7 @@ def edit_person_form(
 async def update_person(
     request: Request,
     person_id: int,
+    background_tasks: BackgroundTasks,
     birth_year: int = Form(...),
     location: str = Form(...),
     workplace: str = Form(...),
@@ -569,6 +570,7 @@ async def update_person(
         or person.alias != alias
     )
     actor = get_current_user(request, session)
+    _notify_audience_change = False  # 공개 대상 확대 감지 플래그
     if text_changed:
         record_revision(session, person, actor)
         log_activity(
@@ -596,6 +598,14 @@ async def update_person(
         # visibility 변경은 owner (또는 책임자) 만 가능
         can_change_vis = bool(actor and (actor.is_owner or person.owner_user_id == actor.id))
         if can_change_vis:
+            # 변경 전 공개 상태 스냅샷 (audience 확대 감지용)
+            old_vis = person.visibility
+            old_allowed = set(session.exec(
+                select(PersonAllowedAdmin.user_id).where(
+                    PersonAllowedAdmin.person_id == person.id
+                )
+            ).all())
+
             try:
                 new_vis = PersonVisibility(visibility)
             except ValueError:
@@ -607,12 +617,23 @@ async def update_person(
             ).all()
             for paa in old:
                 session.delete(paa)
+            new_allowed: set[int] = set()
             if new_vis == PersonVisibility.RESTRICTED:
                 for uid in allowed_admins:
                     try:
-                        session.add(PersonAllowedAdmin(person_id=person.id, user_id=int(uid)))
+                        iuid = int(uid)
                     except (ValueError, TypeError):
-                        pass
+                        continue
+                    session.add(PersonAllowedAdmin(person_id=person.id, user_id=iuid))
+                    new_allowed.add(iuid)
+
+            # 공개 대상이 바뀌었으면 (범위 변경 또는 RESTRICTED 허용목록 변경) →
+            # 새로 볼 수 있게 된 사람에게만 알림 (중복 방지는 notify 내부 PersonNotified).
+            audience_changed = (old_vis != new_vis) or (
+                new_vis == PersonVisibility.RESTRICTED and old_allowed != new_allowed
+            )
+            if audience_changed:
+                _notify_audience_change = True
 
     person.updated_at = datetime.utcnow()
     session.add(person)
@@ -626,6 +647,15 @@ async def update_person(
         rel = _save_photo(person.id, upload)
         session.add(Photo(person_id=person.id, filename=rel, order=existing_count + i))
     session.commit()
+
+    # 공개 대상이 확대됐으면 새로 볼 수 있게 된 마담뚜에게만 알림 (백그라운드).
+    if _notify_audience_change:
+        background_tasks.add_task(
+            notify_person_audience,
+            person.id,
+            actor.id if actor and actor.id else None,
+            False,  # is_new=False → '📢 새로 공개된 매물'
+        )
     return RedirectResponse(f"/persons/{person.id}", status_code=303)
 
 

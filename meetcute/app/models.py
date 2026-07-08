@@ -181,6 +181,15 @@ class PersonAllowedAdmin(SQLModel, table=True):
     user_id: int = Field(foreign_key="user.id", primary_key=True)
 
 
+class PersonNotified(SQLModel, table=True):
+    """이 매물의 '새 매물/공개대상 추가' 텔레그램 알림을 이미 받은 (person, user) 기록.
+    공개 대상이 확대될 때 새로 추가된 마담뚜에게만 알림 보내고 중복 발송을 막기 위함.
+    등록자·수정자도 기록(알림은 안 가도 '이미 앎' 처리)."""
+    person_id: int = Field(foreign_key="person.id", primary_key=True)
+    user_id: int = Field(foreign_key="user.id", primary_key=True)
+    notified_at: datetime = Field(default_factory=datetime.utcnow)
+
+
 class Encounter(SQLModel, table=True):
     """소개팅 기록. Person 삭제 시 FK는 NULL, 스냅샷은 보존."""
     id: Optional[int] = Field(default=None, primary_key=True)
