@@ -10,10 +10,10 @@ from typing import Optional
 
 from sqlmodel import Session, select
 
-from .config import AUTH_ENABLED
+from .config import AUTH_ENABLED, UPLOAD_DIR
 from .database import engine
 from .models import Person, PersonAllowedAdmin, PersonVisibility, User
-from .notifications import send_telegram, telegram_enabled
+from .notifications import send_telegram, send_telegram_photos, telegram_enabled
 from .url_watcher import current_public_url
 
 logger = logging.getLogger("meetcute.person_events")
@@ -87,10 +87,23 @@ def notify_new_person(person_id: int, registered_by_user_id: Optional[int] = Non
             f"{vis_note}{link}"
         )
 
+        # 사진 첨부 — 최대 5장, 텔레그램 지원 포맷만 (HEIC 등은 자동 제외).
+        # send_telegram_photos 가 캡션(=msg)을 첫 사진에 얹어줌.
+        photo_paths: list[str] = []
+        for ph in sorted(person.photos, key=lambda x: x.order)[:5]:
+            p = UPLOAD_DIR / ph.filename
+            if p.exists():
+                photo_paths.append(str(p))
+
         sent = 0
         for u in audience:
             try:
-                ok, _ = send_telegram(u.telegram_chat_id, msg)
+                ok = False
+                if photo_paths:
+                    ok, _ = send_telegram_photos(u.telegram_chat_id, photo_paths, caption=msg)
+                if not ok:
+                    # 사진 없거나 사진 전송 실패 → 텍스트로 폴백
+                    ok, _ = send_telegram(u.telegram_chat_id, msg)
                 if ok:
                     sent += 1
             except Exception as e:

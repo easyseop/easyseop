@@ -341,6 +341,8 @@ async def create_person(
     notes: str = Form(""),
     alias: str = Form(""),
     owner_user_id: str = Form(""),  # 빈 문자열 = unassigned
+    visibility: str = Form("PUBLIC"),
+    allowed_admins: list[str] = Form(default=[]),
     photos: list[UploadFile] = File(default=[]),
     session: Session = Depends(get_session),
 ):
@@ -357,6 +359,19 @@ async def create_person(
         except ValueError:
             resolved_owner_id = None
 
+    # 공개 범위 — 등록 시점부터 설정 가능. owner 본인 또는 책임자만 RESTRICTED 지정.
+    actor0 = get_current_user(request, session)
+    resolved_vis = PersonVisibility.PUBLIC
+    if AUTH_ENABLED:
+        can_set_vis = bool(
+            actor0 and (actor0.is_owner or resolved_owner_id == actor0.id)
+        )
+        if can_set_vis:
+            try:
+                resolved_vis = PersonVisibility(visibility)
+            except ValueError:
+                resolved_vis = PersonVisibility.PUBLIC
+
     person = Person(
         public_id=public_id,
         gender=gender,
@@ -369,10 +384,20 @@ async def create_person(
         notes=notes,
         alias=alias,
         owner_user_id=resolved_owner_id,
+        visibility=resolved_vis,
     )
     session.add(person)
     session.commit()
     session.refresh(person)
+
+    # RESTRICTED 면 허용 admin 목록 저장
+    if AUTH_ENABLED and resolved_vis == PersonVisibility.RESTRICTED:
+        for uid in allowed_admins:
+            try:
+                session.add(PersonAllowedAdmin(person_id=person.id, user_id=int(uid)))
+            except (ValueError, TypeError):
+                pass
+        session.commit()
 
     for i, upload in enumerate(photos[:MAX_PHOTOS]):
         if not upload.filename:
