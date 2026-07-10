@@ -128,9 +128,9 @@
   </div>
   {% endif %}
 
-  {# 클립보드 복사용 plain text — 매물한테 카톡 보낼 때 사용. 사진/내부 메모/alias 제외. #}
+  {# 클립보드 복사 / 사진 공유용 plain text — 매물한테 카톡 보낼 때 사용.
+     사진·내부 메모·alias·매물번호·성별 제외 (사진으로 성별 보이니 불필요). #}
   {%- set _profile_lines = [] -%}
-  {%- set _ = _profile_lines.append('성별: ' ~ person.gender.label) -%}
   {%- if person.year_label and person.year_label != '—' -%}
     {%- set _ = _profile_lines.append('나이: ' ~ person.year_label) -%}
   {%- endif -%}
@@ -219,18 +219,25 @@
           const blob = await res.blob();
           const ext = (urls[i].split('.').pop() || 'jpg').toLowerCase();
           const type = blob.type || ('image/' + (ext === 'jpg' ? 'jpeg' : ext));
-          files.push(new File([blob], `${publicId}_${i + 1}.${ext}`, { type }));
+          // 파일명에 매물번호 안 넣음 (카톡 등에 노출 방지)
+          files.push(new File([blob], `photo_${i + 1}.${ext}`, { type }));
         }
       } catch (e) {
         window.location = zipUrl; return;   // 사진 fetch 실패 → Zip
       }
       if (!files.length) { alert('받을 사진이 없습니다'); reset(); return; }
 
+      // 매물번호(title) 대신 프로필 정보(성별 제외)를 함께 공유 → 카톡에 붙으면
+      // 사진 + 정보가 같이 감. 클립보드용 textarea 값 재사용.
+      const infoEl = document.getElementById('mc-profile-clipboard');
+      const shareText = infoEl ? infoEl.value : '';
+
       // canShare 사전검사로 막지 않고 바로 공유 시도 (일부 브라우저는 canShare=false
       // 라도 실제 share 는 됨). 실패(진짜 미지원)하면 그때 Zip 으로 폴백.
       try {
         btn.textContent = '📲 공유 시트…';
-        await navigator.share({ files, title: `${publicId} 매물 사진` });
+        const payload = shareText ? { files, text: shareText } : { files };
+        await navigator.share(payload);
         btn.textContent = '✓ 완료';
         setTimeout(reset, 1500);
       } catch (e) {
