@@ -134,6 +134,8 @@ def list_persons(
     activity: Optional[str] = None,  # 'never' | 'dormant' | 'active' | None
     owner: Optional[str] = None,     # 'mine' | 'unassigned' | 'user:<id>' | 'others' | None
     starred: Optional[str] = None,   # '1' = 별표만
+    birth_from: Optional[str] = None,  # 2자리 출생연도 (더 이른 쪽, 부터)
+    birth_to: Optional[str] = None,    # 2자리 출생연도 (더 늦은 쪽, 까지)
     sort: Optional[str] = None,      # 'recent_activity' | 'dormant' | 'created' (default)
     view: Optional[str] = None,      # 'list' | 'card' (default 'card')
     session: Session = Depends(get_session),
@@ -185,6 +187,34 @@ def list_persons(
                 persons = [p for p in persons if p.owner_user_id == target_uid]
             except ValueError:
                 pass
+
+    # 출생연도(나이) 범위 필터 — birth_year 는 암호화 저장이라 파이썬에서.
+    # 2자리 → 실제 연도(1900+/2000+) 로 변환해 비교. 부터(더 이른) ~ 까지(더 늦은).
+    def _parse_by(v: Optional[str]) -> Optional[int]:
+        try:
+            n = int(v)
+        except (TypeError, ValueError):
+            return None
+        return n if 0 <= n <= 99 else None
+
+    def _full_year(by: int) -> int:
+        return 1900 + by if by >= 50 else 2000 + by
+
+    by_from = _parse_by(birth_from)
+    by_to = _parse_by(birth_to)
+    if by_from is not None or by_to is not None:
+        lo = _full_year(by_from) if by_from is not None else None
+        hi = _full_year(by_to) if by_to is not None else None
+
+        def _in_year_range(p: Person) -> bool:
+            fy = _full_year(p.birth_year or 0)
+            if lo is not None and fy < lo:
+                return False
+            if hi is not None and fy > hi:
+                return False
+            return True
+
+        persons = [p for p in persons if _in_year_range(p)]
 
     # owner 정보 매핑 (목록 카드에 표시)
     owner_map: dict[int, User] = {}
@@ -259,6 +289,8 @@ def list_persons(
             "activity": activity or "",
             "owner": owner or "",
             "starred": starred or "",
+            "birth_from": birth_from or "",
+            "birth_to": birth_to or "",
             "sort": sort or "",
             "view": view if view in ("card", "list") else "card",
         },

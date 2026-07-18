@@ -60,6 +60,15 @@
       <option value="dormant" {% if activity == 'dormant' %}selected{% endif %}>30일+ 미활동</option>
       <option value="never" {% if activity == 'never' %}selected{% endif %}>한 번도 만남 X</option>
     </select>
+    {# 출생연도 범위 필터: 부터(더 이른/나이 많은) ~ 까지(더 늦은/나이 어린), 2자리 #}
+    <div class="flex items-center gap-1" title="출생연도 범위 (2자리). 예: 90 ~ 99">
+      <input type="number" name="birth_from" value="{{ birth_from }}" min="0" max="99" placeholder="90"
+             inputmode="numeric" class="w-14 px-2 py-1.5 border border-neutral-300 rounded-lg text-sm" />
+      <span class="text-neutral-400 text-sm">~</span>
+      <input type="number" name="birth_to" value="{{ birth_to }}" min="0" max="99" placeholder="99"
+             inputmode="numeric" class="w-14 px-2 py-1.5 border border-neutral-300 rounded-lg text-sm" />
+      <span class="text-neutral-500 text-xs whitespace-nowrap">년생</span>
+    </div>
     {% if AUTH_ENABLED %}
     <select name="owner" class="px-3 py-1.5 border border-neutral-300 rounded-lg text-sm">
       <option value="">전체 매물</option>
@@ -84,7 +93,7 @@
       <option value="dormant" {% if sort == 'dormant' %}selected{% endif %}>오래 잠자는순</option>
     </select>
     <button class="px-4 py-1.5 bg-neutral-800 text-white rounded-lg text-sm">적용</button>
-    {% if q or gender or status or activity or owner or starred or sort %}
+    {% if q or gender or status or activity or owner or starred or sort or birth_from or birth_to %}
     <a href="/persons" class="text-xs text-neutral-500 underline">초기화</a>
     {% endif %}
   </form>
