@@ -15,12 +15,47 @@ def _login(client, email):
     }, follow_redirects=False)
 
 
-def _mk(session, public_id, gender, by):
+def _mk(session, public_id, gender, by, height=170):
     from app.models import Person, Gender
-    p = Person(public_id=public_id, gender=Gender(gender), birth_year=by, height_cm=170)
+    p = Person(public_id=public_id, gender=Gender(gender), birth_year=by, height_cm=height)
     session.add(p)
     session.commit()
     return p
+
+
+def test_height_range_filter(client, session):
+    _register(client, "boss@x.com")
+    _mk(session, "F-001", "F", 95, height=158)
+    _mk(session, "F-002", "F", 95, height=165)
+    _mk(session, "M-001", "M", 92, height=180)
+    _login(client, "boss@x.com")
+    # 160 ~ 175 → F-002(165) 만
+    r = client.get("/persons?view=list&height_from=160&height_to=175")
+    assert r.status_code == 200
+    assert "F-002" in r.text
+    assert "F-001" not in r.text and "M-001" not in r.text
+
+
+def test_height_from_only(client, session):
+    _register(client, "boss@x.com")
+    _mk(session, "M-001", "M", 92, height=175)
+    _mk(session, "F-001", "F", 95, height=160)
+    _login(client, "boss@x.com")
+    r = client.get("/persons?view=list&height_from=170")
+    assert "M-001" in r.text
+    assert "F-001" not in r.text
+
+
+def test_height_and_birth_combined(client, session):
+    _register(client, "boss@x.com")
+    _mk(session, "F-001", "F", 95, height=165)  # 1995, 165
+    _mk(session, "F-002", "F", 99, height=165)  # 1999, 165
+    _mk(session, "F-003", "F", 95, height=175)  # 1995, 175
+    _login(client, "boss@x.com")
+    # 95년생 + 160~170 → F-001 만 (F-002 는 연도밖, F-003 은 키밖)
+    r = client.get("/persons?view=list&birth_from=95&birth_to=95&height_from=160&height_to=170")
+    assert "F-001" in r.text
+    assert "F-002" not in r.text and "F-003" not in r.text
 
 
 def test_birth_year_range_filter(client, session):

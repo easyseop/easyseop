@@ -136,6 +136,8 @@ def list_persons(
     starred: Optional[str] = None,   # '1' = 별표만
     birth_from: Optional[str] = None,  # 2자리 출생연도 (더 이른 쪽, 부터)
     birth_to: Optional[str] = None,    # 2자리 출생연도 (더 늦은 쪽, 까지)
+    height_from: Optional[str] = None,  # 키 cm 최소
+    height_to: Optional[str] = None,    # 키 cm 최대
     sort: Optional[str] = None,      # 'recent_activity' | 'dormant' | 'created' (default)
     view: Optional[str] = None,      # 'list' | 'card' (default 'card')
     session: Session = Depends(get_session),
@@ -216,6 +218,27 @@ def list_persons(
 
         persons = [p for p in persons if _in_year_range(p)]
 
+    # 키(cm) 범위 필터.
+    def _parse_h(v: Optional[str]) -> Optional[int]:
+        try:
+            n = int(v)
+        except (TypeError, ValueError):
+            return None
+        return n if 100 <= n <= 250 else None
+
+    h_from = _parse_h(height_from)
+    h_to = _parse_h(height_to)
+    if h_from is not None or h_to is not None:
+        def _in_height_range(p: Person) -> bool:
+            h = p.height_cm or 0
+            if h_from is not None and h < h_from:
+                return False
+            if h_to is not None and h > h_to:
+                return False
+            return True
+
+        persons = [p for p in persons if _in_height_range(p)]
+
     # owner 정보 매핑 (목록 카드에 표시)
     owner_map: dict[int, User] = {}
     if AUTH_ENABLED:
@@ -291,6 +314,8 @@ def list_persons(
             "starred": starred or "",
             "birth_from": birth_from or "",
             "birth_to": birth_to or "",
+            "height_from": height_from or "",
+            "height_to": height_to or "",
             "sort": sort or "",
             "view": view if view in ("card", "list") else "card",
         },

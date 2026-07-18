@@ -69,6 +69,15 @@
              inputmode="numeric" class="w-14 px-2 py-1.5 border border-neutral-300 rounded-lg text-sm" />
       <span class="text-neutral-500 text-xs whitespace-nowrap">년생</span>
     </div>
+    {# 키(cm) 범위 필터 #}
+    <div class="flex items-center gap-1" title="키 범위 (cm). 예: 160 ~ 175">
+      <input type="number" name="height_from" value="{{ height_from }}" min="100" max="250" placeholder="160"
+             inputmode="numeric" class="w-16 px-2 py-1.5 border border-neutral-300 rounded-lg text-sm" />
+      <span class="text-neutral-400 text-sm">~</span>
+      <input type="number" name="height_to" value="{{ height_to }}" min="100" max="250" placeholder="175"
+             inputmode="numeric" class="w-16 px-2 py-1.5 border border-neutral-300 rounded-lg text-sm" />
+      <span class="text-neutral-500 text-xs whitespace-nowrap">cm</span>
+    </div>
     {% if AUTH_ENABLED %}
     <select name="owner" class="px-3 py-1.5 border border-neutral-300 rounded-lg text-sm">
       <option value="">전체 매물</option>
@@ -93,7 +102,7 @@
       <option value="dormant" {% if sort == 'dormant' %}selected{% endif %}>오래 잠자는순</option>
     </select>
     <button class="px-4 py-1.5 bg-neutral-800 text-white rounded-lg text-sm">적용</button>
-    {% if q or gender or status or activity or owner or starred or sort or birth_from or birth_to %}
+    {% if q or gender or status or activity or owner or starred or sort or birth_from or birth_to or height_from or height_to %}
     <a href="/persons" class="text-xs text-neutral-500 underline">초기화</a>
     {% endif %}
   </form>
