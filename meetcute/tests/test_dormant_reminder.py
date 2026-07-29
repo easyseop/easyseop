@@ -87,6 +87,55 @@ def test_baseline_delays_existing_persons(client, session, monkeypatch):
     assert _send_dormant_person_reminders() == 1
 
 
+def test_force_ignores_baseline_and_cooldown(client, session, monkeypatch):
+    """force=True → baseline 이 방금(now)이어도 지금 즉시 발송."""
+    from app.auth import find_user_by_email
+    from app.reminders import _send_dormant_person_reminders
+
+    _register(client, "boss@x.com")
+    boss = find_user_by_email(session, "boss@x.com")
+    boss.telegram_chat_id = "111"
+    session.add(boss); session.commit()
+
+    _mk(session, "F-020", created_days_ago=30)
+    _clear_baseline()  # baseline=now → 평소엔 발송 안 됨
+    sent = _set_telegram(monkeypatch)
+
+    assert _send_dormant_person_reminders(force=False) == 0   # baseline 때문에 X
+    assert _send_dormant_person_reminders(force=True) == 1    # 강제 발송 O
+    assert "F-020" in sent[-1][1]
+
+
+def test_dormant_now_endpoint_owner_only(client, session, monkeypatch):
+    from app import reminders
+    from app.auth import find_user_by_email
+
+    _register(client, "boss@x.com")   # 책임자
+    _register(client, "noob@x.com")
+    client.cookies.clear()
+    client.post("/auth/login", data={"email": "boss@x.com", "password": "pw12345678"},
+                follow_redirects=False)
+    noob = find_user_by_email(session, "noob@x.com")
+    client.post(f"/users/{noob.id}/toggle-admin", follow_redirects=False)
+
+    monkeypatch.setattr(reminders, "telegram_enabled", lambda: True)
+    monkeypatch.setattr(reminders, "send_telegram", lambda *a, **k: (True, ""))
+
+    # 일반 마담뚜 → 403
+    client.cookies.clear()
+    client.post("/auth/login", data={"email": "noob@x.com", "password": "pw12345678"},
+                follow_redirects=False)
+    r = client.post("/stats/dormant-now", follow_redirects=False)
+    assert r.status_code == 403
+
+    # 책임자 → 303 redirect (성공)
+    client.cookies.clear()
+    client.post("/auth/login", data={"email": "boss@x.com", "password": "pw12345678"},
+                follow_redirects=False)
+    r = client.post("/stats/dormant-now", follow_redirects=False)
+    assert r.status_code == 303 and "/stats?ok=" in r.headers["location"]
+
+
 def test_recent_person_not_reminded(client, session, monkeypatch):
     from app.auth import find_user_by_email
     from app.reminders import _send_dormant_person_reminders

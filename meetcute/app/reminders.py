@@ -201,7 +201,7 @@ def _purge_expired_chats() -> int:
     return purged
 
 
-def _send_dormant_person_reminders() -> int:
+def _send_dormant_person_reminders(force: bool = False) -> int:
     """활동(만남)·프로필 수정·등록 중 가장 최근 시점이 DORMANT_REMINDER_DAYS(기본 14일)
     이상 지난 '소개 가능' 매물들을 모아, 전 마담뚜에게 '운명을 찾고 있어요' 알림.
 
@@ -209,6 +209,8 @@ def _send_dormant_person_reminders() -> int:
     - 중복 방지: 매물별 last_dormant_reminded_at 가 DORMANT_REMINDER_DAYS 이내면 스킵
       → 방치가 계속되면 2주 간격으로 재알림.
     - 공개 범위 존중: RESTRICTED 매물은 그걸 볼 수 있는 마담뚜의 다이제스트에만 포함.
+    - force=True: baseline·쿨다운 무시하고 지금 방치된 매물을 즉시 발송(수동 트리거).
+      발송 후엔 쿨다운 기록돼서 자동 스케줄은 정상대로 2주 간격.
     반환: 알림 발송한 마담뚜 수."""
     from datetime import date as _date
     from .services.status import (
@@ -249,9 +251,11 @@ def _send_dormant_person_reminders() -> int:
                 continue  # 아직 2주 안 지남
             # 재알림 쿨다운 — 한 번도 안 보낸 매물은 baseline('켠 시점')을 기준으로.
             # 그래야 기존 오래된 매물이 배포 즉시 알림 가는 대신 baseline+2주부터 시작.
-            eff_reminded = p.last_dormant_reminded_at or baseline
-            if eff_reminded > threshold:
-                continue
+            # force 면 이 게이트를 건너뛰어 지금 즉시 발송.
+            if not force:
+                eff_reminded = p.last_dormant_reminded_at or baseline
+                if eff_reminded > threshold:
+                    continue
             candidates.append(p)
 
         if not candidates:
