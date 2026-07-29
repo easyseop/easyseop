@@ -29,21 +29,8 @@ def _set_telegram(monkeypatch):
     return sent
 
 
-def _baseline_days_ago(days: int):
-    """방치 baseline 을 과거로 세팅 (= 기능이 그만큼 전부터 켜져 있던 것처럼)."""
-    from app import reminders
-    reminders.DORMANT_BASELINE_FILE.write_text(
-        (datetime.utcnow() - timedelta(days=days)).isoformat()
-    )
-
-
-def _clear_baseline():
-    from app import reminders
-    if reminders.DORMANT_BASELINE_FILE.exists():
-        reminders.DORMANT_BASELINE_FILE.unlink()
-
-
 def test_dormant_reminder_sends(client, session, monkeypatch):
+    """등록 2주+ 방치된 소개가능 매물 → 첫 실행에 바로 발송."""
     from app.auth import find_user_by_email
     from app.reminders import _send_dormant_person_reminders
 
@@ -53,7 +40,6 @@ def test_dormant_reminder_sends(client, session, monkeypatch):
     session.add(boss); session.commit()
 
     _mk(session, "F-001", created_days_ago=30)  # 30일 전 등록, 활동 없음
-    _baseline_days_ago(30)  # 기능이 30일 전부터 켜진 상태로 가정
     sent = _set_telegram(monkeypatch)
 
     n = _send_dormant_person_reminders()
@@ -61,30 +47,6 @@ def test_dormant_reminder_sends(client, session, monkeypatch):
     assert sent[0][0] == "111"
     assert "운명을 찾고" in sent[0][1]
     assert "F-001" in sent[0][1]
-
-
-def test_baseline_delays_existing_persons(client, session, monkeypatch):
-    """'지금부터 시작': baseline 이 방금이면 기존 오래된 매물도 즉시 알림 안 감.
-    baseline + 2주 지나야 첫 알림."""
-    from app.auth import find_user_by_email
-    from app.reminders import _send_dormant_person_reminders
-
-    _register(client, "boss@x.com")
-    boss = find_user_by_email(session, "boss@x.com")
-    boss.telegram_chat_id = "111"
-    session.add(boss); session.commit()
-
-    _mk(session, "F-010", created_days_ago=60)  # 60일 전 등록 (한참 방치)
-    _clear_baseline()  # baseline 없음 → 이번 실행이 '지금 켠 시점'
-    sent = _set_telegram(monkeypatch)
-
-    # 방금 켰으니(baseline=now) 아직 발송 X — 지금부터 2주 카운트
-    assert _send_dormant_person_reminders() == 0
-    assert sent == []
-
-    # baseline 을 15일 전으로 옮기면(2주 경과) → 이제 발송
-    _baseline_days_ago(15)
-    assert _send_dormant_person_reminders() == 1
 
 
 def test_recent_person_not_reminded(client, session, monkeypatch):
@@ -97,7 +59,6 @@ def test_recent_person_not_reminded(client, session, monkeypatch):
     session.add(boss); session.commit()
 
     _mk(session, "F-002", created_days_ago=3)  # 3일 전 → 아직 방치 아님
-    _baseline_days_ago(30)
     sent = _set_telegram(monkeypatch)
     n = _send_dormant_person_reminders()
     assert n == 0
@@ -115,7 +76,6 @@ def test_cooldown_prevents_duplicate(client, session, monkeypatch):
     session.add(boss); session.commit()
 
     p = _mk(session, "F-003", created_days_ago=30)
-    _baseline_days_ago(30)
     sent = _set_telegram(monkeypatch)
 
     assert _send_dormant_person_reminders() == 1   # 첫 발송
@@ -145,7 +105,6 @@ def test_matched_person_excluded(client, session, monkeypatch):
         met_on=date.today() - timedelta(days=30), outcome=EncounterOutcome.MATCHED,
     ))
     session.commit()
-    _baseline_days_ago(30)
 
     sent = _set_telegram(monkeypatch)
     n = _send_dormant_person_reminders()
@@ -179,7 +138,6 @@ def test_restricted_only_to_allowed(client, session, monkeypatch):
     p = _mk(session, "F-005", created_days_ago=30)
     p.visibility = PersonVisibility.RESTRICTED   # 허용목록 비어있음 → boss(책임자)만 봄
     session.add(p); session.commit()
-    _baseline_days_ago(30)
 
     sent = _set_telegram(monkeypatch)
     _send_dormant_person_reminders()
