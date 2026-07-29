@@ -14,7 +14,7 @@ from datetime import datetime, timedelta
 
 from sqlmodel import Session, select
 
-from .config import AUTH_ENABLED
+from .config import AUTH_ENABLED, BASE_DIR
 from .database import engine
 from .url_watcher import current_public_url
 from .models import (
@@ -37,6 +37,25 @@ ENCOUNTER_CONTINUING_DAYS = int(os.getenv("MEETCUTE_ENCOUNTER_CONTINUING_DAYS", 
 # '2주째 방치된 매물' 리마인더 — 활동/수정 없이 이 일수 지나면 전 마담뚜에게 재알림.
 DORMANT_REMINDER_DAYS = int(os.getenv("MEETCUTE_DORMANT_REMINDER_DAYS", "14"))
 DORMANT_DIGEST_MAX = 20  # 한 메시지에 나열할 최대 매물 수
+# 이 기능을 '켠 시점' 을 1회 기록. 기존 오래된 매물이 배포 즉시 무더기 알림
+# 가는 것 방지 ('지금부터 시작'). 재시작해도 유지 → 카운트 리셋 안 됨.
+DORMANT_BASELINE_FILE = BASE_DIR / ".dormant_baseline"
+
+
+def _dormant_baseline(now: datetime) -> datetime:
+    """방치 리마인더 시작 기준 시각. 파일 없으면 now 로 1회 기록.
+    never-reminded 매물은 이 baseline 을 '마지막 알림 시각'처럼 취급 → baseline
+    이후 DORMANT_REMINDER_DAYS 지나야 첫 알림. = 지금부터 2주 후 시작."""
+    try:
+        if DORMANT_BASELINE_FILE.exists():
+            return datetime.fromisoformat(DORMANT_BASELINE_FILE.read_text().strip())
+    except Exception:
+        pass
+    try:
+        DORMANT_BASELINE_FILE.write_text(now.isoformat())
+    except Exception as e:
+        logger.warning(f"failed to write dormant baseline: {e}")
+    return now
 
 
 def _person_summary(p):
@@ -203,6 +222,7 @@ def _send_dormant_person_reminders() -> int:
     now = datetime.utcnow()
     threshold = now - timedelta(days=DORMANT_REMINDER_DAYS)
     today = _date.today()
+    baseline = _dormant_baseline(now)  # '지금부터 시작' 기준
 
     with Session(engine) as session:
         persons = session.exec(select(Person)).all()
@@ -227,8 +247,10 @@ def _send_dormant_person_reminders() -> int:
                     last_touched = la_dt
             if last_touched > threshold:
                 continue  # 아직 2주 안 지남
-            # 매물별 재알림 쿨다운
-            if p.last_dormant_reminded_at and p.last_dormant_reminded_at > threshold:
+            # 재알림 쿨다운 — 한 번도 안 보낸 매물은 baseline('켠 시점')을 기준으로.
+            # 그래야 기존 오래된 매물이 배포 즉시 알림 가는 대신 baseline+2주부터 시작.
+            eff_reminded = p.last_dormant_reminded_at or baseline
+            if eff_reminded > threshold:
                 continue
             candidates.append(p)
 

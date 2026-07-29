@@ -7,6 +7,8 @@ uv.lock
 .encryption_key
 .public_url
 .last_known_url
+.last_startup_notice_at
+.dormant_baseline
 data/
 uploads/
 *.egg-info/
