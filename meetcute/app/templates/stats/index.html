@@ -90,18 +90,6 @@
 
   {# ── 마담뚜별 성과 (책임자 전용) ───────────────────────────── #}
   {% if current_user.is_owner %}
-  {# 방치 매물 알림 즉시 발송 (책임자 전용) #}
-  <div class="bg-white border border-neutral-200 rounded-xl p-5 flex items-center justify-between gap-3 flex-wrap">
-    <div>
-      <div class="font-semibold">💫 방치 매물 알림 지금 보내기</div>
-      <div class="text-xs text-neutral-500 mt-0.5">2주+ 방치된 '소개 가능' 매물을 전 마담뚜에게 지금 즉시 1회 발송. (이후 자동 스케줄은 2주 간격)</div>
-    </div>
-    <form method="post" action="/stats/dormant-now"
-          onsubmit="return confirm('지금 방치 매물 알림을 전 마담뚜에게 보낼까요?')">
-      <button class="px-4 py-2 bg-pink-600 text-white rounded-lg text-sm font-medium hover:bg-pink-700 whitespace-nowrap">지금 보내기</button>
-    </form>
-  </div>
-
   <div class="bg-white border border-neutral-200 rounded-xl p-5">
     <h2 class="font-semibold mb-1">👑 마담뚜별 성과</h2>
     <div class="text-xs text-neutral-400 mb-3">책임자만 보여요</div>
