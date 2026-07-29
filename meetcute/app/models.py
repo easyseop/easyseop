@@ -138,6 +138,8 @@ class Person(SQLModel, table=True):
     )
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
+    # '2주째 방치' 리마인더 마지막 발송 시각. 없으면 한 번도 안 보냄.
+    last_dormant_reminded_at: Optional[datetime] = Field(default=None)
 
     photos: list["Photo"] = Relationship(
         back_populates="person",

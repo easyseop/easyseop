@@ -34,6 +34,9 @@ CHECK_INTERVAL_SECONDS = int(os.getenv("MEETCUTE_REMINDER_CHECK_SECONDS", str(60
 # 만남 후속 알림 임계값 (일 단위)
 ENCOUNTER_PENDING_DAYS = int(os.getenv("MEETCUTE_ENCOUNTER_PENDING_DAYS", "7"))      # PENDING 7일 → "결과 어떻게?"
 ENCOUNTER_CONTINUING_DAYS = int(os.getenv("MEETCUTE_ENCOUNTER_CONTINUING_DAYS", "30"))  # CONTINUING 30일 → "혹시 진전?"
+# '2주째 방치된 매물' 리마인더 — 활동/수정 없이 이 일수 지나면 전 마담뚜에게 재알림.
+DORMANT_REMINDER_DAYS = int(os.getenv("MEETCUTE_DORMANT_REMINDER_DAYS", "14"))
+DORMANT_DIGEST_MAX = 20  # 한 메시지에 나열할 최대 매물 수
 
 
 def _person_summary(p):
@@ -179,6 +182,107 @@ def _purge_expired_chats() -> int:
     return purged
 
 
+def _send_dormant_person_reminders() -> int:
+    """활동(만남)·프로필 수정·등록 중 가장 최근 시점이 DORMANT_REMINDER_DAYS(기본 14일)
+    이상 지난 '소개 가능' 매물들을 모아, 전 마담뚜에게 '운명을 찾고 있어요' 알림.
+
+    - 대상: effective_status == AVAILABLE (매칭/진행/불가 매물 제외)
+    - 중복 방지: 매물별 last_dormant_reminded_at 가 DORMANT_REMINDER_DAYS 이내면 스킵
+      → 방치가 계속되면 2주 간격으로 재알림.
+    - 공개 범위 존중: RESTRICTED 매물은 그걸 볼 수 있는 마담뚜의 다이제스트에만 포함.
+    반환: 알림 발송한 마담뚜 수."""
+    from datetime import date as _date
+    from .services.status import (
+        PersonStatus,
+        effective_status,
+        grouped_encounters_for_persons,
+    )
+    from .services.activity import activity_for_persons
+    from .services.visibility import allowed_set_for_user, can_see_person
+
+    now = datetime.utcnow()
+    threshold = now - timedelta(days=DORMANT_REMINDER_DAYS)
+    today = _date.today()
+
+    with Session(engine) as session:
+        persons = session.exec(select(Person)).all()
+        if not persons:
+            return 0
+        grouped = grouped_encounters_for_persons(session, persons)
+        acts = activity_for_persons(session, persons, grouped=grouped)
+
+        candidates: list[Person] = []
+        for p in persons:
+            # 소개 가능 상태만 (운명 아직 못 찾은 매물)
+            if effective_status(p, grouped.get(p.id, [])) != PersonStatus.AVAILABLE:
+                continue
+            # 마지막 손댄 시점 = max(등록, 수정, 마지막 만남)
+            last_touched = p.created_at
+            if p.updated_at and p.updated_at > last_touched:
+                last_touched = p.updated_at
+            la = acts.get(p.id).last_activity if acts.get(p.id) else None
+            if la is not None:
+                la_dt = datetime(la.year, la.month, la.day)
+                if la_dt > last_touched:
+                    last_touched = la_dt
+            if last_touched > threshold:
+                continue  # 아직 2주 안 지남
+            # 매물별 재알림 쿨다운
+            if p.last_dormant_reminded_at and p.last_dormant_reminded_at > threshold:
+                continue
+            candidates.append(p)
+
+        if not candidates:
+            return 0
+
+        recipients = session.exec(
+            select(User).where(
+                User.is_admin == True,  # noqa: E712
+                User.telegram_chat_id != "",  # noqa: E712
+            )
+        ).all()
+
+        sent_admins = 0
+        if telegram_enabled() and recipients:
+            _url = current_public_url()
+            for r in recipients:
+                allowed = allowed_set_for_user(session, r)
+                visible = [c for c in candidates if can_see_person(c, r, allowed_set=allowed)]
+                if not visible:
+                    continue
+                lines = []
+                for p in visible[:DORMANT_DIGEST_MAX]:
+                    days = (today - p.created_at.date()).days
+                    lines.append(
+                        f"• <b>{p.public_id}</b> · {p.gender.label} · {p.year_label} · {p.location}"
+                    )
+                more = len(visible) - DORMANT_DIGEST_MAX
+                extra = f"\n… 외 {more}명" if more > 0 else ""
+                link = (
+                    f'\n\n→ <a href="{_url}/persons">전체 매물 보기</a>'
+                    if _url else "\n\n→ /persons 에서 확인"
+                )
+                msg = (
+                    f"💫 <b>아직 운명을 찾고 있어요</b>\n"
+                    f"2주 넘게 소식이 없는 매물이에요. 좋은 인연 있으면 소개해주세요 🙏\n\n"
+                    + "\n".join(lines)
+                    + extra
+                    + link
+                )
+                ok, _ = send_telegram(r.telegram_chat_id, msg)
+                if ok:
+                    sent_admins += 1
+
+        # 발송 여부와 무관하게(텔레그램 꺼져도) 쿨다운 갱신 — 다음 2주 뒤 재평가.
+        # 단, 실제로 아무한테도 못 보냈으면(텔레그램 off) 재시도 여지 위해 갱신 X.
+        if sent_admins > 0:
+            for p in candidates:
+                p.last_dormant_reminded_at = now
+                session.add(p)
+            session.commit()
+        return sent_admins
+
+
 async def reminder_loop():
     """FastAPI lifespan 에서 백그라운드 task 로 실행.
 
@@ -211,6 +315,12 @@ async def reminder_loop():
                     logger.info(f"sent {n_enc} encounter followup(s)")
             except Exception as e:
                 logger.exception(f"encounter followup loop error: {e}")
+            try:
+                n_dorm = _send_dormant_person_reminders()
+                if n_dorm:
+                    logger.info(f"sent dormant-person reminder to {n_dorm} admin(s)")
+            except Exception as e:
+                logger.exception(f"dormant reminder loop error: {e}")
         try:
             n_chat = _purge_expired_chats()
             if n_chat:
