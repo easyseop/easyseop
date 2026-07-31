@@ -49,6 +49,29 @@ def test_dormant_reminder_sends(client, session, monkeypatch):
     assert "F-001" in sent[0][1]
 
 
+def test_one_message_per_person(client, session, monkeypatch):
+    """방치 매물 2개 → 각각 개별 메시지 (다이제스트 1개 아님)."""
+    from app.auth import find_user_by_email
+    from app.reminders import _send_dormant_person_reminders
+
+    _register(client, "boss@x.com")
+    boss = find_user_by_email(session, "boss@x.com")
+    boss.telegram_chat_id = "111"
+    session.add(boss); session.commit()
+
+    _mk(session, "F-101", created_days_ago=30)
+    _mk(session, "F-102", created_days_ago=30)
+    sent = _set_telegram(monkeypatch)
+
+    n = _send_dormant_person_reminders()
+    assert n == 2                    # 매물 2개 = 메시지 2개
+    assert len(sent) == 2
+    texts = [t for _, t in sent]
+    # 각 메시지는 매물 하나만 담음
+    assert any("F-101" in t and "F-102" not in t for t in texts)
+    assert any("F-102" in t and "F-101" not in t for t in texts)
+
+
 def test_recent_person_not_reminded(client, session, monkeypatch):
     from app.auth import find_user_by_email
     from app.reminders import _send_dormant_person_reminders

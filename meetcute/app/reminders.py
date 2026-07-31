@@ -36,7 +36,6 @@ ENCOUNTER_PENDING_DAYS = int(os.getenv("MEETCUTE_ENCOUNTER_PENDING_DAYS", "7")) 
 ENCOUNTER_CONTINUING_DAYS = int(os.getenv("MEETCUTE_ENCOUNTER_CONTINUING_DAYS", "30"))  # CONTINUING 30일 → "혹시 진전?"
 # '2주째 방치된 매물' 리마인더 — 활동/수정 없이 이 일수 지나면 전 마담뚜에게 재알림.
 DORMANT_REMINDER_DAYS = int(os.getenv("MEETCUTE_DORMANT_REMINDER_DAYS", "14"))
-DORMANT_DIGEST_MAX = 20  # 한 메시지에 나열할 최대 매물 수
 
 
 def _person_summary(p):
@@ -191,7 +190,7 @@ def _send_dormant_person_reminders() -> int:
       → 방치가 계속되면 2주 간격으로 재알림.
     - 공개 범위 존중: RESTRICTED 매물은 그걸 볼 수 있는 마담뚜의 다이제스트에만 포함.
     반환: 알림 발송한 마담뚜 수."""
-    from datetime import date as _date
+    from .config import UPLOAD_DIR
     from .services.status import (
         PersonStatus,
         effective_status,
@@ -199,10 +198,10 @@ def _send_dormant_person_reminders() -> int:
     )
     from .services.activity import activity_for_persons
     from .services.visibility import allowed_set_for_user, can_see_person
+    from .notifications import send_telegram_photos
 
     now = datetime.utcnow()
     threshold = now - timedelta(days=DORMANT_REMINDER_DAYS)
-    today = _date.today()
 
     with Session(engine) as session:
         persons = session.exec(select(Person)).all()
@@ -243,45 +242,54 @@ def _send_dormant_person_reminders() -> int:
             )
         ).all()
 
-        sent_admins = 0
+        sent_msgs = 0        # 발송한 메시지 총 개수 (매물×수신자)
+        reminded_ids: set[int] = set()
         if telegram_enabled() and recipients:
             _url = current_public_url()
-            for r in recipients:
-                allowed = allowed_set_for_user(session, r)
-                visible = [c for c in candidates if can_see_person(c, r, allowed_set=allowed)]
-                if not visible:
-                    continue
-                lines = []
-                for p in visible[:DORMANT_DIGEST_MAX]:
-                    days = (today - p.created_at.date()).days
-                    lines.append(
-                        f"• <b>{p.public_id}</b> · {p.gender.label} · {p.year_label} · {p.location}"
-                    )
-                more = len(visible) - DORMANT_DIGEST_MAX
-                extra = f"\n… 외 {more}명" if more > 0 else ""
-                link = (
-                    f'\n\n→ <a href="{_url}/persons">전체 매물 보기</a>'
-                    if _url else "\n\n→ /persons 에서 확인"
-                )
-                msg = (
-                    f"💫 <b>아직 운명을 찾고 있어요</b>\n"
-                    f"2주 넘게 소식이 없는 매물이에요. 좋은 인연 있으면 소개해주세요 🙏\n\n"
-                    + "\n".join(lines)
-                    + extra
-                    + link
-                )
-                ok, _ = send_telegram(r.telegram_chat_id, msg)
-                if ok:
-                    sent_admins += 1
-
-        # 발송 여부와 무관하게(텔레그램 꺼져도) 쿨다운 갱신 — 다음 2주 뒤 재평가.
-        # 단, 실제로 아무한테도 못 보냈으면(텔레그램 off) 재시도 여지 위해 갱신 X.
-        if sent_admins > 0:
+            # 수신자별 허용목록 1회 캐싱 (매물마다 재쿼리 방지)
+            allowed_by_recipient = {r.id: allowed_set_for_user(session, r) for r in recipients}
+            # 매물 하나당 개별 메시지 (사진 포함) — 볼 수 있는 마담뚜에게만.
             for p in candidates:
-                p.last_dormant_reminded_at = now
-                session.add(p)
+                photo_paths = []
+                for ph in sorted(p.photos, key=lambda x: x.order)[:5]:
+                    fp = UPLOAD_DIR / ph.filename
+                    if fp.exists():
+                        photo_paths.append(str(fp))
+                link = (
+                    f'\n→ <a href="{_url}/persons/{p.id}">매물 자세히 보기</a>'
+                    if _url else f"\n→ 매물 자세히 보기: /persons/{p.id}"
+                )
+                caption = (
+                    f"💫 <b>아직 운명을 찾고 있어요</b>\n"
+                    f"2주 넘게 소식이 없어요. 좋은 인연 있으면 소개해주세요 🙏\n\n"
+                    f"<b>{p.public_id}</b> · {p.gender.label} · {p.year_label} · {p.height_cm}cm\n"
+                    f"📍 {p.location}\n"
+                    f"💼 {p.workplace}"
+                    f"{link}"
+                )
+                sent_this = False
+                for r in recipients:
+                    if not can_see_person(p, r, allowed_set=allowed_by_recipient.get(r.id, set())):
+                        continue
+                    ok = False
+                    if photo_paths:
+                        ok, _ = send_telegram_photos(r.telegram_chat_id, photo_paths, caption=caption)
+                    if not ok:
+                        ok, _ = send_telegram(r.telegram_chat_id, caption)
+                    if ok:
+                        sent_msgs += 1
+                        sent_this = True
+                if sent_this:
+                    reminded_ids.add(p.id)
+
+        # 실제로 발송된 매물만 쿨다운 갱신 (다음 2주 뒤 재평가).
+        if reminded_ids:
+            for p in candidates:
+                if p.id in reminded_ids:
+                    p.last_dormant_reminded_at = now
+                    session.add(p)
             session.commit()
-        return sent_admins
+        return sent_msgs
 
 
 async def reminder_loop():
@@ -319,7 +327,7 @@ async def reminder_loop():
             try:
                 n_dorm = _send_dormant_person_reminders()
                 if n_dorm:
-                    logger.info(f"sent dormant-person reminder to {n_dorm} admin(s)")
+                    logger.info(f"sent {n_dorm} dormant-person reminder message(s)")
             except Exception as e:
                 logger.exception(f"dormant reminder loop error: {e}")
         try:
