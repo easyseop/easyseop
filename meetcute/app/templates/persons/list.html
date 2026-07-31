@@ -100,6 +100,7 @@
       <option value="recent_update" {% if sort == 'recent_update' %}selected{% endif %}>최근 수정순</option>
       <option value="recent_activity" {% if sort == 'recent_activity' %}selected{% endif %}>최근 활동순</option>
       <option value="dormant" {% if sort == 'dormant' %}selected{% endif %}>오래 잠자는순</option>
+      <option value="views" {% if sort == 'views' %}selected{% endif %}>조회수순</option>
     </select>
     <button class="px-4 py-1.5 bg-neutral-800 text-white rounded-lg text-sm">적용</button>
     {% if q or gender or status or activity or owner or starred or sort or birth_from or birth_to or height_from or height_to %}
@@ -136,6 +137,7 @@
           <span class="text-xs text-neutral-400 shrink-0 hidden sm:inline">👤 {{ ow.display_name }}</span>
           {% endif %}
         {% endif %}
+        <span class="text-xs text-neutral-400 shrink-0" title="다른 마담뚜 조회수">👁 {{ p.view_count }}</span>
         {% if s %}
         <span class="px-2 py-0.5 rounded-full text-xs font-medium border {{ status_badge_class(s) }} shrink-0">
           {{ status_label(s) }}
@@ -207,6 +209,7 @@
         <div class="flex items-center gap-2">
           <span class="font-semibold">{{ p.year_label }}</span>
           <span class="text-neutral-500">· {{ p.location }}</span>
+          <span class="text-xs text-neutral-400 ml-auto" title="다른 마담뚜 조회수">👁 {{ p.view_count }}</span>
         </div>
         <div class="text-neutral-500 text-xs mt-0.5 truncate">{{ p.workplace }} · {{ p.height_cm }}cm</div>
         {# 이름(alias) 은 owner 본인 또는 책임자에게만 노출 (다른 마담뚜한테 안 보이게) #}

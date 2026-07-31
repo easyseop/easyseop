@@ -284,6 +284,8 @@ def list_persons(
                 return (0, p.created_at)
             return (1, s.last_activity)
         persons.sort(key=k)
+    elif sort == "views":
+        persons.sort(key=lambda p: (p.view_count or 0, p.created_at), reverse=True)
     else:
         persons.sort(key=lambda p: p.created_at, reverse=True)
 
@@ -486,13 +488,23 @@ def person_detail(
     if not person:
         raise HTTPException(404, "Person not found")
     _require_view(person, request, session)
+
+    current_user = get_current_user(request, session)
+    # 조회수 — owner 본인/미로그인 제외한 다른 마담뚜의 열람만 카운트 (관심도 지표).
+    # updated_at 은 안 건드림 → 방치 리마인더에 영향 X.
+    if (AUTH_ENABLED and current_user and current_user.id
+            and person.owner_user_id != current_user.id):
+        person.view_count = (person.view_count or 0) + 1
+        session.add(person)
+        session.commit()
+        session.refresh(person)
+
     photos = sorted(person.photos, key=lambda p: p.order)
     encs = encounters_for_person(session, person.id)
     status = effective_status(person, encs)
     activity = activity_for_person(session, person.id)
     revisions = revisions_for_person(session, person.id)
 
-    current_user = get_current_user(request, session)
     owner = session.get(User, person.owner_user_id) if person.owner_user_id else None
     is_my_person = bool(
         AUTH_ENABLED and current_user and current_user.id

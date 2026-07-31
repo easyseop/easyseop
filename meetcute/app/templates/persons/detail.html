@@ -21,9 +21,10 @@
           📋 복사
         </button>
       </h1>
-      {# 2행: 메타 정보 — gender / 출생연도 / status / 비공개 #}
+      {# 2행: 메타 정보 — gender / 출생연도 / status / 조회수 / 비공개 #}
       <div class="flex items-center gap-2 flex-wrap text-sm text-neutral-500 mt-1">
         <span>{{ person.gender.label }} · {{ person.year_label }}</span>
+        <span class="text-neutral-400" title="다른 마담뚜 조회수">👁 {{ person.view_count }}</span>
         <span class="px-2 py-0.5 rounded-full text-xs font-medium border {{ status_badge_class(status) }}">
           {{ status_label(status) }}{% if person.status_override %} 🔧{% endif %}
         </span>

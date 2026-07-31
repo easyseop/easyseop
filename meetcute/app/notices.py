@@ -14,6 +14,15 @@ init_db 의 _seed_notices_and_broadcast 가 자동으로:
 
 NOTICES = [
     {
+        "slug": "2026-07-30-view-count",
+        "title": "👁 매물별 조회수",
+        "body": (
+            "매물마다 '다른 마담뚜가 몇 번 봤는지' 조회수가 표시돼요 (관심도 지표). "
+            "매물 상세·목록에 👁 숫자로, 목록 정렬에 '조회수순'도 추가.\n"
+            "owner 본인이 자기 매물 보는 건 카운트 안 됨."
+        ),
+    },
+    {
         "slug": "2026-07-29-dormant-reminder",
         "title": "💫 2주째 방치 매물 '운명을 찾고 있어요' 알림",
         "body": (

@@ -140,6 +140,8 @@ class Person(SQLModel, table=True):
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     # '2주째 방치' 리마인더 마지막 발송 시각. 없으면 한 번도 안 보냄.
     last_dormant_reminded_at: Optional[datetime] = Field(default=None)
+    # 상세 페이지 조회수 — owner 본인 제외한 다른 마담뚜의 열람 횟수 (관심도 지표).
+    view_count: int = Field(default=0, index=True)
 
     photos: list["Photo"] = Relationship(
         back_populates="person",
