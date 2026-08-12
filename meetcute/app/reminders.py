@@ -239,6 +239,7 @@ def _send_dormant_person_reminders() -> int:
             select(User).where(
                 User.is_admin == True,  # noqa: E712
                 User.telegram_chat_id != "",  # noqa: E712
+                User.dormant_reminder_enabled == True,  # noqa: E712 끌올 알림 켠 사람만
             )
         ).all()
 

@@ -159,15 +159,29 @@ def list_persons(
         stmt = stmt.where(Person.gender == gender_enum)
     if starred == "1":
         stmt = stmt.where(Person.is_starred == True)  # noqa: E712
-    if q:
-        like = f"%{q}%"
-        # 거주지/직장은 암호화 저장 → DB LIKE 가 안 됨. 검색은 public_id / alias 만.
-        # alias 는 LegacyEncryptedText: 새 데이터는 평문이라 LIKE 가능 (옛 enc1: 데이터는 안 잡힘 → 한 번 저장하면 평문화).
-        stmt = stmt.where(
-            (Person.public_id.like(like))
-            | (Person.alias.like(like))
-        )
+    # q(검색)는 파이썬에서 부분일치. public_id 는 평문이지만 대소문자·하이픈·앞자리0
+    # 무시하고 유연하게 (m-051 / M-051 / 051 / 51 모두 매치). alias 는 암호화 저장이라
+    # DB LIKE 불가 → 여기서 복호화된 값으로 비교.
     persons = session.exec(stmt).all()
+
+    # q(검색) 부분일치 — public_id/alias. 대소문자 무관 + 숫자만으로도 매칭.
+    if q and q.strip():
+        import re as _re
+        qn = q.strip().lower()
+        qdigits = _re.sub(r"\D", "", qn)
+
+        def _q_match(p: Person) -> bool:
+            pid = (p.public_id or "").lower()
+            if qn in pid:
+                return True
+            # 숫자만 입력 시: public_id 숫자부분에 부분일치 (051, 51 → M-051)
+            if qdigits and qdigits in _re.sub(r"\D", "", pid):
+                return True
+            if p.alias and qn in p.alias.lower():
+                return True
+            return False
+
+        persons = [p for p in persons if _q_match(p)]
 
     # 공개범위 필터: 책임자가 아니라면 RESTRICTED 매물 중 허락 안 된 것 제외
     if AUTH_ENABLED and current_user and current_user.id and not current_user.is_owner:

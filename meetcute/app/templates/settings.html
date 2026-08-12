@@ -143,6 +143,27 @@
     </form>
   </div>
 
+  {# 알림 수신 설정 — 끌올(2주 방치 매물) 알림 on/off #}
+  <div class="bg-white border border-neutral-200 rounded-xl p-6 space-y-3">
+    <h2 class="font-semibold">🔔 알림 수신 설정</h2>
+    <form method="post" action="/settings/dormant-reminder"
+          class="flex items-center justify-between gap-3 flex-wrap">
+      <div>
+        <div class="text-sm font-medium">💫 끌올 알림 (방치 매물)</div>
+        <div class="text-xs text-neutral-500 mt-0.5">
+          2주 넘게 소식 없는 '소개 가능' 매물을 텔레그램으로 다시 알려주는 기능.
+          너무 많이 오면 여기서 끌 수 있어요. (소개 요청/새 매물 등 다른 알림은 계속 옴)
+        </div>
+      </div>
+      <label class="inline-flex items-center gap-2 cursor-pointer shrink-0">
+        <input type="checkbox" name="enabled" value="1"
+               {% if current_user.dormant_reminder_enabled %}checked{% endif %}
+               onchange="this.form.submit()" class="w-5 h-5 accent-pink-600" />
+        <span class="text-sm">{% if current_user.dormant_reminder_enabled %}켬{% else %}끔{% endif %}</span>
+      </label>
+    </form>
+  </div>
+
   {% if db_info %}
   <div class="bg-white border border-neutral-200 rounded-xl p-6 space-y-3">
     <h2 class="font-semibold">💾 데이터 / 시스템 상태</h2>

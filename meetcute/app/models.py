@@ -90,6 +90,8 @@ class User(SQLModel, table=True):
     is_admin: bool = False
     is_owner: bool = False   # 책임자 (배포자). 첫 가입자 자동 부여. 다른 마담뚜의 민감정보(텔레그램 chat_id 등) 열람 가능.
     telegram_chat_id: str = Field(default="", max_length=64)
+    # '끌올'(2주 방치 매물) 알림 수신 여부. 너무 많이 온다는 마담뚜는 끌 수 있음.
+    dormant_reminder_enabled: bool = Field(default=True)
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
     @property

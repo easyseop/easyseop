@@ -300,6 +300,26 @@ def change_password(
     )
 
 
+@router.post("/dormant-reminder")
+def save_dormant_pref(
+    enabled: str = Form(""),  # "1" = 켬, 빈값 = 끔
+    current_user: User = Depends(require_login),
+    session: Session = Depends(get_session),
+):
+    """'끌올'(2주 방치 매물) 알림 수신 on/off. 너무 많이 온다는 마담뚜용."""
+    if not AUTH_ENABLED:
+        return RedirectResponse("/", status_code=303)
+    user = session.get(User, current_user.id)
+    if not user:
+        return RedirectResponse("/", status_code=303)
+    user.dormant_reminder_enabled = (enabled == "1")
+    session.add(user)
+    session.commit()
+    state = "켬" if user.dormant_reminder_enabled else "끔"
+    from urllib.parse import quote
+    return RedirectResponse("/settings?flash=" + quote(f"끌올 알림 {state}"), status_code=303)
+
+
 @router.post("/telegram")
 def save_telegram(
     chat_id: str = Form(""),
