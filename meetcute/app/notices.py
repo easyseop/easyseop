@@ -14,6 +14,16 @@ init_db 의 _seed_notices_and_broadcast 가 자동으로:
 
 NOTICES = [
     {
+        "slug": "2026-09-12-pending-account-hardening",
+        "title": "🔒 승격 안 된 계정 노출 축소",
+        "body": (
+            "가입만 하고 마담뚜로 승격 안 된 계정은 원래도 매물·만남·요청·대화·통계·"
+            "사진에 전부 접근 못 했는데, '내정보'의 🔍 자동 감지(다른 마담뚜 텔레그램 "
+            "이름·chat_id 목록)도 이제 마담뚜 전용으로 막았어요.\n"
+            "의심 계정이 가입하면 승격하지 말고 /users 에서 삭제하면 됩니다."
+        ),
+    },
+    {
         "slug": "2026-07-30-search-and-dormant-toggle",
         "title": "🔎 검색 유연화 + 끌올 알림 끄기",
         "body": (

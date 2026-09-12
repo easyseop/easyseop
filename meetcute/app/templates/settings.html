@@ -91,7 +91,7 @@
     <details class="bg-neutral-50 rounded-lg p-3 text-sm">
       <summary class="cursor-pointer font-medium">📖 chat_id 어떻게 받지?</summary>
       <div class="mt-2 space-y-2 text-neutral-600">
-        <p><strong>방법 1 (추천):</strong> 본인이 만든 봇에 텔레그램에서 아무 메시지(<code class="bg-neutral-200 px-1 rounded">/start</code> 또는 "hi" 등)나 보낸 후 → 아래 <strong>🔍 자동 감지</strong> 버튼.</p>
+        <p><strong>방법 1 (추천):</strong> 본인이 만든 봇에 텔레그램에서 아무 메시지(<code class="bg-neutral-200 px-1 rounded">/start</code> 또는 "hi" 등)나 보낸 후 → 봇이 답장으로 알려주는 <strong>chat_id</strong> 를 아래 칸에 입력.{% if current_user.is_admin %} 또는 아래 <strong>🔍 자동 감지</strong> 버튼.{% endif %}</p>
         <p><strong>방법 2:</strong> 텔레그램에서 <strong>@get_id_bot</strong> 검색 → /start → 답장에서 chat_id 확인 → 직접 입력.</p>
         <p><strong>방법 3:</strong> 브라우저에서 <code class="bg-neutral-200 px-1 rounded">https://api.telegram.org/bot&lt;TOKEN&gt;/getUpdates</code> → JSON 에서 <code>"chat":{"id":...}</code> 찾기.</p>
       </div>
@@ -135,10 +135,12 @@
           🧪 테스트 메시지 보내기
         </button>
         {% endif %}
+        {% if current_user.is_admin %}
         <a href="/settings?detect=1"
            class="px-4 py-2 border border-neutral-300 rounded-lg text-sm hover:bg-neutral-50 ml-auto">
           🔍 자동 감지
         </a>
+        {% endif %}
       </div>
     </form>
   </div>

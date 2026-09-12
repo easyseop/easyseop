@@ -163,10 +163,13 @@ def settings_page(
     detect_error = ""
     bot_username = ""
     bot_error = ""
-    if telegram_enabled():
-        bot_username, bot_error = _bot_info()
-    if detect:
-        detected_chats, detect_error = _detect_chats()
+    # 봇 정보 / 자동 감지는 '다른 사람들의 텔레그램 이름·chat_id' 가 노출되므로
+    # 마담뚜(is_admin) 전용. 승격 안 된 대기 계정은 본인 설정만 볼 수 있어야 함.
+    if user.is_admin:
+        if telegram_enabled():
+            bot_username, bot_error = _bot_info()
+        if detect:
+            detected_chats, detect_error = _detect_chats()
 
     db_info = _db_stats(session) if user.is_admin else None
 
@@ -180,7 +183,7 @@ def settings_page(
             "bot_error": bot_error,
             "detected_chats": detected_chats,
             "detect_error": detect_error,
-            "detect_attempted": bool(detect),
+            "detect_attempted": bool(detect) and user.is_admin,
             "db_info": db_info,
             "flash": flash,
             "ok": ok,
