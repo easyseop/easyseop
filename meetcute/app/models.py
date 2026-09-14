@@ -118,12 +118,12 @@ class Person(SQLModel, table=True):
     # 출생연도 2자리. 50-99 = 19xx, 00-49 = 20xx 로 해석. 새 entry 의 메인 필드.
     birth_year: int = Field(default=0, sa_column=Column(IntEncryptedText(), nullable=False))
     location: str = Field(default="", sa_column=_enc_text_col())
-    workplace: str = Field(default="", sa_column=_legacy_enc_text_col())
+    workplace: str = Field(default="", sa_column=_enc_text_col())
     height_cm: int
-    # 메모/취향 — 평문 + 옛 enc1: 데이터는 자동 복호화 (점진 마이그레이션)
-    ideal_type: str = Field(default="", sa_column=_legacy_enc_text_col())
-    notes: str = Field(default="", sa_column=_legacy_enc_text_col())
-    alias: str = Field(default="", sa_column=_legacy_enc_text_col())
+    # 메모/취향 — 개인정보라 암호화 저장 (옛 평문 데이터도 자동으로 읽힘)
+    ideal_type: str = Field(default="", sa_column=_enc_text_col())
+    notes: str = Field(default="", sa_column=_enc_text_col())
+    alias: str = Field(default="", sa_column=_enc_text_col())
     owner_user_id: Optional[int] = Field(default=None, foreign_key="user.id", index=True)
     visibility: PersonVisibility = Field(
         default=PersonVisibility.PUBLIC,
@@ -208,7 +208,7 @@ class Encounter(SQLModel, table=True):
         default=EncounterOutcome.PENDING,
         sa_column=_enum_col(EncounterOutcome),
     )
-    notes: str = Field(default="", sa_column=_legacy_enc_text_col())
+    notes: str = Field(default="", sa_column=_enc_text_col())
     # 후속 리마인더: PENDING 7일+ 또는 CONTINUING 30일+ 이면 양쪽 owner 에게
     # 텔레그램 알림 ("결과 어떻게 됐어요?"). 보낸 시각 기록해서 중복 방지.
     last_reminded_at: Optional[datetime] = Field(default=None)
@@ -224,7 +224,7 @@ class PersonRevision(SQLModel, table=True):
     """
     id: Optional[int] = Field(default=None, primary_key=True)
     person_id: int = Field(foreign_key="person.id", index=True)
-    snapshot_json: str = Field(sa_column=_legacy_enc_text_col_required())
+    snapshot_json: str = Field(sa_column=_enc_text_col_required())
     changed_by_user_id: Optional[int] = Field(default=None, foreign_key="user.id")
     changed_by_email: str = Field(default="", max_length=255)
     changed_at: datetime = Field(default_factory=datetime.utcnow)
@@ -262,12 +262,12 @@ class IntroductionRequest(SQLModel, table=True):
     to_user_id: int = Field(foreign_key="user.id", index=True)
     my_person_id: int = Field(foreign_key="person.id", index=True)
     their_person_id: int = Field(foreign_key="person.id", index=True)
-    message: str = Field(default="", sa_column=_legacy_enc_text_col())
+    message: str = Field(default="", sa_column=_enc_text_col())
     status: IntroRequestStatus = Field(
         default=IntroRequestStatus.PENDING,
         sa_column=_enum_col(IntroRequestStatus),
     )
-    response_note: str = Field(default="", sa_column=_legacy_enc_text_col())
+    response_note: str = Field(default="", sa_column=_enc_text_col())
     # 양방 매물 동의 상태. 둘 다 AGREED 되는 순간 → status=ACCEPTED + Encounter 자동 생성.
     # sender_own_consent: 보낸이(A) 의 매물 동의 상태
     # receiver_own_consent: 받은이(B) 의 매물 동의 상태
@@ -282,7 +282,7 @@ class IntroductionRequest(SQLModel, table=True):
     # 거절된 요청에 보낸이가 남기는 "마지막 한 마디" (한 번만 입력 가능).
     # 예: "혹시 나중에 상황 바뀌면 언제든 연락주세요 ~"
     # status==DECLINED 이고 비어있을 때만 입력 가능. 텔레그램으로 받은이에게 알림.
-    final_note: str = Field(default="", sa_column=_legacy_enc_text_col())
+    final_note: str = Field(default="", sa_column=_enc_text_col())
     resolved_encounter_id: Optional[int] = Field(default=None, foreign_key="encounter.id")
     last_reminded_at: Optional[datetime] = Field(default=None)  # 마지막 재알림 시각 (없으면 한 번도 안 보냄)
     created_at: datetime = Field(default_factory=datetime.utcnow)
@@ -295,7 +295,7 @@ class BlacklistedPair(SQLModel, table=True):
     중복 행 방지."""
     person_a_id: int = Field(foreign_key="person.id", primary_key=True)
     person_b_id: int = Field(foreign_key="person.id", primary_key=True)
-    reason: str = Field(default="", sa_column=_legacy_enc_text_col())
+    reason: str = Field(default="", sa_column=_enc_text_col())
     created_by_user_id: Optional[int] = Field(default=None, foreign_key="user.id")
     created_by_display: str = Field(default="", max_length=128)
     created_at: datetime = Field(default_factory=datetime.utcnow)
@@ -404,7 +404,7 @@ class ActivityLog(SQLModel, table=True):
     action: str = Field(max_length=64, index=True)
     target_type: str = Field(default="", max_length=32)
     target_id: Optional[int] = Field(default=None)
-    summary: str = Field(default="", sa_column=_legacy_enc_text_col())
+    summary: str = Field(default="", sa_column=_enc_text_col())
     created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
 
 
@@ -418,7 +418,7 @@ class EncounterEvent(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     encounter_id: int = Field(foreign_key="encounter.id", index=True)
     outcome: EncounterOutcome = Field(sa_column=_enum_col(EncounterOutcome))
-    note: str = Field(default="", sa_column=_legacy_enc_text_col())
+    note: str = Field(default="", sa_column=_enc_text_col())
     changed_by_user_id: Optional[int] = Field(default=None, foreign_key="user.id")
     changed_by_email: str = Field(default="", max_length=255)
     created_at: datetime = Field(default_factory=datetime.utcnow)

@@ -1,27 +1,28 @@
-"""필드 수준 암호화 — 매물의 민감한 텍스트를 DB 에 평문으로 저장 안 함.
+"""필드 수준 암호화 — 개인정보를 DB 에 평문으로 저장 안 함.
 
-암호화 대상 (개인정보/메모 성격):
-  - Person.alias (이름)
-  - Person.ideal_type, Person.notes (이상형 / 주선자 메모)
+암호화 대상 (EncryptedText / IntEncryptedText):
+  - User.email, User.password_hash (bcrypt 해시를 한 번 더 감쌈)
+  - Person.alias(이름 메모), location, workplace, ideal_type, notes, age, birth_year
   - Encounter.notes, EncounterEvent.note
-  - IntroductionRequest.message, response_note
-  - PersonRevision.snapshot_json
+  - IntroductionRequest.message, response_note, final_note
+  - PersonRevision.snapshot_json (과거 값 전체)
+  - BlacklistedPair.reason, ActivityLog.summary, ChatMessage.body
 
-비암호화 (필터/검색/조회에 필요):
-  - public_id, gender, age, height_cm (필터)
-  - location, workplace (검색)
-  - email, nickname, telegram_chat_id (조회)
-  - password_hash (이미 일방향 bcrypt)
+비암호화 (필터/정렬/조회에 필요하거나 민감하지 않음):
+  - public_id, gender, height_cm, view_count (필터/정렬)
+  - nickname, telegram_chat_id
+  - Notice.body (앱 기능 공지 — 개인정보 아님)
   - 날짜 / FK / enum
 
 키 관리:
   - `.encryption_key` 파일에 Fernet 키 (chmod 600, gitignored)
   - 첫 부팅 시 자동 생성
   - **이 파일 잃어버리면 암호화된 데이터 복구 불가 — 백업 필수**
+  - ⚠️ DB 백업과 **다른 곳**에 보관하세요. 같이 두면 암호화 의미가 없습니다.
 
 백워드 호환:
   - 기존 평문 데이터는 그대로 읽힘 (prefix 가 없으면 평문으로 간주)
-  - 한 번 write 되면 그때부터 암호화됨
+  - 부팅 시 `database._encrypt_legacy_plaintext_fields()` 가 평문 행을 일괄 재암호화
 """
 from __future__ import annotations
 

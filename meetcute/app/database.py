@@ -247,12 +247,92 @@ def _seed_notices_and_broadcast() -> None:
         s.commit()
 
 
+def _encrypt_legacy_plaintext_fields() -> None:
+    """LegacyEncryptedText 로 '평문' 저장돼 있던 민감 필드들을 일괄 재암호화.
+
+    이름 메모(alias)·주선자 메모·이상형·직장·소개요청 메시지 등이 과거엔 DB 에
+    평문으로 들어갔다. 컬럼 타입을 EncryptedText 로 바꾼 뒤, 이미 저장된 평문
+    행들을 여기서 enc1: 토큰으로 변환한다.
+
+    - enc1: prefix 가 없는 값만 골라서 UPDATE → 한 번 돌면 idempotent
+    - SELECT 단계에서 미암호화 행만 걸러내므로 2회차부터는 사실상 무비용
+    - LIKE 대신 substr() 사용 (드라이버 paramstyle 의 % 해석 회피)
+    """
+    from sqlalchemy import inspect, text
+
+    from .crypto import encrypt_str
+
+    # (table, pk_cols, value_cols)
+    targets = [
+        ("person", ["id"], ["workplace", "ideal_type", "notes", "alias"]),
+        ("encounter", ["id"], ["notes"]),
+        ("personrevision", ["id"], ["snapshot_json"]),
+        ("introductionrequest", ["id"], ["message", "response_note", "final_note"]),
+        ("encounterevent", ["id"], ["note"]),
+        ("activitylog", ["id"], ["summary"]),
+        ("blacklistedpair", ["person_a_id", "person_b_id"], ["reason"]),
+    ]
+
+    insp = inspect(engine)
+    existing_tables = set(insp.get_table_names())
+    total = 0
+    with engine.connect() as conn:
+        for table, pk_cols, value_cols in targets:
+            if table not in existing_tables:
+                continue
+            cols = {c["name"] for c in insp.get_columns(table)}
+            use_cols = [c for c in value_cols if c in cols]
+            if not use_cols or not all(p in cols for p in pk_cols):
+                continue
+
+            conds = " OR ".join(
+                f"({c} IS NOT NULL AND {c} <> '' AND substr({c}, 1, 5) <> 'enc1:')"
+                for c in use_cols
+            )
+            select_cols = ", ".join(pk_cols + use_cols)
+            rows = conn.execute(
+                text(f"SELECT {select_cols} FROM {table} WHERE {conds}")
+            ).fetchall()
+            if not rows:
+                continue
+
+            changed = 0
+            for row in rows:
+                pk_vals = list(row[: len(pk_cols)])
+                vals = list(row[len(pk_cols):])
+                sets: dict[str, str] = {}
+                for cname, v in zip(use_cols, vals):
+                    if v is None or v == "":
+                        continue
+                    sv = str(v)
+                    if sv.startswith("enc1:"):
+                        continue
+                    sets[cname] = encrypt_str(sv)
+                if not sets:
+                    continue
+                set_sql = ", ".join(f"{c} = :{c}" for c in sets)
+                where_sql = " AND ".join(f"{p} = :pk{i}" for i, p in enumerate(pk_cols))
+                params = dict(sets)
+                for i, pv in enumerate(pk_vals):
+                    params[f"pk{i}"] = pv
+                conn.execute(
+                    text(f"UPDATE {table} SET {set_sql} WHERE {where_sql}"), params
+                )
+                changed += 1
+            if changed:
+                conn.commit()
+                total += changed
+    if total:
+        print(f"🔐 평문으로 남아있던 민감 필드 {total}건 재암호화 완료")
+
+
 def init_db() -> None:
     _ensure_database_exists(DATABASE_URL)
     SQLModel.metadata.create_all(engine)
     _ensure_columns()
     _backfill_nicknames_and_owner()
     _encrypt_legacy_user_credentials()
+    _encrypt_legacy_plaintext_fields()
     _migrate_age_to_birth_year()
     _backfill_accepted_consent()
     _seed_notices_and_broadcast()
