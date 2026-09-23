@@ -86,51 +86,6 @@ def _db_stats(session: Session) -> dict:
 router = APIRouter(prefix="/settings", tags=["settings"])
 
 
-def _server_public_ip() -> tuple[str, str]:
-    """이 서버(=맥북)가 밖으로 나갈 때 쓰는 공인 IP = 집 인터넷 IP.
-
-    맥북 앞에 없을 때 폰으로 /settings 열어서 확인하려고 둔 임시 기능.
-    외부 조회 서비스 2곳을 순서대로 시도 (하나 죽어도 동작).
-    Returns: (ip, error)
-    """
-    for url in ("https://api.ipify.org", "https://ifconfig.me/ip"):
-        try:
-            with urllib.request.urlopen(url, timeout=4, context=SSL_CONTEXT) as resp:
-                ip = resp.read().decode("utf-8", errors="replace").strip()
-            if ip:
-                return ip, ""
-        except Exception:
-            continue
-    return "", "조회 실패 (서버 인터넷 연결 확인)"
-
-
-def _server_local_ips() -> list[str]:
-    """맥북이 공유기에서 받은 사설 IP (192.168.x.x / 172.x / 10.x).
-    사내망 방화벽처럼 '기기 자체' 주소를 요구할 때 씀. 임시 기능."""
-    import socket
-
-    out: list[str] = []
-    try:
-        # 외부로 UDP '연결'(실제 전송 X) → 기본 경로로 나가는 인터페이스 주소 확인
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        try:
-            s.connect(("8.8.8.8", 80))
-            out.append(s.getsockname()[0])
-        finally:
-            s.close()
-    except Exception:
-        pass
-    try:
-        for info in socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET):
-            ip = info[4][0]
-            if ip.startswith("127.") or ip in out:
-                continue
-            out.append(ip)
-    except Exception:
-        pass
-    return out
-
-
 def _bot_info() -> tuple[str, str]:
     """봇 username 조회 (getMe). 실패 시 빈 문자열."""
     if not BOT_TOKEN:
@@ -217,12 +172,6 @@ def settings_page(
             detected_chats, detect_error = _detect_chats()
 
     db_info = _db_stats(session) if user.is_admin else None
-    # 집(서버) 공인 IP + 맥북 사설 IP — 맥북 앞에 없을 때 폰으로 확인용. 마담뚜만. (임시)
-    server_ip, server_ip_error = ("", "")
-    server_local_ips: list[str] = []
-    if user.is_admin:
-        server_ip, server_ip_error = _server_public_ip()
-        server_local_ips = _server_local_ips()
 
     return templates.TemplateResponse(
         request,
@@ -236,9 +185,6 @@ def settings_page(
             "detect_error": detect_error,
             "detect_attempted": bool(detect) and user.is_admin,
             "db_info": db_info,
-            "server_ip": server_ip,
-            "server_ip_error": server_ip_error,
-            "server_local_ips": server_local_ips,
             "flash": flash,
             "ok": ok,
             "err": err,

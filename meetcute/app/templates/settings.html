@@ -145,48 +145,6 @@
     </form>
   </div>
 
-  {# ⚠️ 임시 기능 — 집 공인 IP 확인용. 확인 끝나면 이 블록 + settings.py 의
-     _server_public_ip() 호출부를 제거할 것. #}
-  {% if current_user.is_admin %}
-  <div class="bg-white border-2 border-amber-300 rounded-xl p-6 space-y-2">
-    <h2 class="font-semibold">🌐 우리집 공인 IP <span class="text-xs font-normal text-amber-700">(임시 — 확인 후 삭제 예정)</span></h2>
-    {% if server_ip %}
-    <div class="flex items-center gap-2 flex-wrap">
-      <code class="text-xl font-mono font-bold bg-neutral-100 px-3 py-2 rounded-lg select-all">{{ server_ip }}</code>
-      <button type="button"
-              onclick="navigator.clipboard.writeText('{{ server_ip }}'); this.textContent='✓ 복사됨';"
-              class="text-xs px-3 py-2 border border-neutral-300 rounded-lg hover:bg-neutral-50">
-        📋 복사
-      </button>
-    </div>
-    <p class="text-xs text-neutral-500">
-      서버(맥북)가 인터넷으로 나갈 때 쓰는 주소 = 집 인터넷 공인 IP.
-      방화벽/접속 허용 목록에 등록할 때 이 값을 쓰세요.
-      한국 가정용은 <strong>유동 IP</strong> 라 공유기 재부팅 등으로 바뀔 수 있어요.
-    </p>
-    {% else %}
-    <div class="bg-amber-50 border border-amber-200 text-amber-800 rounded-lg p-3 text-sm">
-      ⚠️ {{ server_ip_error or "조회할 수 없습니다" }}
-    </div>
-    {% endif %}
-
-    {% if server_local_ips %}
-    <div class="pt-2 border-t border-neutral-100">
-      <div class="text-sm font-medium">맥북 사설 IP (공유기 내부)</div>
-      <div class="flex items-center gap-2 flex-wrap mt-1">
-        {% for lip in server_local_ips %}
-        <code class="font-mono bg-neutral-100 px-2 py-1 rounded select-all">{{ lip }}</code>
-        {% endfor %}
-      </div>
-      <p class="text-xs text-neutral-500 mt-1">
-        집 안에서만 쓰는 주소. <strong>외부 방화벽에는 공인 IP를 등록</strong>하고,
-        사내망/공유기 설정처럼 기기 자체를 지정할 때 이 주소를 씁니다.
-      </p>
-    </div>
-    {% endif %}
-  </div>
-  {% endif %}
-
   {# 알림 수신 설정 — 끌올(2주 방치 매물) 알림 on/off #}
   <div class="bg-white border border-neutral-200 rounded-xl p-6 space-y-3">
     <h2 class="font-semibold">🔔 알림 수신 설정</h2>
