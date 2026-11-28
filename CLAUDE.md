@@ -86,3 +86,13 @@ uvicorn app.main:app --reload
 - The dashboard (`/`) and several routers import `OUTCOME_LABEL`/`OUTCOME_BADGE` from `routers/encounters.py`. If you add a new `EncounterOutcome` value, update both maps and the badge color.
 - Tailwind is loaded from CDN with the `typography` plugin (`base.html`). Don't double-load; reuse `prose` classes in markdown-rendered pages.
 - No tests exist yet. Smoke-test by hitting endpoints with `curl` after changes (the project is small enough that this catches regressions cheaply).
+
+## thread (협업툴 격리 시안)
+
+`thread/` — 사람과 AI가 업무를 이어받는 협업툴 시안. meetcute·프로필과 무관하다. 의존성 없는 Node(22+) 서버와 빌드 없는 화면. 자세한 내용은 `thread/README.md`.
+
+- 실행: `node thread/server.js` (포트 8770). 규칙 시험: `node --test thread/test/core.test.js`.
+- 업무 규칙(열람 권한, 중복 저장 방지, 검증 단계)은 **`thread/core.js` 한 곳**에만 둔다. 서버와 브라우저 시연본이 같은 파일을 쓰므로 화면 쪽에 규칙을 복제하지 않는다.
+- 상태·진척은 저장하지 않고 계산한다. 요건 상태 열이나 진척 숫자를 따로 저장하지 않는다.
+- 요건 목록과 실제 검증 현황은 가상 데이터의 `p0`(‘Thread 만들기’) 프로젝트에 적는다. 요건을 더하거나 검증 결과가 나오면 거기를 고친다.
+- 구현한 쪽이 합격 판정을 내리지 않는다. 독립 검증과 실제 첫 사용자 검증은 별개이며, 확인하지 않은 것은 완료로 적지 않는다.
