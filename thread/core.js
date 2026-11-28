@@ -22,7 +22,7 @@
   ];
   const EDITABLE = {
     title: '제목', status: '상태', next_owner_id: '다음 담당자', next_action: '다음 할 일',
-    blocked_reason: '막힌 이유', current_state: '현재 상태', done_criteria: '완료 조건',
+    blocked_reason: '막힌 이유', current_state: '진행 상황', done_criteria: '완료 조건',
   };
 
   /* ───────────── 가상 데이터 ───────────── */
@@ -308,10 +308,10 @@
 
     const changes = [
       { id: 'g1', project_id: 'p1', task_id: 't3', text: '독립 기능 검증 실패(현재 기준 v2)', actor_id: 'ai_codex', at: ago(5) },
-      { id: 'g2', project_id: 'p1', task_id: 't4', text: '한서윤 님에게 인계', actor_id: 'ai_claude', at: ago(2) },
+      { id: 'g2', project_id: 'p1', task_id: 't4', text: '한서윤(제품기획팀) 님에게 인계', actor_id: 'ai_claude', at: ago(2) },
       { id: 'g3', project_id: 'p1', task_id: 't5', text: '막힘: 결정 요청', actor_id: 'ai_claude', at: ago(9) },
-      { id: 'g4', project_id: 'p1', task_id: 't13', text: '이하람 님에게 인계', actor_id: 'u_dev', at: ago(8) },
-      { id: 'g5', project_id: 'p2', task_id: 't10', text: '한서윤 님에게 인계', actor_id: 'u_jisu2', at: ago(20) },
+      { id: 'g4', project_id: 'p1', task_id: 't13', text: '이하람(매장운영팀) 님에게 인계', actor_id: 'u_dev', at: ago(8) },
+      { id: 'g5', project_id: 'p2', task_id: 't10', text: '한서윤(제품기획팀) 님에게 인계', actor_id: 'u_jisu2', at: ago(20) },
       { id: 'g6', project_id: 'p2', task_id: 't12', text: 'Codex 연결 끊김. 현재 상태 확인 안 됨', actor_id: 'ai_codex', at: ago(0.07) },
       { id: 'g7', project_id: 'p2', task_id: 't11', text: '김지수(재무팀) 님에게 인계', actor_id: 'u_dev', at: ago(12) },
     ];
@@ -367,7 +367,7 @@
   const evidenceLevel = (r) => (proofView(r.proof) ? 'checkable' : r.evidence ? 'stated' : 'none');
 
   // 만드는 업무는 네 단계를 모두 쓴다. 전달·조율 같은 업무는 다른 사람의 확인 한 단계만 쓴다.
-  const stageDefs = (task) => (task.track === 'check' ? [Object.assign({}, STAGES[1], { label: '다른 사람의 확인', pass: '확인됨', fail: '되돌려 보냄', none: '확인 전' })] : STAGES);
+  const stageDefs = (task) => (task.track === 'check' ? [Object.assign({}, STAGES[1], { label: '다른 사람의 검수', pass: '검수 통과', fail: '되돌려 보냄', none: '검수 전' })] : STAGES);
   const kindLabel = (task, kind) => { const d = stageDefs(task).find((x) => x.key === kind); return d ? (kind === 'impl' ? KINDS.impl : d.label) : KINDS[kind]; };
   function stagesOf(state, task) {
     const recs = state.records.filter((r) => r.task_id === task.id);
@@ -378,7 +378,7 @@
       const st = cur ? cur.outcome : 'none';
       return {
         key: s.key, label: s.label, state: st, text: s[st],
-        current: cur ? { record_id: cur.id, at: cur.at, by: pubUser(state, cur.author_id), evidence: cur.evidence, proof: proofView(cur.proof), evidence_level: evidenceLevel(cur) } : null,
+        current: cur ? { record_id: cur.id, summary: cur.body.split(/(?<=[.。!?])\s/)[0].slice(0, 120), at: cur.at, by: pubUser(state, cur.author_id), evidence: cur.evidence, proof: proofView(cur.proof), evidence_level: evidenceLevel(cur) } : null,
         previous: prev ? { record_id: prev.id, at: prev.at, version: prev.criteria_version, text: s[prev.outcome], outcome: prev.outcome } : null,
       };
     });
@@ -478,7 +478,7 @@
     const since = {
       at: seenAt, total: fresh.length,
       until: fresh.length ? fresh[0].at : seenAt,
-      changes: fresh.slice(0, 100).map((c) => ({ id: c.id, task_id: c.task_id, task_title: state.tasks[c.task_id].title,
+      changes: fresh.map((c) => ({ id: c.id, task_id: c.task_id, task_title: state.tasks[c.task_id].title,
         project: { id: c.project_id, name: projectOf(state, c.project_id).name }, text: c.text, actor: pubUser(state, c.actor_id), at: c.at })),
     };
     return ok({
@@ -521,7 +521,7 @@
     Object.values(state.tasks).filter((t) => canSee(state, t, uid)).forEach((t) => {
       const hits = [];
       const fr = findReq(state, t.requirement_id);
-      [['제목', t.title], ['원래 요구사항', fr.req.title], ['다음 할 일', t.next_action], ['현재 상태', t.current_state], ['막힌 이유', t.blocked_reason], ['완료 조건', t.done_criteria.join(' / ')]]
+      [['제목', t.title], ['원래 요구사항', fr.req.title], ['다음 할 일', t.next_action], ['진행 상황', t.current_state], ['막힌 이유', t.blocked_reason], ['완료 조건', t.done_criteria.join(' / ')]]
         .forEach(([label, text]) => { const s = text && snip(text); if (s) hits.push({ where: label, text: s }); });
       state.records.filter((r) => r.task_id === t.id).forEach((r) => {
         const s = snip(r.body + ' ' + r.evidence);
@@ -587,7 +587,7 @@
     if (['func', 'field'].includes(kind) && !evidence && !proof) return err(422, '검증 결과에는 확인한 근거를 적어 주세요.');
     if (kind === 'func') {
       const built = task.assignee_id === uid || state.records.some((r) => r.task_id === task.id && r.kind === 'impl' && r.author_id === uid);
-      if (built) return err(422, '이 업무를 구현한 담당자는 독립 기능 검증 결과를 남길 수 없습니다. 구현에 참여하지 않은 검증자가 남겨야 합니다.');
+      if (built) return err(422, `이 업무를 맡아 한 사람은 ‘${defs.find((d) => d.key === 'func').label}’ 결과를 남길 수 없습니다. 맡지 않은 다른 사람이 남겨야 합니다.`);
     }
     if (kind === 'field' && me.kind === 'ai') return err(422, '실사용 검증은 실제 사용자가 확인한 결과만 남길 수 있습니다.');
     if (kind === 'deploy' && me.kind === 'ai') return err(422, '운영 배포 결과는 사람이 남겨야 합니다.');
@@ -595,13 +595,16 @@
     let ho = null;
     if (body.handoff != null) {
       if (typeof body.handoff !== 'object') return err(422, '넘길 내용이 올바르지 않습니다.');
+      if (task.status === 'done') return err(422, '완료된 업무는 넘길 수 없습니다. 기록만 남기거나, 수정에서 상태를 먼저 바꿔 주세요.');
+      // 넘기기는 다음 담당자를 바꾸므로, 그 사이 다른 사람이 업무를 바꿨으면 덮어쓰지 않는다.
+      if (body.rev !== task.rev) return err(409, '그 사이 다른 사람이 이 업무를 바꿨습니다. 최신 내용을 확인한 뒤 다시 저장해 주세요.', { task: taskDetail(state, task, uid) });
       const to = body.handoff.next_owner_id, act = txt(body.handoff.next_action);
       if (!has(state.users, to) || !canSee(state, task, to)) return err(422, '이 업무를 볼 수 있는 구성원에게만 넘길 수 있습니다.');
       if (!act) return err(422, '넘겨받는 사람이 할 일을 적어 주세요.');
       if (act.length > 500) return err(422, '다음 할 일은 500자까지 입력할 수 있습니다.');
       ho = { to, act };
     }
-    const rec = { id: nextId(state, 'c'), task_id: task.id, author_id: uid, kind, outcome, body: text, evidence, proof, criteria_version: task.criteria_version, at: now };
+    const rec = { id: nextId(state, 'c'), task_id: task.id, author_id: uid, kind: kind === 'note' && ho ? 'handoff' : kind, outcome, body: text, evidence, proof, criteria_version: task.criteria_version, at: now };
     state.records.push(rec);
     task.updated_at = now; task.rev += 1;
     const stage = defs.find((s) => s.key === kind);
@@ -618,7 +621,7 @@
       task.next_owner_id = ho.to; task.next_action = ho.act; task.handoff_from = uid; task.handed_at = now;
       if (task.status === 'todo') task.status = 'doing';
     }
-    logChange(state, task, (stage ? `${stage.label}: ${stage[outcome]}` : `기록: ${text.slice(0, 30)}`) + (reopened ? '. 완료가 풀림' : '') + (ho && !reopened ? `. ${state.users[ho.to].name} 님에게 인계` : ''), uid, now);
+    logChange(state, task, (stage ? `${stage.label}: ${stage[outcome]}` : `기록: ${text.slice(0, 30)}`) + (reopened ? '. 완료가 풀림' : '') + (ho && !reopened ? `. ${nameOf(state, ho.to)} 님에게 인계` : ''), uid, now);
     const ag = state.agents.find((a) => a.id === uid && a.task_id === task.id);
     if (ag) { ag.last_result = text; ag.last_result_at = now; ag.last_polled_at = now; ag.connected = true; }
     return ok({
@@ -648,10 +651,13 @@
     if ('next_action' in patch) next.next_action = str(patch.next_action);
     if ('blocked_reason' in patch) next.blocked_reason = str(patch.blocked_reason);
     if ('current_state' in patch) next.current_state = str(patch.current_state);
+    if (next.next_action.length > 500 || next.blocked_reason.length > 500) return err(422, '다음 할 일과 이유는 각각 500자까지 입력할 수 있습니다.');
+    if (next.current_state.length > 2000) return err(422, '진행 상황은 2,000자까지 입력할 수 있습니다.');
     if ('done_criteria' in patch) {
       if (!Array.isArray(patch.done_criteria)) return err(422, '완료 조건 형식이 올바르지 않습니다.');
       next.done_criteria = patch.done_criteria.map(str).filter(Boolean);
       if (!next.done_criteria.length) return err(422, '완료 조건을 한 줄 이상 적어 주세요.');
+      if (next.done_criteria.length > 20 || next.done_criteria.some((x) => x.length > 300)) return err(422, '완료 조건은 20줄까지, 한 줄에 300자까지 입력할 수 있습니다.');
     }
     if (['blocked', 'hold'].includes(next.status) && !next.blocked_reason) return err(422, `${STATUS[next.status]} 상태에는 이유를 적어 주세요.`);
     if (!['blocked', 'hold'].includes(next.status)) next.blocked_reason = '';
@@ -678,11 +684,11 @@
     Object.assign(task, next, { rev: task.rev + 1, updated_at: now });
     state.records.push({
       id: nextId(state, 'c'), task_id: task.id, author_id: uid, kind: 'edit', outcome: null,
-      body: changes.map((c) => `${c.label}: ${c.from} → ${c.to}`).join('\n') + (criteriaChanged ? `\n완료 조건이 바뀌어 기준이 v${task.criteria_version}이 되었습니다. 이전 검증 결과는 이전 기준으로 남습니다.` : ''),
+      body: changes.map((c) => `${c.label}: ${c.from} → ${c.to}`).join('\n') + (criteriaChanged ? '\n완료 조건이 바뀌어 지금까지의 검증 결과는 이전 기준으로 남습니다.' : ''),
       evidence: '', criteria_version: task.criteria_version, at: now,
     });
     const moved = changes.some((c) => c.field === 'next_owner_id') && task.next_owner_id;
-    logChange(state, task, moved ? `${state.users[task.next_owner_id].name} 님에게 인계` : changes.map((c) => c.label).join(', ') + ' 변경', uid, now);
+    logChange(state, task, moved ? `${nameOf(state, task.next_owner_id)} 님에게 인계` : changes.map((c) => c.label).join(', ') + ' 변경', uid, now);
     return ok({
       saved: { summary: `${changes.length}개 항목이 반영되었습니다.`, changes, criteria_changed: criteriaChanged },
       task: taskDetail(state, task, uid),
@@ -695,6 +701,7 @@
     if (!body || typeof body !== 'object') return err(422, '선택지를 골라 주세요.');
     if (d.owner_id !== uid) return err(403, '이 결정은 지정된 담당자만 내릴 수 있습니다.');
     if (d.chosen) return err(409, '이미 결정된 항목입니다.', { task: taskDetail(state, task, uid) });
+    if (body.rev !== task.rev) return err(409, '그 사이 다른 사람이 이 업무를 바꿨습니다. 최신 내용을 확인한 뒤 다시 결정해 주세요.', { task: taskDetail(state, task, uid) });
     const note = txt(body.note);
     const opt = d.options.find((o) => o.id === body.option);
     if (!opt) return err(422, '선택지를 골라 주세요.');
@@ -705,7 +712,7 @@
     task.rev += 1; task.updated_at = now;
     state.records.push({ id: nextId(state, 'c'), task_id: task.id, author_id: uid, kind: 'decision', outcome: null, body: `결정: ${opt.label}`, evidence: note, proof: null, criteria_version: task.criteria_version, at: now });
     logChange(state, task, `결정: ${opt.label}`, uid, now);
-    return ok({ saved: { summary: '결정이 반영되었습니다.' }, task: taskDetail(state, task, uid) });
+    return ok({ saved: { summary: `결정했습니다. 다음 담당자는 ${nameOf(state, task.next_owner_id)}, 다음 할 일은 ‘${task.next_action}’입니다.` }, task: taskDetail(state, task, uid) });
   }
 
   /* ───────────── 진입점 ───────────── */
@@ -717,7 +724,7 @@
     if (m === 'POST' && p[0] === 'home' && p[1] === 'seen') {
       // 화면에 보인 마지막 변경까지만 확인 처리한다. 그 뒤에 생긴 변경은 남는다.
       const until = txt(req.body && req.body.until);
-      if (!until || isNaN(Date.parse(until)) || until > now) return err(422, '확인할 범위가 올바르지 않습니다.');
+      if (!until || isNaN(Date.parse(until)) || new Date(until).toISOString() !== until || until > now) return err(422, '확인할 범위가 올바르지 않습니다.');
       state.seen = state.seen || {};
       if (!state.seen[uid] || until > state.seen[uid]) state.seen[uid] = until;
       return home(state, uid);

@@ -94,11 +94,11 @@ test('다른 사람이 먼저 바꾼 업무는 덮어쓰지 않는다', () => {
 test('결정은 지정된 사람만, 한 번만 내린다', () => {
   const s = mk();
   assert.equal(send(s, 'u_dev', 'POST', 'tasks/t5/decision', { option: 'a' }, 'a').status, 403);
-  const r = send(s, 'u_me', 'POST', 'tasks/t5/decision', { option: 'a' }, 'b');
+  const r = send(s, 'u_me', 'POST', 'tasks/t5/decision', { option: 'a', rev: s.tasks.t5.rev }, 'b');
   assert.equal(r.status, 200);
   assert.equal(r.body.task.status, 'todo');
   assert.equal(r.body.task.next_owner.id, 'ai_claude');
-  assert.equal(send(s, 'u_me', 'POST', 'tasks/t5/decision', { option: 'b' }, 'c').status, 409);
+  assert.equal(send(s, 'u_me', 'POST', 'tasks/t5/decision', { option: 'b', rev: s.tasks.t5.rev }, 'c').status, 409);
   assert.equal(get(s, 'u_me', 'home').body.decisions.length, 0);
 });
 
@@ -225,11 +225,11 @@ test('바뀐 것 목록은 전부 보이고, 확인은 본 데까지만 처리�
 
 test('결과를 남기면서 다음 사람에게 넘길 수 있고, 볼 수 없는 사람에게는 못 넘긴다', () => {
   const s = mk();
-  const r = send(s, 'u_me', 'POST', 'tasks/t4/records', { kind: 'note', body: '보냄', handoff: { next_owner_id: 'u_dev', next_action: '수신 확인을 검토한다' } }, 'a');
+  const r = send(s, 'u_me', 'POST', 'tasks/t4/records', { kind: 'note', body: '보냄', rev: s.tasks.t4.rev, handoff: { next_owner_id: 'u_dev', next_action: '수신 확인을 검토한다' } }, 'a');
   assert.equal(r.body.task.next_owner.id, 'u_dev');
   assert.deepEqual(get(s, 'u_me', 'home').body.handoffs.map((t) => t.id).includes('t4'), false);
   assert.ok(get(s, 'u_dev', 'home').body.handoffs.some((t) => t.id === 't4'));
-  assert.equal(send(s, 'u_jisu2', 'POST', 'tasks/t11/records', { kind: 'note', body: 'x', handoff: { next_owner_id: 'u_me', next_action: 'y' } }, 'b').status, 422);
+  assert.equal(send(s, 'u_jisu2', 'POST', 'tasks/t11/records', { kind: 'note', body: 'x', rev: s.tasks.t11.rev, handoff: { next_owner_id: 'u_me', next_action: 'y' } }, 'b').status, 422);
 });
 
 test('저장이 반영됐는지 요청 키로 물을 수 있다', () => {
@@ -243,8 +243,39 @@ test('저장이 반영됐는지 요청 키로 물을 수 있다', () => {
 test('전달·조율 업무는 다른 사람의 확인 한 단계만 쓴다', () => {
   const s = mk();
   const t = get(s, 'u_me', 'tasks/t4').body.task;
-  assert.deepEqual(t.stages.map((x) => x.label), ['다른 사람의 확인']);
+  assert.deepEqual(t.stages.map((x) => x.label), ['다른 사람의 검수']);
   assert.equal(send(s, 'u_me', 'POST', 'tasks/t4/records', { kind: 'deploy', outcome: 'pass', body: 'x', criteria_version: 1 }, 'a').status, 422);
   assert.equal(send(s, 'u_me', 'POST', 'tasks/t4/records', { kind: 'func', outcome: 'pass', body: 'x', evidence: 'y', criteria_version: 1 }, 'b').status, 422);
   assert.equal(send(s, 'u_dev', 'POST', 'tasks/t4/records', { kind: 'func', outcome: 'pass', body: 'x', evidence: 'y', criteria_version: 1 }, 'c').status, 200);
+});
+
+// ── 3차 독립 검증에서 나온 반례
+test('완료된 업무는 넘길 수 없고, 낡은 화면에서 넘기면 충돌한다', () => {
+  const s = mk();
+  const ho = { next_owner_id: 'u_me', next_action: '검토한다' };
+  assert.equal(send(s, 'u_dev', 'POST', 'tasks/t2/records', { kind: 'note', body: 'x', rev: s.tasks.t2.rev, handoff: ho }, 'a').status, 422);
+  assert.equal(send(s, 'u_dev', 'POST', 'tasks/t1/records', { kind: 'func', outcome: 'fail', body: 'x', evidence: 'y', criteria_version: 1, rev: s.tasks.t1.rev, handoff: ho }, 'b').status, 422);
+  assert.equal(s.tasks.t1.status, 'done');
+  const old = s.tasks.t6.rev;
+  send(s, 'u_me', 'PATCH', 'tasks/t6', { rev: old, fields: { next_owner_id: 'u_jisu1' } }, 'c');
+  assert.equal(send(s, 'u_dev', 'POST', 'tasks/t6/records', { kind: 'note', body: 'x', rev: old, handoff: { next_owner_id: 'u_new', next_action: 'y' } }, 'd').status, 409);
+  assert.equal(s.tasks.t6.next_owner_id, 'u_jisu1');
+});
+
+test('낡은 화면에서 내린 결정은 충돌한다', () => {
+  const s = mk();
+  const old = s.tasks.t5.rev;
+  send(s, 'u_dev', 'PATCH', 'tasks/t5', { rev: old, fields: { status: 'hold', blocked_reason: '법무 검토' } }, 'a');
+  assert.equal(send(s, 'u_me', 'POST', 'tasks/t5/decision', { option: 'a', rev: old }, 'b').status, 409);
+  assert.equal(s.tasks.t5.decision.chosen, null);
+});
+
+test('바뀐 것이 100건을 넘어도 전부 나오고, 인계 문구에 소속이 붙는다', () => {
+  const s = mk();
+  for (let i = 0; i < 103; i++) send(s, 'u_dev', 'POST', 'tasks/t6/records', { kind: 'note', body: 'm' + i }, 'n' + i);
+  const h = get(s, 'u_me', 'home').body;
+  assert.equal(h.since.changes.length, h.since.total);
+  send(s, 'u_me', 'PATCH', 'tasks/t10', { rev: s.tasks.t10.rev, fields: { next_owner_id: 'u_jisu2' } }, 'x');
+  assert.ok(s.changes[s.changes.length - 1].text.includes('김지수(재무팀)'));
+  assert.equal(send(s, 'u_me', 'POST', 'home/seen', { until: '2026-11-28 05:00' }, 'y').status, 422);
 });
