@@ -71,14 +71,15 @@
     const me = u.id === S.viewer ? '<em class="me">나</em>' : '';
     return `<span class="who"><i class="av ${u.kind}" aria-hidden="true">${u.kind === 'ai' ? 'AI' : esc(u.name.slice(0, 1))}</i><b>${esc(u.name)}</b><small>${esc(u.team)}</small>${opt === 'plain' ? '' : me}</span>`;
   }
+  const ro = (w) => { const ch = w.charCodeAt(w.length - 1) - 0xac00; if (ch < 0 || ch > 11171) return '로'; const j = ch % 28; return j === 0 || j === 8 ? '로' : '으로'; };
   const nm = (u) => (u ? `${esc(u.name)}(${esc(u.team)})` : '');
   const empty = (title, text) => `<div class="empty"><b>${esc(title)}</b><p>${esc(text)}</p></div>`;
 
   /* 실 모양 진척: 시작 매듭에서 목표까지, 중간 목표마다 구슬 하나. 완료한 요구사항 비율만큼만 실이 채워진다. */
   function thread(p, start, finish, compact) {
     const data = esc(JSON.stringify(p.milestones.map((m) => [m.done, m.total])));
-    const labels = compact ? '' : `<ol class="th-labels" style="--n:${p.milestones.length}">${p.milestones.map((m) => `
-      <li class="ms-${m.state}"><b>${esc(m.title)}</b><span>${m.total}개 중 ${m.done}개 완료</span></li>`).join('')}</ol>`;
+    const labels = compact ? '' : `<ol class="th-labels" style="grid-template-columns:${p.milestones.map((m) => `minmax(0,${m.total}fr)`).join(' ')}">${p.milestones.map((m, i) => `
+      <li class="ms-${m.state}"><i class="ord">중간 목표 ${i + 1}/${p.milestones.length}</i><b>${esc(m.title)}</b><span>${m.total}개 중 ${m.done}개 완료</span></li>`).join('')}</ol>`;
     return `<div class="thread ${compact ? 'compact' : ''}">
       ${compact ? '' : `<div class="th-ends"><span><small>시작</small>${esc(start)}</span><span><small>최종 목표</small>${esc(finish)}</span></div>`}
       <div class="th-line" data-ms="${data}" role="img" aria-label="요구사항 ${p.total}개 중 ${p.done}개 완료"></div>${labels}</div>`;
@@ -89,12 +90,14 @@
     lines.forEach((el) => {
       const ms = JSON.parse(el.dataset.ms), M = ms.length, W = el.clientWidth, H = 56, mid = 34, A = 10, x0 = 10, x1 = W - 10;
       if (W < 40) return;
-      const up = ms.reduce((a, [d, t]) => a + (t ? d / t : 0), 0) / M;
-      const X = (u) => x0 + u * (x1 - x0), Y = (u) => mid + A * Math.sin(Math.PI * M * u);
+      const total = ms.reduce((a, m) => a + m[1], 0) || 1;
+      const up = ms.reduce((a, m) => a + m[0], 0) / total;
+      const ends = []; ms.reduce((acc, m) => { ends.push((acc + m[1]) / total); return acc + m[1]; }, 0);
+      const X = (u) => x0 + u * (x1 - x0), Y = (u) => { let i = ends.findIndex((e) => u <= e + 1e-9); if (i < 0) i = M - 1; const a0 = i ? ends[i - 1] : 0, w = ends[i] - a0 || 1; return mid + (i % 2 ? -1 : 1) * A * Math.sin(Math.PI * (u - a0) / w); };
       const path = (a, b) => { let d = ''; const n = Math.max(2, Math.ceil((b - a) * 120)); for (let i = 0; i <= n; i++) { const u = a + ((b - a) * i) / n; d += (i ? 'L' : 'M') + X(u).toFixed(1) + ' ' + Y(u).toFixed(1); } return d; };
       let beads = `<circle cx="${X(0)}" cy="${Y(0)}" r="4" class="b-done"/>`;
       ms.forEach(([d, t], i) => {
-        const u = (i + 1) / M, full = d === t, last = i === M - 1;
+        const u = ends[i], full = d === t, last = i === M - 1;
         beads += `<circle cx="${X(u)}" cy="${Y(u)}" r="${last ? 7 : 5.5}" class="${full ? 'b-done' : 'b-open'}"/>` + (last ? `<circle cx="${X(u)}" cy="${Y(u)}" r="2.5" class="${full ? 'b-hole' : 'b-done'}"/>` : '');
       });
       const tx = Math.min(Math.max(X(up), 28), W - 28);
@@ -106,7 +109,7 @@
   window.addEventListener('resize', drawThreads);
 
   /* ───────── 저장 흐름: 한 번 만든 요청 키를 재시도에도 그대로 쓴다 ───────── */
-  const PENDING = { type: 'err', title: '저장 응답을 받지 못했습니다', lines: ['반영되었는지 확인되지 않았습니다. 재시도해도 두 번 저장되지 않습니다.'], retry: true };
+  const PENDING = { type: 'err', title: '저장 응답을 받지 못했습니다', lines: ['반영되었는지 확인되지 않았습니다. 재시도해도 두 번 저장되지 않습니다. 재시도 또는 반영 여부 확인 전까지 입력이 잠깁니다.'], retry: true };
   async function save(op) {
     if (S.saving) { S.flash = { type: 'busy', title: '앞의 저장이 아직 끝나지 않았습니다', lines: ['이 저장은 보내지 않았습니다. 앞의 저장이 끝난 뒤 다시 눌러 주세요.'] }; paintFlash(); return; }
     const sig = JSON.stringify([op.method, op.path, op.body]), from = location.hash;
@@ -177,7 +180,7 @@
     const f = S.flash;
     el.className = f && f.type !== 'ok' ? 'stick' : '';
     if (!f) { el.innerHTML = ''; return; }
-    const li = (c) => `<li><span>${esc(c.label)}</span> ${esc(c.from)} → <strong>${esc(c.to)}</strong></li>`;
+    const li = (c) => `<li><span>${esc(c.label)}</span> <strong>${esc(c.to)}</strong></li>`;
     el.innerHTML = `<div class="flash ${f.type}" role="${f.type === 'err' ? 'alert' : 'status'}">
       <div class="fl-main"><b>${esc(f.title)}</b>${(f.lines || []).map((l) => `<p>${esc(l)}</p>`).join('')}
       ${f.changes && f.changes.length ? `<ul>${f.changes.slice(0, 3).map(li).join('')}</ul>${f.changes.length > 3 ? `<details class="more"><summary>외 ${f.changes.length - 3}건</summary><ul>${f.changes.slice(3).map(li).join('')}</ul></details>` : ''}` : ''}
@@ -189,22 +192,22 @@
   /* ───────── 화면: 홈 ───────── */
   // 한 건은 두 줄: 무엇인지, 다음에 무엇을 하는지. 나머지는 상세에서 본다.
   function homeItem(t, decide) {
-    const reason = t.blocked_reason ? `<span class="item-line reason"><small>${t.status === 'hold' ? '보류 사유' : '막힘 사유'}</small>${esc(t.blocked_reason)}</span>` : '';
-    const by = decide ? `${nm(t.requested_by)} 요청 · ${when(t.requested_at)}` : t.handoff_from ? `${nm(t.handoff_from)} 인계 · ${when(t.handed_at)}` : when(t.updated_at);
+    const reason = t.blocked_reason ? `<span class="item-line reason ${t.status === 'hold' ? 'hold' : ''}"><small>${t.status === 'hold' ? '보류 사유' : '막힘 사유'}</small>${esc(t.blocked_reason)}</span>` : '';
+    const by = decide ? `${nm(t.requested_by)} 요청 · ${when(t.requested_at)}` : t.handoff_from ? `${nm(t.handoff_from)} ${{ review: '검증·검수 요청', result: '결과 회신', work: '인계' }[t.handoff_kind]} · ${when(t.handed_at)}` : `수정 ${when(t.updated_at)}`;
     return `<li><a class="item ${decide ? 'decide' : ''}" href="#task-${t.id}${decide ? '-decide' : ''}">
       <span class="item-top">${decide ? '' : chip(t.status)}<span class="crumb">${esc(t.project.name)}</span><span class="item-by">${by}</span></span>
       <b class="item-title">${esc(decide ? t.question : t.title)}</b>${decide ? '' : reason}
       ${t.failing.length ? `<span class="item-line reason"><small>검증</small>${esc(t.failing.join(', '))}</span>` : ''}
-      ${decide ? `<span class="item-go">선택지 ${t.option_count}개 중에서 결정하기 →</span>` : `<span class="item-line one"><small>다음 조치</small><span class="clip" title="${esc(t.next_action)}"><b>${esc(t.next_action)}</b></span></span>`}</a></li>`;
+      ${decide ? `<span class="item-go">선택지 ${t.option_count}개 중 결정 →</span>` : `<span class="item-line one"><small>다음 조치</small><span class="clip" title="${esc(t.next_action)}"><b>${esc(t.next_action)}</b></span></span>`}</a></li>`;
   }
   function viewHome(h) {
     const n = h.decisions.length + h.handoffs.length, sc = h.since;
     const mine = `${h.me.name}(${h.me.team}) 님에게 인계`;
     const change = (c) => `<li><a href="#task-${c.task_id}"><b>${esc(c.text === mine ? '나에게 인계' : c.text)}</b><span title="${esc(c.task_title)}">${esc(c.task_title)}</span></a><small>${nm(c.actor)} · ${when(c.at)}</small></li>`;
     const since = `<section aria-labelledby="h-since"><header class="row"><h2 id="h-since">${sc.at ? '미확인 변경' : '최근 변경'} <span class="num">${sc.total}</span></h2>
-        ${sc.total ? '<button class="btn ghost sm" data-act="seen">읽음 처리</button>' : ''}</header><div class="since">
+        ${sc.total ? '<button class="btn ghost sm" data-act="seen">확인 처리</button>' : ''}</header><div class="since">
       ${sc.total ? `<ul class="feed">${sc.changes.slice(0, 4).map(change).join('')}</ul>
-        ${sc.changes.length > 4 ? `<details class="more"><summary>${sc.changes.length - 4}건 더 보기</summary><ul class="feed">${sc.changes.slice(4).map(change).join('')}</ul></details>` : ''}`
+        ${sc.changes.length > 4 ? `<details class="more"><summary>외 ${sc.changes.length - 4}건</summary><ul class="feed">${sc.changes.slice(4).map(change).join('')}</ul></details>` : ''}`
         : `<p class="muted small">${sc.at ? esc(abs(sc.at)) + ' 이후 변경이 없습니다.' : '변경이 없습니다.'}</p>`}</div></section>`;
     const proj = h.projects.map((p) => `<li><a class="proj" href="#project-${p.id}">
         <span class="proj-top"><b>${esc(p.name)}</b><span class="count"><b>${p.progress.done}</b>/${p.progress.total} 요구사항 완료</span></span>
@@ -219,7 +222,7 @@
         <h1>${n ? `처리할 업무 <mark>${n}건</mark>` : '처리할 업무가 없습니다'}</h1></header>
       <div class="home-grid">
         <div class="col">${n ? '' : '<p class="none-line">판단 대기 또는 인계받은 업무가 생기면 여기에 표시됩니다.</p>'}
-          ${h.decisions.length ? decSec : ''}${n ? handSec : ''}${n && !h.decisions.length ? decSec : ''}
+          ${h.decisions.length ? decSec : ''}${n ? handSec : ''}
         </div>
         <aside class="col">${since}
           <section aria-labelledby="h-proj"><h2 id="h-proj">내 프로젝트</h2>
@@ -282,7 +285,7 @@
   /* ───────── 화면: 업무 상세 ───────── */
   const KIND_OPTS = [['note', '기록'], ['impl', '구현 완료 보고'], ['func', '제3자 기능 검증'], ['field', '실사용자 검증'], ['deploy', '운영 배포']];
   const shape = (t) => ({ title: t.title, status: t.status, next_owner_id: t.next_owner ? t.next_owner.id : '', blocked_reason: t.blocked_reason, next_action: t.next_action, current_state: t.current_state, done_criteria: t.done_criteria.slice() });
-  const outWord = (t, k, o) => (k === 'deploy' ? (o === 'pass' ? '배포됨' : '배포 실패') : t.track === 'check' ? (o === 'pass' ? '검수 통과' : '되돌려 보냄') : (o === 'pass' ? '통과' : '실패'));
+  const outWord = (t, k, o) => (k === 'deploy' ? (o === 'pass' ? '배포됨' : '배포 실패') : t.track === 'check' ? (o === 'pass' ? '검수 통과' : '반려') : (o === 'pass' ? '통과' : '실패'));
   function editForm(t) {
     const d = S.ui.draft;
     return `<section class="panel edit" aria-labelledby="ed-h"><h2 id="ed-h">업무 수정</h2>
@@ -290,7 +293,7 @@
         <label class="wide">제목<input id="f-title" name="title" value="${esc(d.title)}" maxlength="200" required></label>
         <label>상태<select id="f-status" name="status">${Object.entries(STATUS).map(([k, v]) => `<option value="${k}" ${d.status === k ? 'selected' : ''}>${v}</option>`).join('')}</select></label>
         <label>다음 담당자<select id="f-owner" name="next_owner_id"><option value="">정해지지 않음</option>${t.members.map((u) => `<option value="${u.id}" ${d.next_owner_id === u.id ? 'selected' : ''}>${esc(u.name)} · ${esc(u.team)}</option>`).join('')}</select></label>
-        <label class="wide" id="f-reason-wrap" ${['blocked', 'hold'].includes(d.status) ? '' : 'hidden'}><span id="f-reason-l">${d.status === 'hold' ? '보류 사유' : '막힘 사유'}</span><input id="f-reason" name="blocked_reason" value="${esc(d.blocked_reason)}"></label>
+        <label class="wide" id="f-reason-wrap" ${['blocked', 'hold'].includes(d.status) ? '' : 'hidden'}><span id="f-reason-l">${d.status === 'hold' ? '보류 사유' : '막힘 사유'}</span><input id="f-reason" name="blocked_reason" value="${esc(d.blocked_reason)}"><span class="field-err" id="f-reason-err" hidden>사유가 필요합니다.</span></label>
         <label class="wide">다음 조치<textarea id="f-next" name="next_action" rows="2">${esc(d.next_action)}</textarea></label>
         <label class="wide">진행 상황<textarea id="f-state" name="current_state" rows="2">${esc(d.current_state)}</textarea></label>
         <label class="wide">완료 조건 <small>한 줄에 하나씩. 바꾸면 검증 기준이 새로 시작됩니다.</small><textarea id="f-criteria" name="done_criteria" rows="4">${esc(d.done_criteria.join('\n'))}</textarea></label>
@@ -312,7 +315,7 @@
     const d = S.ui.draft, { rows, name } = draftDiff(S.ui.base, d);
     const notes = [];
     if (rows.some((r) => r.k === 'done_criteria')) notes.push('완료 조건이 바뀌어 지금까지의 검증 결과는 종전 기준으로 남습니다. 새 조건으로 다시 검증해야 합니다.');
-    if (rows.some((r) => r.k === 'next_owner_id') && d.next_owner_id) notes.push(`${name(d.next_owner_id)} 님이 담당자가 되고, 그 사람의 홈 ‘인계받은 업무’에 이 업무가 표시됩니다.`);
+    if (rows.some((r) => r.k === 'next_owner_id') && d.next_owner_id && d.status !== 'done') notes.push(`${name(d.next_owner_id)} 님이 담당자가 되고, 그 사람의 ‘인계받은 업무’에 표시됩니다.`);
     if (rows.some((r) => r.k === 'status') && d.status === 'done') notes.push(`현행 기준의 ${(t.stages.find((x) => x.key === 'func') || {}).label}에서 통과한 경우에만 완료로 저장됩니다.`);
     return `<section class="panel confirm" aria-labelledby="cf-h"><h2 id="cf-h">저장 시 변경 내용</h2>
       ${rows.length ? `<div class="scroll-x"><table class="diff"><thead><tr><th>항목</th><th>지금</th><th>저장 후</th></tr></thead><tbody>
@@ -328,14 +331,13 @@
         <p class="chosen">${icon('done')}<b>${esc(o.label)}</b></p><p class="muted">${who(d.owner)} 결정 · ${when(d.chosen_at)}</p></section>`;
     }
     const sel = S.ui.option, o = d.options.find((x) => x.id === sel);
-    return `<section class="panel decision" id="sec-decide" aria-labelledby="dc-h">
-      <h2 id="dc-h">결정 요청</h2>
+    return `<section class="panel decision ${d.can_decide ? '' : 'locked'}" id="sec-decide" aria-labelledby="dc-h">
+      <h2 id="dc-h">${d.can_decide ? '결정 요청' : `결정 대기 중 · ${nm(d.owner)} 님 결정`}</h2>
       <p class="q">${esc(d.question)}</p>
       ${t.blocked_reason ? `<p class="item-line reason"><small>막힘 사유</small>${esc(t.blocked_reason)}</p>` : ''}
       <p class="muted small">${esc(d.why)} · ${nm(d.requested_by)} 요청 · ${when(d.requested_at)}</p>
-      ${d.can_decide ? '' : `<p class="note">이 결정은 ${esc(d.owner.name)}(${esc(d.owner.team)}) 님만 내릴 수 있습니다.</p>`}
       <div class="options" role="radiogroup" aria-label="선택지">${d.options.map((x) => `
-        <label class="opt ${sel === x.id ? 'on' : ''}"><input type="radio" name="opt" id="opt-${x.id}" value="${x.id}" ${sel === x.id ? 'checked' : ''} ${d.can_decide ? '' : 'disabled'} data-act="pick">
+        <label class="opt ${sel === x.id ? 'on' : ''}">${d.can_decide ? `<input type="radio" name="opt" id="opt-${x.id}" value="${x.id}" ${sel === x.id ? 'checked' : ''} data-act="pick">` : ''}
           <span class="opt-body"><b>${esc(x.label)}</b>${d.recommended === x.id ? `<em class="rec">${esc(d.requested_by.name)} 추천</em>` : ''}<span>${esc(x.effect)}</span></span></label>`).join('')}</div>
       ${!d.can_decide ? '' : `<div class="will" id="will">${o ? `<h3>결정 시 변경 내용</h3><dl class="facts tight">
           <div class="fact"><dt>다음 담당자</dt><dd>${who(t.next_owner)} → ${who(o.next_owner)}</dd></div>
@@ -349,22 +351,26 @@
     const built = t.did_work.includes(S.viewer);
     const may = (key) => !(key === 'func' && built) && !(['field', 'deploy'].includes(key) && me.kind === 'ai');
     const kinds = [['note', '메모']].concat(t.stages.filter((x) => may(x.key)).map((x) => [x.key, x.key === 'impl' ? '구현 완료 보고' : x.label]));
+    const reviewer = !built && t.next_owner && t.next_owner.id === S.viewer && kinds.some((x) => x[0] === 'func');
+    if (reviewer && !S.ui.kind) { S.ui.kind = 'func'; S.ui.after = 'keep'; }
     const k = kinds.some((x) => x[0] === S.ui.kind) ? S.ui.kind : 'note', oc = S.ui.outcome || 'pass', canPass = t.status !== 'done', after = canPass ? S.ui.after || 'keep' : 'keep';
-    const stage = t.stages.find((x) => x.key === k), needs = stage && k !== 'impl', build = stage && t.track === 'build';
+    const stage = t.stages.find((x) => x.key === k), needs = stage && k !== 'impl', build = t.track === 'build' && ['impl', 'func'].includes(k);
     const others = t.members.filter((u) => u.id !== S.viewer);
     const reviewStage = t.stages.find((x) => x.key === 'func'), reviewName = reviewStage ? reviewStage.label : '제3자 검수';
     const will = [];
-    if (stage) will.push(`${stage.label} 결과가 ‘${k === 'impl' ? '완료' : outWord(t, k, oc)}’로 기록됩니다.`);
+    const ow = k === 'impl' ? '구현 완료' : stage ? outWord(t, k, oc) : '';
+    if (stage) will.push(`${stage.label} 결과가 ‘${ow}’${ro(ow)} 기록됩니다.`);
     if (stage && t.status === 'done' && oc === 'fail' && k !== 'impl') will.push('업무가 완료에서 진행 중으로 돌아갑니다.');
-    if (after === 'work') will.push(`담당자와 다음 담당자가 바뀌고, 그 사람의 홈에 이 업무가 표시됩니다.${t.status === 'todo' ? ' 상태는 진행 중으로 바뀝니다.' : ''}`);
-    if (after === 'review') will.push(`담당자는 그대로이고, 검수 담당의 홈에 이 업무가 표시됩니다.${t.status === 'todo' ? ' 상태는 진행 중으로 바뀝니다.' : ''}`);
+    if (k === 'func' && after === 'keep' && t.next_owner && t.next_owner.id === S.viewer && t.assignee && t.assignee.id !== S.viewer && t.status !== 'done') will.push(`업무가 담당자 ${t.assignee.name}(${t.assignee.team}) 님에게 돌아갑니다.`);
+    if (after === 'work') will.push(`담당자가 바뀌고, 그 사람의 처리할 업무에 표시됩니다.${t.status === 'todo' ? ' 상태는 진행 중으로 바뀝니다.' : ''}`);
+    if (after === 'review') will.push(`담당자는 그대로이고, 요청받은 사람의 처리할 업무에 표시됩니다.${t.status === 'todo' ? ' 상태는 진행 중으로 바뀝니다.' : ''}`);
     return `<form id="rec-form" class="form rec-form">
       <label ${kinds.length > 1 ? '' : 'hidden'}>종류<select id="r-kind" name="kind" data-act="rec-kind">${kinds.map(([v, l]) => `<option value="${v}" ${k === v ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>
       <fieldset ${needs ? '' : 'hidden'}><legend>결과</legend>
         <label class="radio"><input type="radio" name="outcome" id="r-pass" value="pass" ${oc === 'pass' ? 'checked' : ''} data-act="rec-outcome">${outWord(t, k, 'pass')}</label>
         <label class="radio"><input type="radio" name="outcome" id="r-fail" value="fail" ${oc === 'fail' ? 'checked' : ''} data-act="rec-outcome">${outWord(t, k, 'fail')}</label></fieldset>
-      <label class="wide">내용<textarea id="r-body" name="body" rows="3" maxlength="2000" required placeholder="무엇을 했고 결과가 어땠는지 적습니다">${esc(S.ui.body || '')}</textarea></label>
-      <label class="wide">근거 서술 <small>${needs ? '(필수)' : '(생략 가능)'}</small><input id="r-evidence" name="evidence" maxlength="2000" value="${esc(S.ui.evidence || '')}" placeholder="확인한 건수, 화면, 문서 이름 등"></label>
+      <label class="wide">내용 <small>(필수)</small><textarea id="r-body" name="body" rows="3" maxlength="2000" required placeholder="무엇을 했고 결과가 어땠는지 적습니다">${esc(S.ui.body || '')}</textarea></label>
+      <label class="wide">근거 내용 <small>${needs ? '(필수)' : '(생략 가능)'}</small><input id="r-evidence" name="evidence" maxlength="2000" value="${esc(S.ui.evidence || '')}" placeholder="확인한 건수, 화면, 문서 이름 등"></label>
       ${build ? `<label>코드 변경 번호(커밋) <small>(생략 가능)</small><input id="r-commit" name="commit" maxlength="40" value="${esc(S.ui.commit || '')}" placeholder="예: 2ec355d"></label>
       <div class="pair"><label>시험 통과 건수 <small>(생략 가능)</small><input id="r-tp" name="tp" type="number" min="0" value="${esc(S.ui.tp || '')}"></label>
         <label>시험 전체 건수 <small>(생략 가능)</small><input id="r-tt" name="tt" type="number" min="1" value="${esc(S.ui.tt || '')}"></label></div>` : ''}
@@ -372,10 +378,10 @@
         <label class="radio"><input type="radio" name="after" id="r-keep" value="keep" ${after === 'keep' ? 'checked' : ''} data-act="rec-after">담당자 유지</label>
         <label class="radio"><input type="radio" name="after" id="r-review" value="review" ${after === 'review' ? 'checked' : ''} data-act="rec-after">${esc(reviewName)} 요청</label>
         <label class="radio"><input type="radio" name="after" id="r-work" value="work" ${after === 'work' ? 'checked' : ''} data-act="rec-after">다른 담당자에게 인계</label></fieldset>`}
-      ${after === 'keep' ? '' : `<label>${after === 'review' ? '검수 담당' : '인계 대상'}<select id="r-to" name="to" required><option value="">선택하세요</option>${others.filter((u) => after !== 'review' || !t.did_work.includes(u.id)).map((u) => `<option value="${u.id}" ${S.ui.to === u.id ? 'selected' : ''}>${esc(u.name)} · ${esc(u.team)}</option>`).join('')}</select></label>
-        <label>${after === 'review' ? '요청 내용' : '인계 후 조치'}<input id="r-act" name="act" maxlength="500" required value="${esc(S.ui.act != null ? S.ui.act : after === 'review' ? '결과를 검수하고 검수 결과를 기록한다' : '')}"></label>`}
+      ${after === 'keep' ? '' : `<label>${after === 'review' ? (t.track === 'check' ? '검수 담당' : '검증 담당') : '인계 대상'} <small>(필수)</small><select id="r-to" name="to" required><option value="">선택하세요</option>${others.filter((u) => after !== 'review' || !t.did_work.includes(u.id)).map((u) => `<option value="${u.id}" ${S.ui.to === u.id ? 'selected' : ''}>${esc(u.name)} · ${esc(u.team)}</option>`).join('')}</select></label>
+        <label>${after === 'review' ? '요청 내용' : '인계 후 조치'} <small>(필수)</small><input id="r-act" name="act" maxlength="500" required value="${esc(S.ui.act != null ? S.ui.act : after === 'review' ? (t.track === 'check' ? '결과를 검수하고 검수 결과를 기록한다' : '결과를 검증하고 검증 결과를 기록한다') : '')}"></label>`}
       ${will.length ? `<p class="note wide"><b>저장하면</b> ${esc(will.join(' '))}</p>` : ''}
-      <div class="form-act wide"><button class="btn primary" type="submit">기록 저장</button><button class="btn ghost" type="button" data-act="rec-close">닫기</button></div></form>`;
+      <div class="form-act wide"><button class="btn primary" type="submit">기록 저장</button><button class="btn ghost" type="button" data-act="rec-close">작성 취소</button></div></form>`;
   }
   function viewTask(t, part) {
     const mine = t.next_owner && t.next_owner.id === S.viewer && t.status !== 'done';
@@ -384,13 +390,13 @@
       <nav class="crumbs" aria-label="위치"><a href="#project-${t.project.id}">${esc(t.project.name)}</a>${t.milestone ? `<span>${esc(t.milestone.title)}</span>` : '<span>후순위</span>'}
         <a href="#project-${t.project.id}-${t.requirement.id}" class="req-link"><small>상위 요구사항</small>${esc(t.requirement.title)}</a></nav>
       <header class="task-head"><div><h1 class="${t.title.length > 44 ? 'long' : ''}">${esc(t.title)}</h1>
-        <div class="meta">${chip(t.status)}${t.failing.map((f) => `<button class="chip sg-fail as-btn" data-act="goto" data-v="sec-verify">${icon('fail')}${esc(f)}</button>`).join('')}<span class="mi"><small>담당자</small>${who(t.assignee)}</span><span class="mi"><small>마지막 수정</small>${when(t.updated_at)}</span>${t.restricted ? '<span class="tag lock">지정된 사람만 열람</span>' : ''}</div></div>
+        <div class="meta">${chip(t.status)}${t.failing.map((f) => `<button class="chip sg-fail as-btn" data-act="goto" data-v="sec-verify">${icon('fail')}${esc(f)}</button>`).join('')}<span class="mi"><small>업무 담당자</small>${who(t.assignee)}</span><span class="mi"><small>마지막 수정</small>${when(t.updated_at)}</span>${t.restricted ? '<span class="tag lock">열람 제한</span>' : ''}</div></div>
         ${editing || confirming ? '' : '<button class="btn" data-act="edit">수정</button>'}</header>`;
     const hero = t.status === 'done' ? '<p class="done-line">완료된 업무입니다. 남은 조치가 없습니다.</p>' : `
       <section class="hero ${t.blocked_reason ? 'two' : ''}">
         <div class="next-box ${mine ? '' : 'other'}"><small>다음 조치</small><p>${esc(t.next_action)}</p>
-          <div class="next-owner"><small>다음 담당자</small>${who(t.next_owner)}</div>
-          ${t.handoff_from && t.handoff_from.id !== S.viewer ? `<p class="by">${nm(t.handoff_from)} · ${when(t.handed_at)} 인계</p>` : ''}
+          <div class="next-owner"><small>다음 조치 담당자</small>${who(t.next_owner)}</div>
+          ${t.handoff_from && t.handoff_from.id !== S.viewer ? `<p class="by">${nm(t.handoff_from)} · ${when(t.handed_at)} ${{ review: '검증·검수 요청', result: '결과 회신', work: '인계' }[t.handoff_kind]}</p>` : ''}
           ${mine ? '<button class="btn dark" data-act="rec-open" data-v="pass">결과 기록 및 인계</button>' : ''}</div>
         ${t.blocked_reason ? `<div class="reason-box"><small>${t.status === 'hold' ? '보류 사유' : '막힘 사유'}</small><p>${esc(t.blocked_reason)}</p></div>` : ''}
       </section>`;
@@ -423,29 +429,34 @@
           <ol class="stages ${t.stages.length === 1 ? 'single' : ''}">${t.stages.map((s) => `<li class="sg sg-${s.state}"><div class="sg-top"><b>${esc(s.label)}</b>${stageChip(s)}</div>
             ${s.current && s.state === 'fail' ? `<p class="sg-why">${esc(s.current.summary)}</p>` : ''}
             ${s.current ? `<p class="sg-ev">${proof(s.current)} <button class="link" data-act="goto" data-v="rec-${s.current.record_id}">기록 보기</button></p>` : ''}
-            ${s.previous ? `<p class="sg-prev">종전 기준(${s.previous.version}차)에서는 ${esc(s.previous.text)} <button class="link" data-act="goto" data-v="rec-${s.previous.record_id}">기록 보기</button></p>` : ''}</li>`).join('')}</ol>
+            ${s.previous ? `<p class="sg-prev">${s.previous.void_reason ? `<b>${esc(s.previous.text)} · 효력 없음</b> ${esc(s.previous.void_reason)}` : `종전 기준(${s.previous.version}차)에서는 ${esc(s.previous.text)}`} <button class="link" data-act="goto" data-v="rec-${s.previous.record_id}">기록 보기</button></p>` : ''}</li>`).join('')}</ol>
         </section>
       </div>
       <section class="panel" id="sec-records" aria-labelledby="rc-h"><header class="row"><h2 id="rc-h">기록 <span class="num">${t.records.length}</span></h2>
         ${S.ui.rec ? '' : '<button class="btn" data-act="rec-open">기록 작성</button>'}</header>
-        ${S.ui.rec ? recordForm(t) : ''}
+        ${S.ui.rec && !S.ui.recHero ? recordForm(t) : ''}
         ${t.records.length ? `<ol class="timeline">${t.records.slice(0, 2).map(recItem).join('')}</ol>` : '<p class="muted">아직 기록이 없습니다.</p>'}
         ${t.records.length > 2 ? `<details class="fold"><summary>이전 기록 ${t.records.length - 2}건</summary><ol class="timeline">${t.records.slice(2).map(recItem).join('')}</ol></details>` : ''}</section>`;
-    return head + (editing ? editForm(t) : confirming ? confirmPanel(t) : (t.decision_open ? '' : hero) + (t.decision ? decisionPanel(t) : '')) + body;
+    return head + (editing ? editForm(t) : confirming ? confirmPanel(t) : (t.decision_open ? '' : hero) + (S.ui.rec && S.ui.recHero ? `<section class="panel" id="rec-here"><h2>결과 기록</h2>${recordForm(t)}</section>` : '') + (t.decision ? decisionPanel(t) : '')) + body;
   }
 
   /* ───────── 화면: 검색, AI 현황 ───────── */
+  function mark(text, q) {
+    const low = text.toLowerCase(), k = q.toLowerCase(); let out = '', i = 0;
+    for (;;) { const n = k ? low.indexOf(k, i) : -1; if (n < 0) break; out += esc(text.slice(i, n)) + `<b class="found">${esc(text.slice(n, n + k.length))}</b>`; i = n + k.length; }
+    return out + esc(text.slice(i));
+  }
   function viewSearch(r) {
-    if (!r.q) return `<header class="page-head"><h1>검색</h1><p class="lede">위 검색창에 업무 제목, 요구사항, 기록의 낱말을 입력하세요.</p></header>`;
+    if (!r.q) return `<header class="page-head"><h1>검색</h1><p class="lede">위 검색창에 업무 제목, 요구사항, 기록의 검색어를 입력하세요.</p></header>`;
     return `<header class="page-head"><p class="eyebrow">검색</p><h1>‘${esc(r.q)}’ 결과 ${r.results.length}건</h1>
       </header>
       ${r.results.length ? `<ul class="results">${r.results.map((t) => `<li class="card">
         <header><span class="row">${chip(t.status)}${t.failing.map((f) => `<span class="chip sg-fail">${icon('fail')}${esc(f)}</span>`).join('')}</span><span class="crumb">${esc(t.project.name)}</span></header>
         <h3><a href="#task-${t.id}">${esc(t.title)}</a></h3>
-        <ul class="hits">${t.hits.filter((h) => h.where !== '제목').map((h) => `<li><span>${esc(h.where)}</span>${esc(h.text).split(new RegExp('(' + esc(r.q).replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'i')).map((x, n) => (n % 2 ? `<b class="found">${x}</b>` : x)).join('')}</li>`).join('')}</ul>
+        <ul class="hits">${t.hits.filter((h) => h.where !== '제목').map((h) => `<li><span>${esc(h.where)}</span>${mark(h.text, r.q)}</li>`).join('')}</ul>
         <footer class="links"><a class="btn ghost" href="#project-${t.project.id}-${t.requirement.id}">상위 요구사항 보기</a>
           ${t.verify_count ? `<a class="btn ghost" href="#task-${t.id}-verify">검증 이력 보기 <span class="sub">${t.verify_count}건</span></a>` : ''}</footer></li>`).join('')}</ul>`
-        : empty('찾은 업무가 없습니다', '다른 낱말로 다시 찾아 보세요. 열람 권한이 없는 업무는 결과에 나오지 않습니다.')}`;
+        : empty('검색 결과가 없습니다', '다른 검색어로 다시 검색해 주세요. 열람 권한이 없는 업무는 결과에 나오지 않습니다.')}`;
   }
   function viewAgents(a) {
     return `<header class="page-head"><h1>AI 현황</h1>
@@ -456,7 +467,7 @@
         ${x.connected ? '' : `<p class="note warn">연결이 끊겨 지금 상태를 확인할 수 없습니다. 아래는 끊기기 전에 확인한 결과입니다.</p>`}
         <div class="ag-grid"><div class="box"><small>마지막으로 확인한 결과</small><p>${esc(x.last_result)}</p><span>확인 시각 ${esc(abs(x.last_result_at))} · ${when(x.last_result_at)}</span></div>
           <div class="box"><small>최근 조회 시각</small><p>${esc(abs(x.last_polled_at))}</p><span>${when(x.last_polled_at)} · ${x.connected ? '조회됨' : '응답 없음'}</span></div></div>
-        <footer class="row"><button class="btn" data-act="poll" data-v="${x.agent.id}">지금 다시 조회</button>
+        <footer class="row"><button class="btn" data-act="poll" data-v="${x.agent.id}">재조회</button>
           <button class="link demo" data-act="link" data-v="${x.agent.id}" data-on="${x.connected ? 0 : 1}">시연용: ${x.connected ? '연결 끊기' : '연결 복구'}</button></footer></article>`).join('')}</div>`
         : empty('볼 수 있는 AI 작업이 없습니다', '내가 볼 수 있는 업무를 AI가 맡으면 여기에 보입니다.')}`;
   }
@@ -515,7 +526,7 @@
       const gone = e instanceof ApiError && e.status === 404;
       app.innerHTML = shell(route, `<div class="empty big"><h1>${gone ? '찾을 수 없는 페이지입니다' : '내용을 불러오지 못했습니다'}</h1>
         <p>${gone ? '없는 항목이거나 열람 권한이 없습니다.' : '연결 상태를 확인한 뒤 재시도해 주세요.'}</p>
-        <p><a class="btn" href="#home">홈으로</a> ${gone ? '' : '<button class="btn primary" data-act="reload">재시도</button>'}</p></div>`);
+        <p><a class="btn" href="#home">처리할 업무로</a> ${gone ? '' : '<button class="btn primary" data-act="reload">재시도</button>'}</p></div>`);
     }
     drawThreads();
     paintFlash();
@@ -556,7 +567,7 @@
     else if (act === 'edit-back') { S.ui.mode = 'edit'; render(); }
     else if (act === 'edit-save') { const { fields } = draftDiff(S.ui.base, S.ui.draft); save({ method: 'PATCH', path: 'tasks/' + S.ui.base.id, body: { rev: S.ui.base.rev, fields } }); }
     else if (act === 'decide') save({ method: 'POST', path: `tasks/${S.task.id}/decision`, body: { option: S.ui.option, rev: S.task.rev } });
-    else if (act === 'rec-open') { S.ui.rec = true; S.ui.cv = S.task.criteria_version; S.ui.rev = S.task.rev; if (v === 'pass') S.ui.after = S.task.assignee && S.task.assignee.id === S.viewer ? 'review' : 'work'; await render(); const el = document.getElementById('rec-form'); el.scrollIntoView({ block: 'center' }); document.getElementById('r-body').focus(); }
+    else if (act === 'rec-open') { S.ui.rec = true; S.ui.recHero = v === 'pass'; S.ui.cv = S.task.criteria_version; S.ui.rev = S.task.rev; if (v === 'pass') S.ui.after = S.task.assignee && S.task.assignee.id === S.viewer ? 'review' : S.task.did_work.includes(S.viewer) ? 'work' : 'keep'; await render(); const el = document.getElementById('rec-form'); el.scrollIntoView({ block: 'center' }); document.getElementById('r-body').focus(); }
     else if (act === 'rec-close') { S.ui.rec = false; render(); }
     else if (act === 'goto') goto(v);
     else if (act === 'retry' && S.pending) { if (S.pending.op) save(S.pending.op); else { await resolvePending(); render(); } }
@@ -581,7 +592,7 @@
     else if (e.target.id === 'edit-form') {
       readDraft();
       const d = S.ui.draft;
-      if (['blocked', 'hold'].includes(d.status) && !d.blocked_reason) { S.flash = { type: 'err', title: `${d.status === 'hold' ? '보류 사유' : '막힘 사유'}를 적어 주세요` }; paintFlash(); document.getElementById('f-reason').focus(); return; }
+      if (['blocked', 'hold'].includes(d.status) && !d.blocked_reason) { const el = document.getElementById('f-reason'); document.getElementById('f-reason-err').hidden = false; el.classList.add('invalid'); el.focus({ preventScroll: true }); el.scrollIntoView({ block: 'center' }); return; }
       S.ui.mode = 'confirm'; S.flash = null; render().then(() => window.scrollTo(0, 0));
     }
     else if (e.target.id === 'rec-form') {
@@ -589,7 +600,7 @@
       const t = S.task, k = t.stages.some((x) => x.key === S.ui.kind) ? S.ui.kind : 'note', stage = k !== 'note';
       const num = (x) => (x === '' || x == null ? null : Number(x));
       const body = { kind: k, outcome: stage && k !== 'impl' ? (S.ui.outcome || 'pass') : null, body: S.ui.body, evidence: S.ui.evidence, criteria_version: S.ui.cv };
-      if (stage && t.track === 'build' && (S.ui.commit || S.ui.tp || S.ui.tt)) body.proof = { commit: S.ui.commit, test_passed: num(S.ui.tp), test_total: num(S.ui.tt) };
+      if (stage && t.track === 'build' && (S.ui.commit || S.ui.tp || S.ui.tt) && ['impl', 'func'].includes(k)) body.proof = { commit: S.ui.commit, test_passed: num(S.ui.tp), test_total: num(S.ui.tt) };
       if (['work', 'review'].includes(S.ui.after) && t.status !== 'done') { body.handoff = { next_owner_id: S.ui.to, next_action: S.ui.act, purpose: S.ui.after }; body.rev = S.ui.rev; }
       save({ method: 'POST', path: `tasks/${t.id}/records`, body });
     }

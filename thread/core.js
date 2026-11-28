@@ -38,7 +38,7 @@
       ['u_new', '이하람', 'human', '매장운영팀'],
       ['ai_claude', 'Claude', 'ai', 'AI · 구현'],
       ['ai_codex', 'Codex', 'ai', 'AI · 검증'],
-      ['ai_verifier', '제3자 검증자', 'ai', 'AI · 별도 세션'],
+      ['ai_verifier', '제3자 검증자', 'ai', 'AI · 독립 검증'],
     ].forEach(([id, name, kind, team]) => { users[id] = { id, name, kind, team }; });
 
     const projects = [
@@ -96,6 +96,8 @@
         done_criteria: [], criteria_version: 1, criteria_log: [], current_state: '', rationale: [],
         restricted: null, decision: null, track: 'build', workers: [], handoff_from: null, handed_at: null, rev: 1, updated_at: ago(24),
       }, o);
+      const tk = tasks[o.id];
+      if (tk.handoff_from && tk.handoff_from !== tk.assignee_id && !tk.workers.includes(tk.handoff_from)) tk.workers = tk.workers.concat([tk.handoff_from]);
       if (!tasks[o.id].criteria_log.length) {
         tasks[o.id].criteria_log = [{ version: 1, items: tasks[o.id].done_criteria.slice(), at: ago(120), by: 'u_me' }];
       }
@@ -324,6 +326,7 @@
   /* ───────────── 조회 도우미 ───────────── */
   const has = (o, k) => !!o && typeof k === 'string' && Object.prototype.hasOwnProperty.call(o, k);
   const txt = (v) => (typeof v === 'string' ? v.trim() : '');
+  const ro = (w) => { const ch = w.charCodeAt(w.length - 1) - 0xac00; if (ch < 0 || ch > 11171) return '로'; const j = ch % 28; return j === 0 || j === 8 ? '로' : '으로'; };
   const err = (status, message, extra) => ({ status, body: Object.assign({ error: message }, extra || {}) });
   const ok = (body) => ({ status: 200, body });
 
@@ -380,15 +383,20 @@
   }
   function stagesOf(state, task) {
     const recs = state.records.filter((r) => r.task_id === task.id);
+    const lastImpl = recs.filter((r) => r.kind === 'impl' && r.criteria_version === task.criteria_version).map((r) => r.at).sort().pop() || '';
     return stageDefs(task).map((s) => {
       const mine = recs.filter((r) => r.kind === s.key).sort((a, b) => (a.at < b.at ? 1 : -1));
-      const cur = mine.find((r) => r.criteria_version === task.criteria_version) || null;
-      const prev = mine.find((r) => r.criteria_version < task.criteria_version) || null;
+      let cur = mine.find((r) => r.criteria_version === task.criteria_version) || null;
+      let prev = mine.find((r) => r.criteria_version < task.criteria_version) || null;
+      let why = '';
+      if (cur && s.key !== 'impl' && cur.at < lastImpl) why = '구현이 다시 보고되어 이 결과는 효력이 없습니다. 다시 검증해야 합니다.';
+      else if (cur && s.key === 'func' && didWork(state, task, cur.author_id)) why = '결과를 남긴 사람이 이 업무를 맡게 되어 이 결과는 효력이 없습니다. 맡지 않은 사람이 다시 남겨야 합니다.';
+      if (why) { prev = cur; cur = null; }
       const st = cur ? cur.outcome : 'none';
       return {
         key: s.key, label: s.label, state: st, text: s[st],
         current: cur ? { record_id: cur.id, summary: cur.body.split(/(?<=[.。!?])\s/)[0].slice(0, 120), at: cur.at, by: pubUser(state, cur.author_id), evidence: cur.evidence, proof: proofView(cur.proof), evidence_level: evidenceLevel(cur) } : null,
-        previous: prev ? { record_id: prev.id, at: prev.at, version: prev.criteria_version, text: s[prev.outcome], outcome: prev.outcome } : null,
+        previous: prev ? { record_id: prev.id, at: prev.at, version: prev.criteria_version, text: s[prev.outcome], outcome: prev.outcome, void_reason: why } : null,
       };
     });
   }
@@ -402,9 +410,9 @@
       requirement: { id: fr.req.id, title: fr.req.title },
       assignee: pubUser(state, t.assignee_id), next_owner: pubUser(state, t.next_owner_id),
       next_action: t.next_action, blocked_reason: t.blocked_reason, current_state: t.current_state,
-      handoff_from: pubUser(state, t.handoff_from), handed_at: t.handed_at, updated_at: t.updated_at,
+      handoff_from: pubUser(state, t.handoff_from), handed_at: t.handed_at, handoff_kind: t.handoff_kind || 'work', updated_at: t.updated_at,
       criteria_version: t.criteria_version,
-      stages: stagesOf(state, t).map((s) => ({ key: s.key, label: s.label, state: s.state, text: s.text, previous: s.previous && { version: s.previous.version, text: s.previous.text } })),
+      stages: stagesOf(state, t).map((s) => ({ key: s.key, label: s.label, state: s.state, text: s.text, previous: s.previous && { version: s.previous.version, text: s.previous.text, void_reason: s.previous.void_reason } })),
       decision_open: !!(t.decision && !t.decision.chosen), track: t.track,
       failing: stagesOf(state, t).filter((x) => x.state === 'fail').map((x) => `${x.label} ${x.text}`),
     };
@@ -584,7 +592,9 @@
     else if (kind === 'impl') { if (outcome === 'fail') return err(422, '구현 완료 보고에는 실패 결과를 남길 수 없습니다. 메모로 남겨 주세요.'); outcome = 'pass'; }
     else if (!['pass', 'fail'].includes(outcome)) return err(422, '결과(통과 또는 실패)를 선택해 주세요.');
     let proof = null;
-    const pin = body.proof && typeof body.proof === 'object' ? body.proof : {};
+    if (body.proof != null && (typeof body.proof !== 'object' || Array.isArray(body.proof))) return err(422, '근거 형식이 올바르지 않습니다.');
+    const pin = body.proof || {};
+    if (pin.commit != null && typeof pin.commit !== 'string') return err(422, '커밋 번호는 7~40자의 16진수로 적어 주세요. 예: 2ec355d');
     const commit = txt(pin.commit).toLowerCase();
     const given = (v) => v !== undefined && v !== null && v !== '';
     const hasTest = given(pin.test_total) || given(pin.test_passed);
@@ -629,7 +639,14 @@
       task.current_state = `완료 후 ${stage.label}에서 실패해 다시 열렸다.`;
       task.handoff_from = uid; task.handed_at = now;
     }
+    let returned = false;
+    if (!ho && !reopened && kind === 'func' && task.next_owner_id === uid && task.assignee_id && task.assignee_id !== uid && task.status !== 'done') {
+      returned = true;
+      task.next_owner_id = task.assignee_id; task.handoff_from = uid; task.handed_at = now; task.handoff_kind = 'result';
+      task.next_action = outcome === 'pass' ? `${stage.label} 결과를 확인하고 다음 단계를 진행한다` : `${stage.label}에서 지적된 내용을 보완하고 다시 요청한다`;
+    }
     if (ho && !reopened) {
+      task.handoff_kind = ho.purpose;
       task.next_owner_id = ho.to; task.next_action = ho.act; task.handoff_from = uid; task.handed_at = now;
       if (ho.purpose === 'work') passWork(task, ho.to);
       if (task.status === 'todo') task.status = 'doing';
@@ -638,7 +655,7 @@
     const ag = state.agents.find((a) => a.id === uid && a.task_id === task.id);
     if (ag) { ag.last_result = text; ag.last_result_at = now; ag.last_polled_at = now; ag.connected = true; }
     return ok({
-      saved: { record_id: rec.id, summary: (stage ? `${stage.label} 결과가 ‘${stage[outcome]}’로 기록되었습니다.` : '기록 1건이 추가되었습니다.') + (reopened ? ' 업무가 완료에서 진행 중으로 돌아갔습니다.' : '') + (ho && !reopened ? (ho.purpose === 'work' ? ` ${nameOf(state, ho.to)} 님에게 인계했습니다. 담당자도 함께 바뀌었습니다.` : ` ${nameOf(state, ho.to)} 님에게 검수를 요청했습니다.`) : '') },
+      saved: { record_id: rec.id, summary: (stage ? `${stage.label} 결과가 ‘${stage[outcome]}’${ro(stage[outcome])} 기록되었습니다.` : '기록 1건이 추가되었습니다.') + (reopened ? ' 업무가 완료에서 진행 중으로 돌아갔습니다.' : '') + (returned ? ` 업무가 담당자 ${nameOf(state, task.assignee_id)} 님에게 돌아갔습니다.` : '') + (ho && !reopened ? (ho.purpose === 'work' ? ` ${nameOf(state, ho.to)} 님에게 인계했습니다. 담당자도 함께 바뀌었습니다.` : ` ${nameOf(state, ho.to)} 님에게 검수를 요청했습니다.`) : '') },
       task: taskDetail(state, task, uid),
     });
   }
@@ -681,6 +698,10 @@
       return err(422, '완료된 업무는 인계할 수 없습니다. 상태를 먼저 변경해 주세요.');
     }
     const criteriaChanged = JSON.stringify(next.done_criteria) !== JSON.stringify(task.done_criteria);
+    if (next.status === 'done' && task.status !== 'done') {
+      if (task.decision && !task.decision.chosen) return err(422, '결정 대기 중인 업무는 완료로 바꿀 수 없습니다. 결정이 먼저 내려져야 합니다.');
+      if (next.next_owner_id !== task.next_owner_id) return err(422, '완료로 바꾸면서 다음 담당자를 함께 바꿀 수 없습니다. 따로 저장해 주세요.');
+    }
     if (next.status === 'done' && (task.status !== 'done' || criteriaChanged)) {
       if (criteriaChanged) return err(422, '완료 조건을 바꾸면 새 기준으로 다시 검증해야 합니다. 상태를 진행 중으로 함께 바꿔 주세요.');
       const st = stagesOf(state, task), func = st.find((s) => s.key === 'func'), bad = st.find((s) => s.state === 'fail');
@@ -694,7 +715,9 @@
       if (JSON.stringify(next[k]) !== JSON.stringify(task[k])) changes.push({ field: k, label, from: show(k, task[k]), to: show(k, next[k]) });
     }
     if (!changes.length) return ok({ saved: { summary: '바뀐 항목이 없어 저장하지 않았습니다.', changes: [] }, task: taskDetail(state, task, uid) });
+    if (next.status === 'done' && task.status !== 'done') { next.next_owner_id = null; next.next_action = ''; } // 완료된 업무에는 다음 조치가 없다
     const moved0 = next.next_owner_id !== task.next_owner_id && next.next_owner_id;
+    if (moved0) next.handoff_kind = 'work';
     if (moved0) { next.handoff_from = uid; next.handed_at = now; next.workers = (task.workers || []).slice(); passWork(next, next.next_owner_id); }
     if (criteriaChanged) {
       next.criteria_version = task.criteria_version + 1;
@@ -720,12 +743,14 @@
     if (!body || typeof body !== 'object') return err(422, '선택지를 골라 주세요.');
     if (d.owner_id !== uid) return err(403, '이 결정은 지정된 담당자만 내릴 수 있습니다.');
     if (d.chosen) return err(409, '이미 결정된 항목입니다.', { task: taskDetail(state, task, uid) });
+    if (task.status === 'done') return err(422, '완료된 업무의 결정은 내릴 수 없습니다. 수정에서 상태를 먼저 변경해 주세요.');
     if (body.rev !== task.rev) return err(409, '다른 사람이 먼저 이 업무를 변경했습니다. 최신 내용을 확인한 뒤 다시 결정해 주세요.', { task: taskDetail(state, task, uid) });
     const note = txt(body.note);
+    if (note.length > 500) return err(422, '결정 메모는 500자까지 입력할 수 있습니다.');
     const opt = d.options.find((o) => o.id === body.option);
     if (!opt) return err(422, '선택지를 골라 주세요.');
     d.chosen = opt.id; d.chosen_at = now;
-    task.next_owner_id = opt.next_owner_id; task.next_action = opt.next_action; passWork(task, opt.next_owner_id);
+    task.next_owner_id = opt.next_owner_id; task.next_action = opt.next_action; passWork(task, opt.next_owner_id); task.handoff_kind = 'work';
     task.handoff_from = uid; task.handed_at = now;
     if (d.unblocks && task.status === 'blocked') { task.status = 'todo'; task.blocked_reason = ''; }
     task.rev += 1; task.updated_at = now;
@@ -739,7 +764,7 @@
     const p = req.path.replace(/^\/+|\/+$/g, '').split('/');
     const m = req.method;
     if (m === 'GET' && p[0] === 'users' && p.length === 1) return ok({ users: Object.keys(state.users).map((id) => pubUser(state, id)) });
-    if (m === 'GET' && p[0] === 'home') return home(state, uid);
+    if (m === 'GET' && p[0] === 'home' && p.length === 1) return home(state, uid);
     if (m === 'POST' && p[0] === 'home' && p[1] === 'seen') {
       // 화면에 보인 마지막 변경까지만 확인 처리한다. 그 뒤에 생긴 변경은 남는다.
       const until = txt(req.body && req.body.until);

@@ -381,3 +381,19 @@ input[type="radio"], input[type="checkbox"] { accent-color: var(--ink); width: 1
 .crumbs a, .item-title, .trow-main a { padding-block: 3px; }
 
 .feed a span { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+/* 디자인 검토 3차 반영 */
+.trow-main a { text-decoration: underline; text-decoration-color: var(--edge); text-underline-offset: 4px; }
+.fbtn.on.zero { color: var(--panel); }
+.th-labels { display: grid; } .th-labels .ord { display: none; font-style: normal; font-size: 12px; font-weight: 600; color: var(--ink-3); }
+@media (max-width: 860px) { .th-labels { grid-template-columns: minmax(0, 1fr) !important; } .th-labels .ord { display: block; } }
+.item-line.reason.hold, .item-line.reason.hold small { color: var(--hold); }
+.item:hover, .proj:hover { border-color: var(--line); background: var(--panel-2); } .item.decide:hover { border-color: var(--ink); }
+.field-err { display: block; color: var(--blocked); font-size: 13px; font-weight: 600; margin-top: 4px; } input.invalid { border-color: var(--blocked); }
+#edit-form input, #edit-form textarea, #edit-form select { scroll-margin-top: 200px; }
+input:disabled, textarea:disabled, select:disabled { border-style: dashed; color: var(--ink-2); }
+.count b { font-size: 17px; font-weight: 800; } .count.big b { font-size: 30px; }
+.decision.locked { border: 1px solid var(--line); } .decision.locked .opt { cursor: default; } .decision.locked .opt:hover { border-color: var(--edge); }
+.top { background: color-mix(in srgb, var(--bg) 97%, transparent); }
+.empty h1 { color: var(--ink); }
+.form label small { font-weight: 400; }

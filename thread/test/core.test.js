@@ -303,3 +303,46 @@ test('완료된 업무는 수정으로도 인계할 수 없고, 열린 업무에
   assert.equal(send(s, 'u_me', 'PATCH', 'tasks/t1', { rev: s.tasks.t1.rev, fields: { status: 'doing', next_action: '다시 본다', next_owner_id: 'u_dev' } }, 'c').status, 200);
   assert.equal(send(s, 'u_me', 'PATCH', 'tasks/t6', 'str', 'd').status, 422);
 });
+
+// ── 5차 독립 검증에서 나온 반례
+test('예전에 맡았던 사람은 시드 업무에서도 검수할 수 없다', () => {
+  const s = mk();
+  const rec = { kind: 'func', outcome: 'pass', body: '확인', evidence: 'x', criteria_version: 1 };
+  assert.equal(send(s, 'ai_claude', 'POST', 'tasks/t4/records', rec, 'a').status, 422);
+  assert.equal(send(s, 'u_dev', 'POST', 'tasks/t13/records', rec, 'b').status, 422);
+  assert.equal(send(s, 'u_jisu2', 'POST', 'tasks/t10/records', rec, 'c').status, 422);
+});
+
+test('검증한 사람이 나중에 그 업무를 맡거나 구현을 보고하면 그 통과는 효력을 잃는다', () => {
+  const s = mk();
+  const pass = { kind: 'func', outcome: 'pass', body: '확인', evidence: 'x', criteria_version: 1 };
+  assert.equal(send(s, 'u_dev', 'POST', 'tasks/t010/records', pass, 'a').status, 200);
+  send(s, 'u_dev', 'POST', 'tasks/t010/records', { kind: 'impl', body: '고침', criteria_version: 1 }, 'b');
+  assert.equal(get(s, 'u_me', 'tasks/t010').body.task.stages[1].state, 'none');
+  assert.equal(send(s, 'u_me', 'PATCH', 'tasks/t010', { rev: s.tasks.t010.rev, fields: { status: 'done' } }, 'c').status, 422);
+  // 다른 업무: 통과시킨 사람이 담당자가 되는 경우
+  assert.equal(send(s, 'u_dev', 'POST', 'tasks/t020/records', pass, 'd').status, 200);
+  send(s, 'u_me', 'PATCH', 'tasks/t020', { rev: s.tasks.t020.rev, fields: { next_owner_id: 'u_dev' } }, 'e');
+  assert.equal(get(s, 'u_me', 'tasks/t020').body.task.stages[1].state, 'none');
+  assert.equal(send(s, 'u_me', 'PATCH', 'tasks/t020', { rev: s.tasks.t020.rev, fields: { status: 'done' } }, 'f').status, 422);
+});
+
+test('결정 대기 중에는 완료할 수 없고, 완료하면서 담당자를 바꿀 수 없다', () => {
+  const s = mk();
+  send(s, 'u_dev', 'POST', 'tasks/t5/records', { kind: 'impl', body: 'x', criteria_version: 1 }, 'a0');
+  send(s, 'u_new', 'POST', 'tasks/t5/records', { kind: 'func', outcome: 'pass', body: 'x', evidence: 'y', criteria_version: 1 }, 'a');
+  assert.equal(send(s, 'u_me', 'PATCH', 'tasks/t5', { rev: s.tasks.t5.rev, fields: { status: 'done' } }, 'b').status, 422);
+  send(s, 'ai_verifier', 'POST', 'tasks/t030/records', { kind: 'func', outcome: 'pass', body: 'x', evidence: 'y', criteria_version: 1 }, 'c');
+  assert.equal(send(s, 'u_me', 'PATCH', 'tasks/t030', { rev: s.tasks.t030.rev, fields: { status: 'done', next_owner_id: 'u_dev' } }, 'd').status, 422);
+  assert.equal(send(s, 'u_me', 'PATCH', 'tasks/t030', { rev: s.tasks.t030.rev, fields: { status: 'done' } }, 'e').status, 200);
+  assert.equal(s.tasks.t030.next_owner_id, null);
+});
+
+test('검수자가 결과를 남기면 업무가 담당자에게 돌아간다', () => {
+  const s = mk();
+  send(s, 'u_me', 'POST', 'tasks/t4/records', { kind: 'note', body: '보냄', rev: s.tasks.t4.rev, handoff: { next_owner_id: 'u_jisu1', next_action: '검수한다', purpose: 'review' } }, 'a');
+  const r = send(s, 'u_jisu1', 'POST', 'tasks/t4/records', { kind: 'func', outcome: 'fail', body: '수신 확인 1건 누락', evidence: '기록 대조', criteria_version: 1 }, 'b');
+  assert.equal(r.body.task.next_owner.id, 'u_me');
+  assert.ok(get(s, 'u_me', 'home').body.handoffs.some((t) => t.id === 't4'));
+  assert.ok(!get(s, 'u_jisu1', 'home').body.handoffs.some((t) => t.id === 't4'));
+});
