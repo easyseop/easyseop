@@ -214,6 +214,7 @@
           { id: 'r01', title: '홈에서 판단할 일과 이어받을 일을 구분해 보여 준다' },
           { id: 'r02', title: '업무 상세를 읽기 상태로 열고 상태·담당자·다음 할 일을 먼저 보여 준다' },
           { id: 'r03', title: '저장 전에는 바뀌는 내용을, 저장 후에는 반영 여부와 다음 할 일을 보여 준다' },
+          { id: 'r18', title: '마지막으로 확인한 뒤 바뀐 것을 홈에서 먼저 보여 준다' },
         ] },
         { id: 'm02', title: '요건으로 진척을 본다', requirements: [
           { id: 'r04', title: '프로젝트 목표에서 중간 목표, 요건, 업무로 내려가며 진척을 본다' },
@@ -224,6 +225,7 @@
           { id: 'r07', title: '열람 권한이 없는 사람과 이름이 같은 다른 사람에게 업무·자료를 보이지 않는다' },
           { id: 'r08', title: '구현·독립 기능 검증·실사용 검증·운영 배포와 이전 기준·현재 기준을 구분한다' },
           { id: 'r09', title: 'AI 현황에서 마지막으로 확인한 결과와 최근 조회 시각을 구분한다' },
+          { id: 'r17', title: '근거를 확인할 수 있는 것(커밋, 시험 결과)과 서술만 있는 것으로 나눠 보여 준다' },
         ] },
         { id: 'm04', title: '실제 첫 사용자가 통과한다', requirements: [
           { id: 'r10', title: '비개발자·개발자·AI 도구 첫 사용자가 도움 없이 핵심 과제를 끝낸다' },
@@ -235,6 +237,11 @@
         { id: 'r13', title: 'Claude·Codex 스킬 허브를 둔다', own_status: 'hold', note: '후순위' },
         { id: 'r14', title: '프로젝트 지식을 업무에 연결한다', own_status: 'hold', note: '후순위' },
         { id: 'r15', title: '일정과 담당자 부재를 관리한다', own_status: 'hold', note: '후순위' },
+        { id: 'r19', title: '결정한 뒤에도 버린 대안과 이유를 남기고 프로젝트별 결정 목록을 둔다', own_status: 'hold', note: '조사 메모(2026-11-28)에서 나온 요건. 지금은 선택한 안만 남는다' },
+        { id: 'r20', title: '완료·통과 뒤에 실패 기록이 들어오면 다시 확인할 일로 알린다', own_status: 'hold', note: '조사 메모에서 나온 요건. 지금은 완료 조건이 바뀔 때만 이전 기준으로 내려간다' },
+        { id: 'r21x', title: '커밋과 시험 결과를 저장소에서 자동으로 읽어 근거로 붙인다', own_status: 'hold', note: '지금은 기록하는 쪽이 커밋 번호와 시험 결과를 직접 적는다' },
+        { id: 'r22x', title: 'AI 세션이 끝나거나 압축되기 전에 인계 기록을 자동으로 남긴다', own_status: 'hold', note: '조사 메모에서 나온 요건. 스킬 허브와 함께 검토' },
+        { id: 'r23x', title: '열람 제한이 없는 업무를 저장소의 읽기 전용 파일로 내보낸다', own_status: 'hold', note: '저장은 서버에 둔다. 열람 권한을 파일로는 지킬 수 없기 때문' },
         { id: 'r16', title: '테마를 바꾼다(캐릭터 테마 포함)', own_status: 'hold', note: '캐릭터 형태가 배경과 화면 구성에 녹아야 하고 업무 정보의 가독성을 해치지 않아야 한다' },
       ],
     });
@@ -254,21 +261,22 @@
       current_state: '미검증. 참가자가 정해지면 다시 시작한다.', updated_at: ago(1) });
 
     const records = [];
-    const R = (id, task_id, author_id, kind, outcome, body, evidence, v, h) =>
-      records.push({ id, task_id, author_id, kind, outcome, body, evidence: evidence || '', criteria_version: v, at: ago(h) });
+    // proof: 다른 사람이 다시 확인할 수 있는 근거(커밋 번호, 시험 실행 결과). 없으면 서술만 있는 기록이다.
+    const R = (id, task_id, author_id, kind, outcome, body, evidence, v, h, proof) =>
+      records.push({ id, task_id, author_id, kind, outcome, body, evidence: evidence || '', proof: proof || null, criteria_version: v, at: ago(h) });
     R('c20', 't1', 'ai_claude', 'impl', 'pass', '발송 시각 계산과 취소 예약 제외를 구현했다.', '시험 예약 40건 발송 기록', 1, 260);
-    R('c21', 't1', 'ai_codex', 'func', 'pass', '두 시각 모두 한 번씩만 발송됐고 취소 예약에는 발송되지 않았다.', '시험 예약 40건 중 40건 정상, 취소 예약 6건 미발송 확인', 1, 250);
+    R('c21', 't1', 'ai_codex', 'func', 'pass', '두 시각 모두 한 번씩만 발송됐고 취소 예약에는 발송되지 않았다.', '시험 예약 40건 중 40건 정상, 취소 예약 6건 미발송 확인', 1, 250, { commit: '4be19a2', test_passed: 46, test_total: 46 });
     R('c22', 't1', 'u_new', 'field', 'pass', '강남점 실제 예약으로 3일간 확인했다.', '실제 예약 118건, 누락 0건', 1, 220);
     R('c23', 't1', 'u_dev', 'deploy', 'pass', '전 매장 운영에 배포했다.', '배포 기록 2026-11-19', 1, 200);
     R('c24', 't2', 'ai_claude', 'impl', 'pass', '알림톡 실패 응답을 받으면 문자로 다시 보내도록 구현했다.', '실패 응답 시험 15건', 1, 190);
-    R('c25', 't2', 'ai_codex', 'func', 'pass', '실패 후 평균 22초 안에 문자가 발송됐고 중복 발송은 없었다.', '시험 15건 중 15건 정상', 1, 180);
+    R('c25', 't2', 'ai_codex', 'func', 'pass', '실패 후 평균 22초 안에 문자가 발송됐고 중복 발송은 없었다.', '시험 15건 중 15건 정상', 1, 180, { commit: '9c03d7e', test_passed: 15, test_total: 15 });
     R('c26', 't2', 'u_new', 'field', 'pass', '알림톡 차단 고객 5명에게 실제로 문자가 도착했다.', '고객 5명 수신 확인', 1, 165);
     R('c27', 't2', 'u_dev', 'deploy', 'pass', '전 매장 운영에 배포했다.', '배포 기록 2026-11-22', 1, 150);
     R('c1', 't3', 'ai_claude', 'impl', 'pass', '변경 링크로 예약 시간을 바꾸는 흐름을 구현했다.', '변경 요청 시험 12건', 1, 50);
     R('c2', 't3', 'ai_codex', 'func', 'pass', '링크로 변경하고 확인 문자를 받는 흐름이 정상이다.', '시험 예약 8건 중 8건 변경 성공', 1, 46);
     R('c3', 't3', 'u_me', 'edit', null, '완료 조건을 바꿨다(기준 v1 → v2). 추가: 링크는 한 번만 쓸 수 있고 24시간 뒤 만료된다. 보안 검토 지적 반영.', '', 2, 30);
-    R('c4', 't3', 'ai_claude', 'impl', 'pass', '링크 1회 사용과 24시간 만료를 추가로 구현했다.', '만료·재사용 시험 6건', 2, 20);
-    R('c5', 't3', 'ai_codex', 'func', 'fail', '만료된 링크로 예약이 변경된다. 1회 사용 조건은 통과했다.', '만료 후 25시간 지난 링크 3건 중 3건이 동작(모두 거절되어야 정상). 사용한 링크 재사용 4건은 모두 거절됨.', 2, 5);
+    R('c4', 't3', 'ai_claude', 'impl', 'pass', '링크 1회 사용과 24시간 만료를 추가로 구현했다.', '만료·재사용 시험 6건', 2, 20, { commit: 'e71f0b4', test_passed: null, test_total: null });
+    R('c5', 't3', 'ai_codex', 'func', 'fail', '만료된 링크로 예약이 변경된다. 1회 사용 조건은 통과했다.', '만료 후 25시간 지난 링크 3건 중 3건이 동작(모두 거절되어야 정상). 사용한 링크 재사용 4건은 모두 거절됨.', 2, 5, { commit: 'e71f0b4', test_passed: 4, test_total: 7 });
     R('c6', 't4', 'ai_claude', 'note', null, '안내문 초안 v3을 작성했다. 점주가 자주 묻는 질문 3가지에 대한 답을 넣었다.', '', 1, 6);
     R('c7', 't4', 'u_jisu1', 'note', null, '문구와 레이아웃 검수 통과. 수정할 곳 없음.', '검수본: 안내문 초안 v3', 1, 3);
     R('c8', 't4', 'ai_claude', 'handoff', null, '한서윤 님에게 인계한다. 점주 연락처는 AI 열람 범위 밖이라 발송은 사람이 해야 한다.', '', 1, 2);
@@ -283,7 +291,7 @@
     R('c19', 't11', 'u_dev', 'handoff', null, '김지수(재무팀) 님에게 인계한다. 예외 6건 목록을 첨부했다.', '', 1, 12);
 
     Object.values(tasks).filter((t) => t.project_id === 'p0' && t.id !== 't100').forEach((t, i) =>
-      R('c9' + i, t.id, 'ai_claude', 'impl', 'pass', '구현했다. 구현자의 자체 확인은 참고 자료이며 독립 검증을 대신하지 않는다.', '자체 규칙 시험(test/core.test.js)', 1, 1));
+      R('c9' + i, t.id, 'ai_claude', 'impl', 'pass', '구현했다. 구현자의 자체 확인은 참고 자료이며 독립 검증을 대신하지 않는다.', '자체 규칙 시험(test/core.test.js)', 1, 1, { commit: '2ec355d', test_passed: 13, test_total: 13 }));
     const materials = [
       { id: 'mt1', task_id: 't4', title: '점주 사전 인터뷰 요약', kind: '문서', summary: '점주 5명 인터뷰. 가장 많은 질문: 고객이 바꾼 예약은 어디서 보나, 변경 마감은 언제인가, 잘못 바꾸면 되돌릴 수 있나.', allowed: null },
       { id: 'mt2', task_id: 't4', title: '시범 매장 점주 연락처', kind: '연락처', summary: '강남점·판교점 점주 연락처.', allowed: ['u_me', 'u_dev', 'u_new'] },
@@ -309,7 +317,9 @@
       { id: 'g7', project_id: 'p2', task_id: 't11', text: '김지수(재무팀) 님에게 인계', actor_id: 'u_dev', at: ago(12) },
     ];
 
-    return { users, projects, tasks, records, materials, agents, changes, idem: {}, seq: 100 };
+    const seen = {};
+    Object.keys(users).forEach((id) => { seen[id] = ago(24); });
+    return { users, projects, tasks, records, materials, agents, changes, seen, idem: {}, seq: 100 };
   }
 
   /* ───────────── 조회 도우미 ───────────── */
@@ -345,6 +355,16 @@
     return 'todo';
   }
 
+  function proofView(pr) {
+    if (!pr) return null;
+    const out = {};
+    if (pr.commit) out.commit = pr.commit;
+    if (pr.test_total != null) { out.test_passed = pr.test_passed; out.test_total = pr.test_total; }
+    return Object.keys(out).length ? out : null;
+  }
+  // 근거 수준: 다시 확인할 수 있는 근거가 있으면 checkable, 글로 적은 것뿐이면 stated, 아무것도 없으면 none.
+  const evidenceLevel = (r) => (proofView(r.proof) ? 'checkable' : r.evidence ? 'stated' : 'none');
+
   function stagesOf(state, task) {
     const recs = state.records.filter((r) => r.task_id === task.id);
     return STAGES.map((s) => {
@@ -354,7 +374,7 @@
       const st = cur ? cur.outcome : 'none';
       return {
         key: s.key, label: s.label, state: st, text: s[st],
-        current: cur ? { record_id: cur.id, at: cur.at, by: pubUser(state, cur.author_id), evidence: cur.evidence } : null,
+        current: cur ? { record_id: cur.id, at: cur.at, by: pubUser(state, cur.author_id), evidence: cur.evidence, proof: proofView(cur.proof), evidence_level: evidenceLevel(cur) } : null,
         previous: prev ? { record_id: prev.id, at: prev.at, version: prev.criteria_version, text: s[prev.outcome], outcome: prev.outcome } : null,
       };
     });
@@ -403,7 +423,7 @@
       } : null,
       stages: stagesOf(state, t),
       records: state.records.filter((r) => r.task_id === t.id).sort((a, b) => (a.at < b.at ? 1 : -1)).map((r) => ({
-        id: r.id, kind: r.kind, kind_label: KINDS[r.kind], outcome: r.outcome, body: r.body, evidence: r.evidence,
+        id: r.id, kind: r.kind, kind_label: KINDS[r.kind], outcome: r.outcome, body: r.body, evidence: r.evidence, proof: proofView(r.proof), evidence_level: evidenceLevel(r),
         criteria_version: r.criteria_version, is_current_criteria: r.criteria_version === t.criteria_version,
         at: r.at, author: pubUser(state, r.author_id),
       })),
@@ -446,8 +466,17 @@
           .map((c) => ({ id: c.id, task_id: c.task_id, task_title: state.tasks[c.task_id].title, text: c.text, actor: pubUser(state, c.actor_id), at: c.at })),
       };
     });
+    const seenAt = (state.seen && state.seen[uid]) || null;
+    const feed = state.changes.filter((c) => canSee(state, state.tasks[c.task_id], uid) && c.actor_id !== uid)
+      .sort((a, b) => (a.at < b.at ? 1 : -1));
+    const fresh = seenAt ? feed.filter((c) => c.at > seenAt) : feed.slice(0, 5);
+    const since = {
+      at: seenAt, total: fresh.length,
+      changes: fresh.slice(0, 8).map((c) => ({ id: c.id, task_id: c.task_id, task_title: state.tasks[c.task_id].title,
+        project: { id: c.project_id, name: projectOf(state, c.project_id).name }, text: c.text, actor: pubUser(state, c.actor_id), at: c.at })),
+    };
     return ok({
-      me: pubUser(state, uid),
+      me: pubUser(state, uid), since,
       decisions: decisions.map((t) => Object.assign(taskSummary(state, t), {
         question: t.decision.question, why: t.decision.why, option_count: t.decision.options.length,
         requested_by: pubUser(state, t.decision.requested_by), requested_at: t.decision.requested_at,
@@ -530,14 +559,25 @@
     if (kind === 'note') outcome = null;
     else if (kind === 'impl') outcome = 'pass';
     else if (!['pass', 'fail'].includes(outcome)) return err(422, '결과(통과 또는 실패)를 선택해 주세요.');
-    if (['func', 'field'].includes(kind) && !evidence) return err(422, '검증 결과에는 확인한 근거를 적어 주세요.');
+    let proof = null;
+    const pin = (body && body.proof) || {};
+    const commit = String(pin.commit || '').trim().toLowerCase();
+    const hasTest = pin.test_total !== undefined && pin.test_total !== null && pin.test_total !== '';
+    if (commit && !/^[0-9a-f]{7,40}$/.test(commit)) return err(422, '커밋 번호는 7~40자의 16진수로 적어 주세요. 예: 2ec355d');
+    if (hasTest) {
+      const tp = Number(pin.test_passed), tt = Number(pin.test_total);
+      if (!Number.isInteger(tp) || !Number.isInteger(tt) || tt < 1 || tp < 0 || tp > tt || tt > 1e6) return err(422, '시험 결과는 통과한 건수와 전체 건수를 숫자로 적어 주세요. 통과한 건수는 전체 건수보다 클 수 없습니다.');
+      if (outcome === 'pass' && kind !== 'deploy' && tp < tt) return err(422, `시험 ${tt}건 중 ${tp}건만 통과했습니다. 모두 통과하지 않았으면 결과를 통과로 남길 수 없습니다.`);
+      proof = { commit: commit || null, test_passed: tp, test_total: tt };
+    } else if (commit) proof = { commit, test_passed: null, test_total: null };
+    if (['func', 'field'].includes(kind) && !evidence && !proof) return err(422, '검증 결과에는 확인한 근거를 적어 주세요.');
     if (kind === 'func') {
       const built = task.assignee_id === uid || state.records.some((r) => r.task_id === task.id && r.kind === 'impl' && r.author_id === uid);
       if (built) return err(422, '이 업무를 구현한 담당자는 독립 기능 검증 결과를 남길 수 없습니다. 구현에 참여하지 않은 검증자가 남겨야 합니다.');
     }
     if (kind === 'field' && me.kind === 'ai') return err(422, '실사용 검증은 실제 사용자가 확인한 결과만 남길 수 있습니다.');
     if (kind === 'deploy' && me.kind === 'ai') return err(422, '운영 배포 결과는 사람이 남겨야 합니다.');
-    const rec = { id: nextId(state, 'c'), task_id: task.id, author_id: uid, kind, outcome, body: text, evidence, criteria_version: task.criteria_version, at: now };
+    const rec = { id: nextId(state, 'c'), task_id: task.id, author_id: uid, kind, outcome, body: text, evidence, proof, criteria_version: task.criteria_version, at: now };
     state.records.push(rec);
     task.updated_at = now; task.rev += 1;
     const stage = STAGES.find((s) => s.key === kind);
@@ -628,6 +668,7 @@
     const m = req.method;
     if (m === 'GET' && p[0] === 'users' && p.length === 1) return ok({ users: Object.keys(state.users).map((id) => pubUser(state, id)) });
     if (m === 'GET' && p[0] === 'home') return home(state, uid);
+    if (m === 'POST' && p[0] === 'home' && p[1] === 'seen') { state.seen = state.seen || {}; state.seen[uid] = now; return home(state, uid); }
     if (m === 'GET' && p[0] === 'projects' && p[1]) return projectView(state, uid, p[1]);
     if (m === 'GET' && p[0] === 'search') return search(state, uid, req.query && req.query.q);
     if (m === 'GET' && p[0] === 'agents') return agentsView(state, uid);
