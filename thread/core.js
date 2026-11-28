@@ -9,20 +9,20 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
-  const STATUS = { todo: '할 일', doing: '진행 중', blocked: '막힘', hold: '보류', done: '완료' };
+  const STATUS = { todo: '시작 전', doing: '진행 중', blocked: '막힘', hold: '보류', done: '완료' };
   const KINDS = {
-    note: '기록', impl: '구현 완료 보고', func: '독립 기능 검증', field: '실사용 검증',
+    note: '메모', impl: '구현 완료 보고', func: '제3자 기능 검증', field: '실사용자 검증',
     deploy: '운영 배포', decision: '결정', handoff: '인계', edit: '수정',
   };
   const STAGES = [
-    { key: 'impl', label: '구현', pass: '완료', fail: '미완료', none: '아직 안 됨' },
-    { key: 'func', label: '독립 기능 검증', pass: '통과', fail: '실패', none: '미검증' },
-    { key: 'field', label: '실사용 검증', pass: '통과', fail: '실패', none: '미검증' },
-    { key: 'deploy', label: '운영 배포', pass: '배포됨', fail: '배포 실패', none: '배포 전' },
+    { key: 'impl', label: '구현', pass: '구현 완료', fail: '미완료', none: '미실시' },
+    { key: 'func', label: '제3자 기능 검증', pass: '통과', fail: '실패', none: '미실시' },
+    { key: 'field', label: '실사용자 검증', pass: '통과', fail: '실패', none: '미실시' },
+    { key: 'deploy', label: '운영 배포', pass: '배포됨', fail: '배포 실패', none: '미실시' },
   ];
   const EDITABLE = {
-    title: '제목', status: '상태', next_owner_id: '다음 담당자', next_action: '다음 할 일',
-    blocked_reason: '막힌 이유', current_state: '진행 상황', done_criteria: '완료 조건',
+    title: '제목', status: '상태', next_owner_id: '다음 담당자', next_action: '다음 조치',
+    blocked_reason: '막힘 사유', current_state: '진행 상황', done_criteria: '완료 조건',
   };
 
   /* ───────────── 가상 데이터 ───────────── */
@@ -38,7 +38,7 @@
       ['u_new', '이하람', 'human', '매장운영팀'],
       ['ai_claude', 'Claude', 'ai', 'AI · 구현'],
       ['ai_codex', 'Codex', 'ai', 'AI · 검증'],
-      ['ai_verifier', '독립 검증자', 'ai', 'AI · 별도 세션'],
+      ['ai_verifier', '제3자 검증자', 'ai', 'AI · 별도 세션'],
     ].forEach(([id, name, kind, team]) => { users[id] = { id, name, kind, team }; });
 
     const projects = [
@@ -94,7 +94,7 @@
       tasks[o.id] = Object.assign({
         assignee_id: null, next_owner_id: null, next_action: '', blocked_reason: '', goal: '',
         done_criteria: [], criteria_version: 1, criteria_log: [], current_state: '', rationale: [],
-        restricted: null, decision: null, track: 'build', handoff_from: null, handed_at: null, rev: 1, updated_at: ago(24),
+        restricted: null, decision: null, track: 'build', workers: [], handoff_from: null, handed_at: null, rev: 1, updated_at: ago(24),
       }, o);
       if (!tasks[o.id].criteria_log.length) {
         tasks[o.id].criteria_log = [{ version: 1, items: tasks[o.id].done_criteria.slice(), at: ago(120), by: 'u_me' }];
@@ -119,7 +119,7 @@
         { version: 1, items: ['알림 안의 링크로 로그인 없이 예약 시간을 바꿀 수 있다', '변경하면 확인 문자가 온다'], at: ago(120), by: 'u_me' },
         { version: 2, items: ['알림 안의 링크로 로그인 없이 예약 시간을 바꿀 수 있다', '변경하면 확인 문자가 온다', '링크는 한 번만 쓸 수 있고 24시간 뒤 만료된다'], at: ago(30), by: 'u_me' },
       ],
-      current_state: '구현은 끝났지만 현재 기준(v2) 독립 기능 검증에서 실패했다. 만료된 링크로도 예약이 변경된다.',
+      current_state: '구현은 끝났지만 현행 기준(2차) 제3자 기능 검증에서 실패했다. 만료된 링크로도 예약이 변경된다.',
       rationale: [
         { text: '보안 검토에서 링크가 유출되면 타인이 예약을 바꿀 수 있다는 지적이 나와 완료 조건에 만료를 추가했다', ref: { type: 'record', id: 'c3' } },
       ],
@@ -152,7 +152,7 @@
         owner_id: 'u_me', requested_by: 'ai_claude', requested_at: ago(9), recommended: 'a', unblocks: true,
         options: [
           { id: 'a', label: '본사 표준 기준으로 안내한다', effect: '모든 매장에 같은 기준을 보여 준다. 추가 개발 없음. 자체 기준을 쓰는 3곳은 문의가 늘 수 있다.', next_action: '본사 표준 위약금 기준으로 안내 화면을 구현한다', next_owner_id: 'ai_claude' },
-          { id: 'b', label: '매장별 기준을 입력받아 안내한다', effect: '매장마다 정확한 금액을 보여 준다. 입력 화면 개발에 약 2주가 더 든다.', next_action: '매장별 위약금 입력 화면의 요건을 정리한다', next_owner_id: 'u_dev' },
+          { id: 'b', label: '매장별 기준을 입력받아 안내한다', effect: '매장마다 정확한 금액을 보여 준다. 입력 화면 개발에 약 2주가 더 든다.', next_action: '매장별 위약금 입력 화면의 요구사항을 정리한다', next_owner_id: 'u_dev' },
           { id: 'c', label: '금액 없이 위약금이 있을 수 있다고만 안내한다', effect: '가장 빨리 끝난다. 고객이 금액을 몰라 매장 문의가 늘 수 있다.', next_action: '금액 없는 위약금 안내 문구를 넣는다', next_owner_id: 'ai_claude' },
         ],
         chosen: null, chosen_at: null,
@@ -202,7 +202,7 @@
       current_state: '예외 6건 목록 확보.', restricted: ['u_jisu2', 'u_dev'],
       handoff_from: 'u_dev', handed_at: ago(12), updated_at: ago(12) });
 
-    // Thread 자체의 요건. 가상 프로젝트와 달리 실제 개발·검증 현황을 적는다.
+    // Thread 자체의 요구사항. 가상 프로젝트와 달리 실제 개발·검증 현황을 적는다.
     projects.unshift({
       id: 'p0', name: 'Thread 만들기', real: true,
       goal: '처음 온 사람이 설명 없이 목표·진행 중인 일·근거·다음 행동을 파악하고 바로 이어서 일한다',
@@ -210,19 +210,19 @@
       members: ['u_me', 'u_dev', 'ai_claude', 'ai_verifier'],
       milestones: [
         { id: 'm01', title: '홈에서 찾고 상세에서 확인한다', requirements: [
-          { id: 'r01', title: '홈에서 판단할 일과 이어받을 일을 구분해 보여 준다' },
-          { id: 'r02', title: '업무 상세를 읽기 상태로 열고 상태·담당자·다음 할 일을 먼저 보여 준다' },
-          { id: 'r03', title: '저장 전에는 바뀌는 내용을, 저장 후에는 반영 여부와 다음 할 일을 보여 준다' },
-          { id: 'r18', title: '마지막으로 확인한 뒤 바뀐 것을 홈에서 먼저 보여 준다' },
+          { id: 'r01', title: '홈에서 판단 대기 업무와 인계받은 업무를 구분해 보여 준다' },
+          { id: 'r02', title: '업무 상세를 읽기 상태로 열고 상태·담당자·다음 조치를 먼저 보여 준다' },
+          { id: 'r03', title: '저장 전에는 바뀌는 내용을, 저장 후에는 반영 여부와 다음 조치를 보여 준다' },
+          { id: 'r18', title: '마지막 확인 이후의 변경을 홈에서 먼저 보여 준다' },
         ] },
-        { id: 'm02', title: '요건으로 진척을 본다', requirements: [
-          { id: 'r04', title: '프로젝트 목표에서 중간 목표, 요건, 업무로 내려가며 진척을 본다' },
-          { id: 'r05', title: '검색 결과에서 원래 요구사항과 검증 이력을 연다' },
+        { id: 'm02', title: '요구사항으로 진척을 본다', requirements: [
+          { id: 'r04', title: '프로젝트 목표에서 중간 목표, 요구사항, 업무로 내려가며 진척을 본다' },
+          { id: 'r05', title: '검색 결과에서 상위 요구사항과 검증 이력을 연다' },
         ] },
         { id: 'm03', title: '인계와 검증을 믿을 수 있다', requirements: [
           { id: 'r06', title: '저장을 재시도해도 결과는 한 건만 남는다' },
           { id: 'r07', title: '열람 권한이 없는 사람과 이름이 같은 다른 사람에게 업무·자료를 보이지 않는다' },
-          { id: 'r08', title: '구현·독립 기능 검증·실사용 검증·운영 배포와 이전 기준·현재 기준을 구분한다' },
+          { id: 'r08', title: '구현·제3자 기능 검증·실사용자 검증·운영 배포와 종전 기준·현행 기준을 구분한다' },
           { id: 'r09', title: 'AI 현황에서 마지막으로 확인한 결과와 최근 조회 시각을 구분한다' },
           { id: 'r17', title: '근거를 확인할 수 있는 것(커밋, 시험 결과)과 서술만 있는 것으로 나눠 보여 준다' },
         ] },
@@ -236,10 +236,10 @@
         { id: 'r13', title: 'Claude·Codex 스킬 허브를 둔다', own_status: 'hold', note: '후순위' },
         { id: 'r14', title: '프로젝트 지식을 업무에 연결한다', own_status: 'hold', note: '후순위' },
         { id: 'r15', title: '일정과 담당자 부재를 관리한다', own_status: 'hold', note: '후순위' },
-        { id: 'r19', title: '결정한 뒤에도 버린 대안과 이유를 남기고 프로젝트별 결정 목록을 둔다', own_status: 'hold', note: '조사 메모(2026-11-28)에서 나온 요건. 지금은 선택한 안만 남는다' },
-        { id: 'r20', title: '완료·통과 뒤에 실패 기록이 들어오면 다시 확인할 일로 알린다', own_status: 'hold', note: '조사 메모에서 나온 요건. 지금은 완료 조건이 바뀔 때만 이전 기준으로 내려간다' },
+        { id: 'r19', title: '결정한 뒤에도 버린 대안과 이유를 남기고 프로젝트별 결정 목록을 둔다', own_status: 'hold', note: '조사 메모(2026-11-28)에서 나온 요구사항. 지금은 선택한 안만 남는다' },
+        { id: 'r20', title: '완료·통과 뒤에 실패 기록이 들어오면 재확인 대상으로 알린다', own_status: 'hold', note: '조사 메모에서 나온 요구사항. 지금은 완료 조건이 바뀔 때만 종전 기준으로 내려간다' },
         { id: 'r21x', title: '커밋과 시험 결과를 저장소에서 자동으로 읽어 근거로 붙인다', own_status: 'hold', note: '지금은 기록하는 쪽이 커밋 번호와 시험 결과를 직접 적는다' },
-        { id: 'r22x', title: 'AI 세션이 끝나거나 압축되기 전에 인계 기록을 자동으로 남긴다', own_status: 'hold', note: '조사 메모에서 나온 요건. 스킬 허브와 함께 검토' },
+        { id: 'r22x', title: 'AI 세션이 끝나거나 압축되기 전에 인계 기록을 자동으로 남긴다', own_status: 'hold', note: '조사 메모에서 나온 요구사항. 스킬 허브와 함께 검토' },
         { id: 'r23x', title: '열람 제한이 없는 업무를 저장소의 읽기 전용 파일로 내보낸다', own_status: 'hold', note: '저장은 서버에 둔다. 열람 권한을 파일로는 지킬 수 없기 때문' },
         { id: 'r16', title: '테마를 바꾼다(캐릭터 테마 포함)', own_status: 'hold', note: '캐릭터 형태가 배경과 화면 구성에 녹아야 하고 업무 정보의 가독성을 해치지 않아야 한다' },
       ],
@@ -256,7 +256,7 @@
       next_action: '비개발자·개발자·AI 도구 첫 사용자를 한 명씩 정해, 목적만 알려 주고 PC에서 쓰게 한 뒤 첫 클릭과 헤맨 지점을 기록한다',
       blocked_reason: '실제 참가자를 확보하지 못했다. AI가 사용자 역할을 대신한 결과는 세지 않는다',
       goal: '설명 없이 쓸 수 있는지 실제 사람으로 확인한다',
-      done_criteria: ['세 유형 모두 도움 없이 이어받을 일과 근거를 찾고 다음 할 일을 말했다', '첫 클릭·헤맨 지점·잘못 이해한 정보·도움 요청 여부가 기록되어 있다'],
+      done_criteria: ['세 유형 모두 도움 없이 인계받은 업무과 근거를 찾고 다음 조치를 말했다', '첫 클릭·헤맨 지점·잘못 이해한 정보·도움 요청 여부가 기록되어 있다'],
       current_state: '미검증. 참가자가 정해지면 다시 시작한다.', updated_at: ago(1) });
 
     const records = [];
@@ -273,7 +273,7 @@
     R('c27', 't2', 'u_dev', 'deploy', 'pass', '전 매장 운영에 배포했다.', '배포 기록 2026-11-22', 1, 150);
     R('c1', 't3', 'ai_claude', 'impl', 'pass', '변경 링크로 예약 시간을 바꾸는 흐름을 구현했다.', '변경 요청 시험 12건', 1, 50);
     R('c2', 't3', 'ai_codex', 'func', 'pass', '링크로 변경하고 확인 문자를 받는 흐름이 정상이다.', '시험 예약 8건 중 8건 변경 성공', 1, 46);
-    R('c3', 't3', 'u_me', 'edit', null, '완료 조건을 바꿨다(기준 v1 → v2). 추가: 링크는 한 번만 쓸 수 있고 24시간 뒤 만료된다. 보안 검토 지적 반영.', '', 2, 30);
+    R('c3', 't3', 'u_me', 'edit', null, '완료 조건을 바꿨다(1차 → 2차). 추가: 링크는 한 번만 쓸 수 있고 24시간 뒤 만료된다. 보안 검토 지적 반영.', '', 2, 30);
     R('c4', 't3', 'ai_claude', 'impl', 'pass', '링크 1회 사용과 24시간 만료를 추가로 구현했다.', '만료·재사용 시험 6건', 2, 20, { commit: 'e71f0b4', test_passed: null, test_total: null });
     R('c5', 't3', 'ai_codex', 'func', 'fail', '만료된 링크로 예약이 변경된다. 1회 사용 조건은 통과했다.', '만료 후 25시간 지난 링크 3건 중 3건이 동작(모두 거절되어야 정상). 사용한 링크 재사용 4건은 모두 거절됨.', 2, 5, { commit: 'e71f0b4', test_passed: 4, test_total: 7 });
     R('c6', 't4', 'ai_claude', 'note', null, '안내문 초안 v3을 작성했다. 점주가 자주 묻는 질문 3가지에 대한 답을 넣었다.', '', 1, 6);
@@ -290,7 +290,7 @@
     R('c19', 't11', 'u_dev', 'handoff', null, '김지수(재무팀) 님에게 인계한다. 예외 6건 목록을 첨부했다.', '', 1, 12);
 
     Object.values(tasks).filter((t) => t.project_id === 'p0' && t.id !== 't100').forEach((t, i) =>
-      R('c9' + i, t.id, 'ai_claude', 'impl', 'pass', '구현했다. 구현자의 자체 확인은 참고 자료이며 독립 검증을 대신하지 않는다.', '자체 규칙 시험(test/core.test.js)', 1, 1, { commit: '2ec355d', test_passed: 13, test_total: 13 }));
+      R('c9' + i, t.id, 'ai_claude', 'impl', 'pass', '구현했다. 구현자의 자체 확인은 참고 자료이며 제3자 검증을 대신하지 않는다.', '자체 규칙 시험(test/core.test.js)', 1, 1, { commit: '2ec355d', test_passed: 13, test_total: 13 }));
     const materials = [
       { id: 'mt1', task_id: 't4', title: '점주 사전 인터뷰 요약', kind: '문서', summary: '점주 5명 인터뷰. 가장 많은 질문: 고객이 바꾼 예약은 어디서 보나, 변경 마감은 언제인가, 잘못 바꾸면 되돌릴 수 있나.', allowed: null },
       { id: 'mt2', task_id: 't4', title: '시범 매장 점주 연락처', kind: '연락처', summary: '강남점·판교점 점주 연락처.', allowed: ['u_me', 'u_dev', 'u_new'] },
@@ -307,7 +307,7 @@
     ];
 
     const changes = [
-      { id: 'g1', project_id: 'p1', task_id: 't3', text: '독립 기능 검증 실패(현재 기준 v2)', actor_id: 'ai_codex', at: ago(5) },
+      { id: 'g1', project_id: 'p1', task_id: 't3', text: '제3자 기능 검증 실패(현행 기준 2차)', actor_id: 'ai_codex', at: ago(5) },
       { id: 'g2', project_id: 'p1', task_id: 't4', text: '한서윤(제품기획팀) 님에게 인계', actor_id: 'ai_claude', at: ago(2) },
       { id: 'g3', project_id: 'p1', task_id: 't5', text: '막힘: 결정 요청', actor_id: 'ai_claude', at: ago(9) },
       { id: 'g4', project_id: 'p1', task_id: 't13', text: '이하람(매장운영팀) 님에게 인계', actor_id: 'u_dev', at: ago(8) },
@@ -367,8 +367,17 @@
   const evidenceLevel = (r) => (proofView(r.proof) ? 'checkable' : r.evidence ? 'stated' : 'none');
 
   // 만드는 업무는 네 단계를 모두 쓴다. 전달·조율 같은 업무는 다른 사람의 확인 한 단계만 쓴다.
-  const stageDefs = (task) => (task.track === 'check' ? [Object.assign({}, STAGES[1], { label: '다른 사람의 검수', pass: '검수 통과', fail: '되돌려 보냄', none: '검수 전' })] : STAGES);
+  const stageDefs = (task) => (task.track === 'check' ? [Object.assign({}, STAGES[1], { label: '제3자 검수', pass: '검수 통과', fail: '반려', none: '미실시' })] : STAGES);
   const kindLabel = (task, kind) => { const d = stageDefs(task).find((x) => x.key === kind); return d ? (kind === 'impl' ? KINDS.impl : d.label) : KINDS[kind]; };
+  // 이 업무를 맡아 한 사람들: 지금 담당자, 예전 담당자, 구현 완료를 보고한 사람. 이들은 제3자 검증·검수를 남길 수 없다.
+  function didWork(state, task, uid) {
+    return task.assignee_id === uid || (task.workers || []).includes(uid) || state.records.some((r) => r.task_id === task.id && r.kind === 'impl' && r.author_id === uid);
+  }
+  // 일을 넘기면 담당자가 바뀌고, 넘긴 사람은 '맡았던 사람'으로 남는다.
+  function passWork(task, to) {
+    if (task.assignee_id && task.assignee_id !== to && !(task.workers || []).includes(task.assignee_id)) task.workers = (task.workers || []).concat([task.assignee_id]);
+    task.assignee_id = to;
+  }
   function stagesOf(state, task) {
     const recs = state.records.filter((r) => r.task_id === task.id);
     return stageDefs(task).map((s) => {
@@ -432,6 +441,7 @@
         criteria_version: r.criteria_version, is_current_criteria: r.criteria_version === t.criteria_version,
         at: r.at, author: pubUser(state, r.author_id),
       })),
+      did_work: projectOf(state, t.project_id).members.filter((id) => didWork(state, t, id)),
       members: projectOf(state, t.project_id).members.filter((id) => !t.restricted || t.restricted.includes(id)).map((id) => pubUser(state, id)),
       restricted: !!t.restricted,
     });
@@ -497,7 +507,7 @@
     if (!p || !p.members.includes(uid)) return err(404, '프로젝트를 찾을 수 없습니다.');
     const reqView = (r) => {
       const ts = tasksOfReq(state, r.id).filter((t) => canSee(state, t, uid));
-      // 요건 상태는 구성원 모두에게 사실대로 보인다. 볼 수 없는 업무는 내용 없이 건수만 알린다.
+      // 요구사항 상태는 구성원 모두에게 사실대로 보인다. 볼 수 없는 업무는 내용 없이 건수만 알린다.
       return { id: r.id, title: r.title, status: reqStatus(state, r), note: r.note || '', tasks: ts.map((t) => taskSummary(state, t)), hidden_tasks: tasksOfReq(state, r.id).length - ts.length };
     };
     return ok({
@@ -514,14 +524,15 @@
     const snip = (text) => {
       const i = text.toLowerCase().indexOf(q);
       if (i < 0) return null;
-      const s = Math.max(0, i - 24);
+      let s = Math.max(0, i - 24);
+      if (s > 0) { const sp = text.indexOf(' ', s); if (sp >= 0 && sp < i) s = sp + 1; } // 낱말 중간에서 시작하지 않는다
       return (s > 0 ? '…' : '') + text.slice(s, i + q.length + 40) + (i + q.length + 40 < text.length ? '…' : '');
     };
     const results = [];
     Object.values(state.tasks).filter((t) => canSee(state, t, uid)).forEach((t) => {
       const hits = [];
       const fr = findReq(state, t.requirement_id);
-      [['제목', t.title], ['원래 요구사항', fr.req.title], ['다음 할 일', t.next_action], ['진행 상황', t.current_state], ['막힌 이유', t.blocked_reason], ['완료 조건', t.done_criteria.join(' / ')]]
+      [['제목', t.title], ['상위 요구사항', fr.req.title], ['다음 조치', t.next_action], ['진행 상황', t.current_state], ['막힘 사유', t.blocked_reason], ['완료 조건', t.done_criteria.join(' / ')]]
         .forEach(([label, text]) => { const s = text && snip(text); if (s) hits.push({ where: label, text: s }); });
       state.records.filter((r) => r.task_id === t.id).forEach((r) => {
         const s = snip(r.body + ' ' + r.evidence);
@@ -565,12 +576,12 @@
     if (kind !== 'note' && !defs.some((d) => d.key === kind)) return err(422, '기록 종류를 선택해 주세요.');
     // 검증 결과는 기록하는 사람이 본 완료 조건 기준으로만 남긴다.
     if (kind !== 'note' && body.criteria_version !== task.criteria_version) {
-      return err(409, `완료 조건이 바뀌었습니다(지금 기준 v${task.criteria_version}). 새 완료 조건을 확인한 뒤 다시 저장해 주세요.`, { task: taskDetail(state, task, uid) });
+      return err(409, `완료 조건이 바뀌었습니다(현행 기준 ${task.criteria_version}차). 새 완료 조건을 확인한 뒤 다시 저장해 주세요.`, { task: taskDetail(state, task, uid) });
     }
     if (!text) return err(422, '내용을 입력해 주세요.');
     if (text.length > 2000 || evidence.length > 2000) return err(422, '내용과 근거는 각각 2,000자까지 입력할 수 있습니다.');
     if (kind === 'note') outcome = null;
-    else if (kind === 'impl') outcome = 'pass';
+    else if (kind === 'impl') { if (outcome === 'fail') return err(422, '구현 완료 보고에는 실패 결과를 남길 수 없습니다. 메모로 남겨 주세요.'); outcome = 'pass'; }
     else if (!['pass', 'fail'].includes(outcome)) return err(422, '결과(통과 또는 실패)를 선택해 주세요.');
     let proof = null;
     const pin = body.proof && typeof body.proof === 'object' ? body.proof : {};
@@ -586,29 +597,30 @@
     } else if (commit) proof = { commit, test_passed: null, test_total: null };
     if (['func', 'field'].includes(kind) && !evidence && !proof) return err(422, '검증 결과에는 확인한 근거를 적어 주세요.');
     if (kind === 'func') {
-      const built = task.assignee_id === uid || state.records.some((r) => r.task_id === task.id && r.kind === 'impl' && r.author_id === uid);
-      if (built) return err(422, `이 업무를 맡아 한 사람은 ‘${defs.find((d) => d.key === 'func').label}’ 결과를 남길 수 없습니다. 맡지 않은 다른 사람이 남겨야 합니다.`);
+      if (didWork(state, task, uid)) return err(422, `이 업무를 맡아 한 사람은 ‘${defs.find((d) => d.key === 'func').label}’ 결과를 남길 수 없습니다. 맡지 않은 다른 사람이 남겨야 합니다.`);
     }
-    if (kind === 'field' && me.kind === 'ai') return err(422, '실사용 검증은 실제 사용자가 확인한 결과만 남길 수 있습니다.');
+    if (kind === 'field' && me.kind === 'ai') return err(422, '실사용자 검증은 실제 사용자가 확인한 결과만 남길 수 있습니다.');
     if (kind === 'deploy' && me.kind === 'ai') return err(422, '운영 배포 결과는 사람이 남겨야 합니다.');
     // 결과를 남기면서 다음 사람에게 넘길 수 있다.
     let ho = null;
     if (body.handoff != null) {
-      if (typeof body.handoff !== 'object') return err(422, '넘길 내용이 올바르지 않습니다.');
-      if (task.status === 'done') return err(422, '완료된 업무는 넘길 수 없습니다. 기록만 남기거나, 수정에서 상태를 먼저 바꿔 주세요.');
+      if (typeof body.handoff !== 'object') return err(422, '인계 내용이 올바르지 않습니다.');
+      if (task.status === 'done') return err(422, '완료된 업무는 인계할 수 없습니다. 기록만 작성하거나, 수정에서 상태를 먼저 변경해 주세요.');
       // 넘기기는 다음 담당자를 바꾸므로, 그 사이 다른 사람이 업무를 바꿨으면 덮어쓰지 않는다.
-      if (body.rev !== task.rev) return err(409, '그 사이 다른 사람이 이 업무를 바꿨습니다. 최신 내용을 확인한 뒤 다시 저장해 주세요.', { task: taskDetail(state, task, uid) });
-      const to = body.handoff.next_owner_id, act = txt(body.handoff.next_action);
-      if (!has(state.users, to) || !canSee(state, task, to)) return err(422, '이 업무를 볼 수 있는 구성원에게만 넘길 수 있습니다.');
-      if (!act) return err(422, '넘겨받는 사람이 할 일을 적어 주세요.');
-      if (act.length > 500) return err(422, '다음 할 일은 500자까지 입력할 수 있습니다.');
-      ho = { to, act };
+      if (body.rev !== task.rev) return err(409, '다른 사람이 먼저 이 업무를 변경했습니다. 최신 내용을 확인한 뒤 다시 저장해 주세요.', { task: taskDetail(state, task, uid) });
+      const to = body.handoff.next_owner_id, act = txt(body.handoff.next_action), purpose = body.handoff.purpose;
+      if (!['work', 'review'].includes(purpose)) return err(422, '인계 목적을 선택해 주세요.');
+      if (!has(state.users, to) || !canSee(state, task, to)) return err(422, '이 업무를 열람할 수 있는 구성원에게만 인계할 수 있습니다.');
+      if (!act) return err(422, '인계 후 조치를 적어 주세요.');
+      if (act.length > 500) return err(422, '다음 조치는 500자까지 입력할 수 있습니다.');
+      if (purpose === 'review' && didWork(state, task, to)) return err(422, '이 업무를 맡았던 사람에게는 검수를 요청할 수 없습니다. 맡지 않은 다른 사람을 선택해 주세요.');
+      ho = { to, act, purpose };
     }
     const rec = { id: nextId(state, 'c'), task_id: task.id, author_id: uid, kind: kind === 'note' && ho ? 'handoff' : kind, outcome, body: text, evidence, proof, criteria_version: task.criteria_version, at: now };
     state.records.push(rec);
     task.updated_at = now; task.rev += 1;
     const stage = defs.find((s) => s.key === kind);
-    // 완료된 업무에 현재 기준의 검증 실패가 들어오면 완료를 풀고 담당자에게 돌려보낸다.
+    // 완료된 업무에 현행 기준의 검증 실패가 들어오면 완료를 풀고 담당자에게 돌려보낸다.
     let reopened = false;
     if (task.status === 'done' && ['func', 'field', 'deploy'].includes(kind) && outcome === 'fail') {
       reopened = true;
@@ -619,19 +631,21 @@
     }
     if (ho && !reopened) {
       task.next_owner_id = ho.to; task.next_action = ho.act; task.handoff_from = uid; task.handed_at = now;
+      if (ho.purpose === 'work') passWork(task, ho.to);
       if (task.status === 'todo') task.status = 'doing';
     }
-    logChange(state, task, (stage ? `${stage.label}: ${stage[outcome]}` : `기록: ${text.slice(0, 30)}`) + (reopened ? '. 완료가 풀림' : '') + (ho && !reopened ? `. ${nameOf(state, ho.to)} 님에게 인계` : ''), uid, now);
+    logChange(state, task, (stage ? `${stage.label}: ${stage[outcome]}` : `기록: ${text.slice(0, 30)}`) + (reopened ? '. 완료가 풀림' : '') + (ho && !reopened ? (ho.purpose === 'work' ? `. ${nameOf(state, ho.to)} 님에게 인계` : `. ${nameOf(state, ho.to)} 님에게 검수 요청`) : ''), uid, now);
     const ag = state.agents.find((a) => a.id === uid && a.task_id === task.id);
     if (ag) { ag.last_result = text; ag.last_result_at = now; ag.last_polled_at = now; ag.connected = true; }
     return ok({
-      saved: { record_id: rec.id, summary: (stage ? `${stage.label} 결과가 '${stage[outcome]}'(으)로 기록되었습니다.` : '기록 1건이 추가되었습니다.') + (reopened ? ' 업무가 완료에서 진행 중으로 돌아갔습니다.' : '') + (ho && !reopened ? ` ${nameOf(state, ho.to)} 님에게 넘겼습니다.` : '') },
+      saved: { record_id: rec.id, summary: (stage ? `${stage.label} 결과가 ‘${stage[outcome]}’로 기록되었습니다.` : '기록 1건이 추가되었습니다.') + (reopened ? ' 업무가 완료에서 진행 중으로 돌아갔습니다.' : '') + (ho && !reopened ? (ho.purpose === 'work' ? ` ${nameOf(state, ho.to)} 님에게 인계했습니다. 담당자도 함께 바뀌었습니다.` : ` ${nameOf(state, ho.to)} 님에게 검수를 요청했습니다.`) : '') },
       task: taskDetail(state, task, uid),
     });
   }
 
   function editTask(state, uid, task, body, now) {
-    if (!body || body.rev !== task.rev) {
+    if (!body || typeof body !== 'object') return err(422, '수정할 항목이 올바르지 않습니다.');
+    if (body.rev !== task.rev) {
       return err(409, '다른 사람이 먼저 이 업무를 바꿨습니다. 최신 내용을 확인한 뒤 다시 수정해 주세요.', { task: taskDetail(state, task, uid) });
     }
     const fields = body.fields;
@@ -651,7 +665,7 @@
     if ('next_action' in patch) next.next_action = str(patch.next_action);
     if ('blocked_reason' in patch) next.blocked_reason = str(patch.blocked_reason);
     if ('current_state' in patch) next.current_state = str(patch.current_state);
-    if (next.next_action.length > 500 || next.blocked_reason.length > 500) return err(422, '다음 할 일과 이유는 각각 500자까지 입력할 수 있습니다.');
+    if (next.next_action.length > 500 || next.blocked_reason.length > 500) return err(422, '다음 조치와 이유는 각각 500자까지 입력할 수 있습니다.');
     if (next.current_state.length > 2000) return err(422, '진행 상황은 2,000자까지 입력할 수 있습니다.');
     if ('done_criteria' in patch) {
       if (!Array.isArray(patch.done_criteria)) return err(422, '완료 조건 형식이 올바르지 않습니다.');
@@ -661,22 +675,27 @@
     }
     if (['blocked', 'hold'].includes(next.status) && !next.blocked_reason) return err(422, `${STATUS[next.status]} 상태에는 이유를 적어 주세요.`);
     if (!['blocked', 'hold'].includes(next.status)) next.blocked_reason = '';
-    if (next.status !== 'done' && !next.next_action) return err(422, '다음 할 일을 적어 주세요.');
+    if (next.status !== 'done' && !next.next_action) return err(422, '다음 조치를 적어 주세요.');
+    if (next.status !== 'done' && !next.next_owner_id) return err(422, '다음 담당자를 지정해 주세요.');
+    if (next.status === 'done' && task.status === 'done' && (next.next_owner_id !== task.next_owner_id || next.next_action !== task.next_action)) {
+      return err(422, '완료된 업무는 인계할 수 없습니다. 상태를 먼저 변경해 주세요.');
+    }
     const criteriaChanged = JSON.stringify(next.done_criteria) !== JSON.stringify(task.done_criteria);
     if (next.status === 'done' && (task.status !== 'done' || criteriaChanged)) {
       if (criteriaChanged) return err(422, '완료 조건을 바꾸면 새 기준으로 다시 검증해야 합니다. 상태를 진행 중으로 함께 바꿔 주세요.');
       const st = stagesOf(state, task), func = st.find((s) => s.key === 'func'), bad = st.find((s) => s.state === 'fail');
-      if (bad) return err(422, `현재 기준에서 ‘${bad.label}’ 결과가 ‘${bad.text}’입니다. 이 결과가 바뀌기 전에는 완료로 바꿀 수 없습니다.`);
-      if (func.state !== 'pass') return err(422, `‘${func.label}’이(가) 끝나야 완료로 바꿀 수 있습니다. 담당자가 아닌 사람이 결과를 남겨야 합니다.`);
+      if (bad) return err(422, `현행 기준에서 ‘${bad.label}’ 결과가 ‘${bad.text}’입니다. 이 결과가 바뀌기 전에는 완료로 바꿀 수 없습니다.`);
+      if (func.state !== 'pass') return err(422, `‘${func.label}’ 단계가 통과해야 완료로 바꿀 수 있습니다. 이 업무를 맡지 않은 사람이 결과를 남겨야 합니다.`);
     }
     const show = (k, v) => (k === 'status' ? STATUS[v] : k === 'next_owner_id' ? nameOf(state, v) : k === 'done_criteria' ? v.join(' / ') : v || '(비어 있음)');
     const changes = [];
     for (const k of Object.keys(EDITABLE)) {
-      const label = k === 'blocked_reason' && (next.status === 'hold' || (task.status === 'hold' && next.status !== 'blocked')) ? '보류 이유' : EDITABLE[k];
+      const label = k === 'blocked_reason' && (next.status === 'hold' || (task.status === 'hold' && next.status !== 'blocked')) ? '보류 사유' : EDITABLE[k];
       if (JSON.stringify(next[k]) !== JSON.stringify(task[k])) changes.push({ field: k, label, from: show(k, task[k]), to: show(k, next[k]) });
     }
     if (!changes.length) return ok({ saved: { summary: '바뀐 항목이 없어 저장하지 않았습니다.', changes: [] }, task: taskDetail(state, task, uid) });
-    if (next.next_owner_id !== task.next_owner_id && next.next_owner_id) { next.handoff_from = uid; next.handed_at = now; }
+    const moved0 = next.next_owner_id !== task.next_owner_id && next.next_owner_id;
+    if (moved0) { next.handoff_from = uid; next.handed_at = now; next.workers = (task.workers || []).slice(); passWork(next, next.next_owner_id); }
     if (criteriaChanged) {
       next.criteria_version = task.criteria_version + 1;
       next.criteria_log = task.criteria_log.concat([{ version: next.criteria_version, items: next.done_criteria.slice(), at: now, by: uid }]);
@@ -684,7 +703,7 @@
     Object.assign(task, next, { rev: task.rev + 1, updated_at: now });
     state.records.push({
       id: nextId(state, 'c'), task_id: task.id, author_id: uid, kind: 'edit', outcome: null,
-      body: changes.map((c) => `${c.label}: ${c.from} → ${c.to}`).join('\n') + (criteriaChanged ? '\n완료 조건이 바뀌어 지금까지의 검증 결과는 이전 기준으로 남습니다.' : ''),
+      body: changes.map((c) => `${c.label}: ${c.from} → ${c.to}`).join('\n') + (criteriaChanged ? '\n완료 조건이 바뀌어 지금까지의 검증 결과는 종전 기준으로 남습니다.' : ''),
       evidence: '', criteria_version: task.criteria_version, at: now,
     });
     const moved = changes.some((c) => c.field === 'next_owner_id') && task.next_owner_id;
@@ -701,18 +720,18 @@
     if (!body || typeof body !== 'object') return err(422, '선택지를 골라 주세요.');
     if (d.owner_id !== uid) return err(403, '이 결정은 지정된 담당자만 내릴 수 있습니다.');
     if (d.chosen) return err(409, '이미 결정된 항목입니다.', { task: taskDetail(state, task, uid) });
-    if (body.rev !== task.rev) return err(409, '그 사이 다른 사람이 이 업무를 바꿨습니다. 최신 내용을 확인한 뒤 다시 결정해 주세요.', { task: taskDetail(state, task, uid) });
+    if (body.rev !== task.rev) return err(409, '다른 사람이 먼저 이 업무를 변경했습니다. 최신 내용을 확인한 뒤 다시 결정해 주세요.', { task: taskDetail(state, task, uid) });
     const note = txt(body.note);
     const opt = d.options.find((o) => o.id === body.option);
     if (!opt) return err(422, '선택지를 골라 주세요.');
     d.chosen = opt.id; d.chosen_at = now;
-    task.next_owner_id = opt.next_owner_id; task.next_action = opt.next_action;
+    task.next_owner_id = opt.next_owner_id; task.next_action = opt.next_action; passWork(task, opt.next_owner_id);
     task.handoff_from = uid; task.handed_at = now;
     if (d.unblocks && task.status === 'blocked') { task.status = 'todo'; task.blocked_reason = ''; }
     task.rev += 1; task.updated_at = now;
     state.records.push({ id: nextId(state, 'c'), task_id: task.id, author_id: uid, kind: 'decision', outcome: null, body: `결정: ${opt.label}`, evidence: note, proof: null, criteria_version: task.criteria_version, at: now });
     logChange(state, task, `결정: ${opt.label}`, uid, now);
-    return ok({ saved: { summary: `결정했습니다. 다음 담당자는 ${nameOf(state, task.next_owner_id)}, 다음 할 일은 ‘${task.next_action}’입니다.` }, task: taskDetail(state, task, uid) });
+    return ok({ saved: { summary: `결정했습니다. 다음 담당자는 ${nameOf(state, task.next_owner_id)}, 다음 조치는 ‘${task.next_action}’입니다.` }, task: taskDetail(state, task, uid) });
   }
 
   /* ───────────── 진입점 ───────────── */
