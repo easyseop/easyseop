@@ -28,7 +28,16 @@ function readBody(req) {
   });
 }
 
-const server = http.createServer(async (req, res) => {
+const server = http.createServer((req, res) => {
+  serve(req, res).catch((e) => {
+    console.error(e);
+    if (!res.headersSent) res.writeHead(400, { 'content-type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify({ error: '요청을 처리하지 못했습니다.' }));
+  });
+});
+process.on('uncaughtException', (e) => console.error('uncaught', e));
+
+async function serve(req, res) {
   const url = new URL(req.url, 'http://x');
   if (url.pathname.startsWith('/api/')) {
     let body = null;
@@ -58,5 +67,5 @@ const server = http.createServer(async (req, res) => {
   if (!full.startsWith(__dirname) || !fs.existsSync(full) || fs.statSync(full).isDirectory()) { res.writeHead(404); return res.end('Not found'); }
   res.writeHead(200, { 'content-type': TYPES[path.extname(full)] || 'application/octet-stream', 'cache-control': path.extname(full) === '.woff2' ? 'max-age=86400' : 'no-store' });
   fs.createReadStream(full).pipe(res);
-});
+}
 server.listen(PORT, '127.0.0.1', () => console.log(`Thread: http://127.0.0.1:${PORT}`));
