@@ -299,3 +299,37 @@ aside.col { gap: 0; } aside.col .card + .card { margin-top: 12px; }
   .spec > div { grid-template-columns: minmax(0, 1fr); gap: 4px; } .task-head { flex-wrap: wrap; }
 }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; scroll-behavior: auto !important; } }
+
+/* 간결화: 홈은 한 건에 두 줄, 상세의 이력과 자료는 접어 둔다 */
+.items, .projs { display: grid; gap: 8px; margin-top: 12px; }
+.item { display: grid; gap: 6px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 14px 18px; }
+.item:hover, .proj:hover { text-decoration: none; border-color: var(--ink); }
+.item.decide { border: 1.5px solid var(--ink); }
+.item-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.item-by { margin-left: auto; font-size: 12.5px; color: var(--ink-3); white-space: nowrap; }
+.item-title { font-size: 17px; font-weight: 750; letter-spacing: -.015em; line-height: 1.35; }
+.item-line { font-size: 14.5px; } .item-line small { margin-right: 8px; } .item-line.reason, .item-line.reason small { color: var(--blocked); font-weight: 600; }
+.since { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 16px 18px; display: grid; gap: 8px; }
+.feed li { display: flex; justify-content: space-between; gap: 12px; padding: 5px 0; align-items: baseline; }
+.feed a { min-width: 0; } .feed a b { font-weight: 650; font-size: 14px; display: block; } .feed a span { font-size: 12.5px; color: var(--ink-3); display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.feed small { flex: none; font-weight: 500; }
+.more summary, .fold summary { cursor: pointer; font-weight: 700; font-size: 13.5px; color: var(--ink-2); padding: 4px 0; }
+.fold { border-top: 1px solid var(--line); margin-top: 14px; padding-top: 10px; } .fold[open] summary { margin-bottom: 10px; }
+.btn.sm { padding: 5px 12px; font-size: 13px; }
+aside.col { gap: 26px; }
+.proj { display: grid; gap: 8px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 14px 18px; justify-items: start; }
+.proj-top { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; width: 100%; } .proj-top > b { font-size: 16.5px; font-weight: 750; }
+.proj .thread { width: 100%; }
+.ev-tag { font-size: 11.5px; font-weight: 800; border-radius: 6px; padding: 1px 7px; margin-right: 6px; white-space: nowrap; }
+.ev-tag.checkable { background: var(--ink); color: var(--panel); } .ev-tag.stated { border: 1.5px dashed var(--ink-3); color: var(--ink-3); }
+code { font: 600 12.5px ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--panel-2); padding: 1px 5px; border-radius: 5px; }
+.sg-ev { font-size: 13.5px; color: var(--ink-2); } .sg-prev { background: none; padding: 0; color: var(--ink-3); }
+.tl-head .tl-by { margin-left: auto; } .tl-ev span { color: var(--ink-2); }
+.pair { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+.flash.info { background: var(--panel); border-color: var(--ink); } .req-note.lock { border: 1.5px dashed var(--line); border-radius: 8px; padding: 6px 10px; justify-self: start; }
+:disabled { cursor: not-allowed; opacity: .55; }
+/* 목록에서는 다음 할 일을 한 줄로 자른다. 전체 문장은 업무 상세에서 본다. */
+.item-line.one { display: flex; align-items: baseline; min-width: 0; } .item-line.one small { flex: none; }
+.clip { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fact.next.one dd { display: flex; gap: 8px; align-items: center; min-width: 0; } .fact.next.one .who { flex: none; }

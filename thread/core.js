@@ -323,6 +323,7 @@
   }
 
   /* ───────────── 조회 도우미 ───────────── */
+  const has = (o, k) => !!o && typeof k === 'string' && Object.prototype.hasOwnProperty.call(o, k);
   const err = (status, message, extra) => ({ status, body: Object.assign({ error: message }, extra || {}) });
   const ok = (body) => ({ status: 200, body });
 
@@ -491,7 +492,8 @@
     if (!p || !p.members.includes(uid)) return err(404, '프로젝트를 찾을 수 없습니다.');
     const reqView = (r) => {
       const ts = tasksOfReq(state, r.id).filter((t) => canSee(state, t, uid));
-      return { id: r.id, title: r.title, status: reqStatus(state, r), note: r.note || '', tasks: ts.map((t) => taskSummary(state, t)) };
+      // 요건 상태는 구성원 모두에게 사실대로 보인다. 볼 수 없는 업무는 내용 없이 건수만 알린다.
+      return { id: r.id, title: r.title, status: reqStatus(state, r), note: r.note || '', tasks: ts.map((t) => taskSummary(state, t)), hidden_tasks: tasksOfReq(state, r.id).length - ts.length };
     };
     return ok({
       id: p.id, name: p.name, goal: p.goal, start: p.start, finish: p.finish, progress: progressOf(state, p),
@@ -581,11 +583,20 @@
     state.records.push(rec);
     task.updated_at = now; task.rev += 1;
     const stage = STAGES.find((s) => s.key === kind);
-    logChange(state, task, stage ? `${stage.label}: ${stage[outcome]}(현재 기준 v${task.criteria_version})` : '기록 추가', uid, now);
+    // 완료된 업무에 현재 기준의 검증 실패가 들어오면 완료를 풀고 담당자에게 돌려보낸다.
+    let reopened = false;
+    if (task.status === 'done' && ['func', 'field'].includes(kind) && outcome === 'fail') {
+      reopened = true;
+      task.status = 'doing'; task.next_owner_id = task.assignee_id;
+      task.next_action = `${stage.label} 실패 원인을 확인하고 고친 뒤 다시 검증을 요청한다`;
+      task.current_state = `완료 후 ${stage.label}에서 실패해 다시 열렸다.`;
+      task.handoff_from = uid; task.handed_at = now;
+    }
+    logChange(state, task, (stage ? `${stage.label}: ${stage[outcome]}` : '기록 추가') + (reopened ? '. 완료가 풀림' : ''), uid, now);
     const ag = state.agents.find((a) => a.id === uid && a.task_id === task.id);
     if (ag) { ag.last_result = text; ag.last_result_at = now; ag.last_polled_at = now; ag.connected = true; }
     return ok({
-      saved: { record_id: rec.id, summary: stage ? `${stage.label} 결과가 '${stage[outcome]}'(으)로 기록되었습니다.` : '기록 1건이 추가되었습니다.' },
+      saved: { record_id: rec.id, summary: (stage ? `${stage.label} 결과가 '${stage[outcome]}'(으)로 기록되었습니다.` : '기록 1건이 추가되었습니다.') + (reopened ? ' 업무가 완료에서 진행 중으로 돌아갔습니다.' : '') },
       task: taskDetail(state, task, uid),
     });
   }
@@ -594,14 +605,17 @@
     if (!body || body.rev !== task.rev) {
       return err(409, '다른 사람이 먼저 이 업무를 바꿨습니다. 최신 내용을 확인한 뒤 다시 수정해 주세요.', { task: taskDetail(state, task, uid) });
     }
+    const fields = body.fields;
+    if (!fields || typeof fields !== 'object' || Array.isArray(fields)) return err(422, '수정할 항목이 올바르지 않습니다.');
     const patch = {};
-    for (const k of Object.keys(EDITABLE)) if (body.fields && k in body.fields) patch[k] = body.fields[k];
+    for (const k of Object.keys(EDITABLE)) if (has(fields, k)) patch[k] = fields[k];
     const str = (v) => String(v == null ? '' : v).trim();
     const next = Object.assign({}, task);
     if ('title' in patch) { next.title = str(patch.title); if (!next.title) return err(422, '제목을 입력해 주세요.'); if (next.title.length > 200) return err(422, '제목은 200자까지 입력할 수 있습니다.'); }
-    if ('status' in patch) { if (!STATUS[patch.status]) return err(422, '상태를 선택해 주세요.'); next.status = patch.status; }
+    if ('status' in patch) { if (!has(STATUS, patch.status)) return err(422, '상태를 선택해 주세요.'); next.status = patch.status; }
     if ('next_owner_id' in patch) {
       const id = patch.next_owner_id || null;
+      if (id && !has(state.users, id)) return err(422, '다음 담당자를 찾을 수 없습니다.');
       if (id && !(isMember(state, task.project_id, id) && (!task.restricted || task.restricted.includes(id)))) return err(422, '이 업무를 볼 수 있는 구성원만 다음 담당자로 지정할 수 있습니다.');
       next.next_owner_id = id;
     }
@@ -624,7 +638,8 @@
     const show = (k, v) => (k === 'status' ? STATUS[v] : k === 'next_owner_id' ? nameOf(state, v) : k === 'done_criteria' ? v.join(' / ') : v || '(비어 있음)');
     const changes = [];
     for (const k of Object.keys(EDITABLE)) {
-      if (JSON.stringify(next[k]) !== JSON.stringify(task[k])) changes.push({ field: k, label: EDITABLE[k], from: show(k, task[k]), to: show(k, next[k]) });
+      const label = k === 'blocked_reason' && (next.status === 'hold' || (task.status === 'hold' && next.status !== 'blocked')) ? '보류 이유' : EDITABLE[k];
+      if (JSON.stringify(next[k]) !== JSON.stringify(task[k])) changes.push({ field: k, label, from: show(k, task[k]), to: show(k, next[k]) });
     }
     if (!changes.length) return ok({ saved: { summary: '바뀐 항목이 없어 저장하지 않았습니다.', changes: [] }, task: taskDetail(state, task, uid) });
     if (next.next_owner_id !== task.next_owner_id && next.next_owner_id) { next.handoff_from = uid; next.handed_at = now; }
@@ -648,6 +663,7 @@
   function decide(state, uid, task, body, now) {
     const d = task.decision;
     if (!d) return err(404, '결정할 항목이 없습니다.');
+    if (!body || typeof body !== 'object') return err(422, '선택지를 골라 주세요.');
     if (d.owner_id !== uid) return err(403, '이 결정은 지정된 담당자만 내릴 수 있습니다.');
     if (d.chosen) return err(409, '이미 결정된 항목입니다.', { task: taskDetail(state, task, uid) });
     const opt = d.options.find((o) => o.id === (body && body.option));
@@ -680,12 +696,12 @@
     }
     if (p[0] === 'demo' && p[1] === 'agent-link' && m === 'POST') {
       const a = state.agents.find((x) => x.id === (req.body && req.body.id));
-      if (!a) return err(404, 'AI를 찾을 수 없습니다.');
+      if (!a || !canSee(state, state.tasks[a.task_id], uid)) return err(404, 'AI를 찾을 수 없습니다.');
       a.reachable = !!req.body.reachable;
       return ok({ ok: true });
     }
     if (p[0] === 'tasks' && p[1]) {
-      const task = state.tasks[p[1]];
+      const task = has(state.tasks, p[1]) ? state.tasks[p[1]] : null;
       // 볼 수 없는 업무는 없는 업무와 똑같이 응답한다.
       if (!canSee(state, task, uid)) return err(404, '업무를 찾을 수 없습니다.');
       if (m === 'GET' && p.length === 2) return ok({ task: taskDetail(state, task, uid) });
@@ -706,18 +722,20 @@
       return ok({ ok: true });
     }
     const uid = req.userId;
-    if (!uid || !state.users[uid]) return err(401, '사용자를 확인할 수 없습니다.');
+    if (!has(state.users, uid)) return err(401, '사용자를 확인할 수 없습니다.');
     if (req.method === 'GET') return route(state, req, uid, now);
     // 저장 요청은 요청 키가 있어야 하고, 같은 키로 다시 오면 처음 결과를 그대로 돌려준다.
     if (!req.idemKey) return err(400, '저장 요청 키가 없습니다.');
-    const key = uid + ':' + req.idemKey;
-    if (state.idem[key]) {
+    const key = uid + ':' + String(req.idemKey);
+    const print = req.method + ' ' + path + ' ' + JSON.stringify(req.body == null ? null : req.body);
+    if (has(state.idem, key)) {
       const prev = JSON.parse(state.idem[key]);
-      prev.body.replayed = true;
-      return prev;
+      if (prev.print !== print) return err(422, '이 요청 키는 이미 다른 저장에 쓰였습니다. 새 요청 키로 다시 보내 주세요.');
+      prev.res.body.replayed = true;
+      return prev.res;
     }
     const res = route(state, req, uid, now);
-    if (res.status === 200) state.idem[key] = JSON.stringify(res);
+    if (res.status === 200) state.idem[key] = JSON.stringify({ print, res });
     return res;
   }
 

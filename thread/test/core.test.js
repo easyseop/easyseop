@@ -117,3 +117,61 @@ test('진척은 완료한 요건 수로만 센다', () => {
   assert.deepEqual([p.progress.done, p.progress.total], [2, 7]);
   assert.equal(p.later.length, 2);
 });
+
+test('같은 요청 키를 다른 내용에 다시 쓰면 받지 않는다', () => {
+  const s = mk();
+  assert.equal(send(s, 'u_me', 'POST', 'tasks/t4/records', { kind: 'note', body: 'A' }, 'k').status, 200);
+  assert.equal(send(s, 'u_me', 'POST', 'tasks/t10/records', { kind: 'note', body: 'B' }, 'k').status, 422);
+});
+
+test('잘못된 수정 요청은 저장되지 않고 오류로 답한다', () => {
+  const s = mk();
+  const rev = s.tasks.t6.rev;
+  for (const fields of ['abc', 5, null, [], { status: 'toString' }, { status: 'constructor' }, { next_owner_id: '__proto__' }]) {
+    assert.equal(send(s, 'u_me', 'PATCH', 'tasks/t6', { rev, fields }, 'k' + JSON.stringify(fields)).status, 422);
+  }
+  assert.equal(s.tasks.t6.status, 'todo');
+  assert.equal(get(s, '__proto__', 'home').status, 401);
+  assert.equal(get(s, 'u_me', 'tasks/constructor').status, 404);
+});
+
+test('완료된 업무에 검증 실패가 들어오면 완료가 풀리고 담당자에게 돌아간다', () => {
+  const s = mk();
+  const r = send(s, 'u_dev', 'POST', 'tasks/t1/records', { kind: 'func', outcome: 'fail', body: '재확인에서 실패', evidence: '2건 누락' }, 'k');
+  assert.equal(r.status, 200);
+  assert.equal(r.body.task.status, 'doing');
+  assert.equal(r.body.task.next_owner.id, 'ai_claude');
+  assert.equal(get(s, 'u_me', 'projects/p1').body.progress.done, 1);
+});
+
+test('볼 수 없는 업무는 건수만 알리고, 요건 상태는 사실대로 보인다', () => {
+  const s = mk();
+  s.tasks.t11.status = 'blocked'; s.tasks.t11.blocked_reason = '비밀';
+  const p = get(s, 'u_jisu1', 'projects/p2').body;
+  const r = p.milestones[1].requirements.find((x) => x.id === 'r24');
+  assert.equal(r.status, 'blocked');
+  assert.equal(r.hidden_tasks, 1);
+  assert.equal(r.tasks.length, 0);
+  assert.ok(!JSON.stringify(p).includes('비밀'));
+});
+
+test('통과로 남기려면 시험이 모두 통과해야 하고, 근거 수준이 구분된다', () => {
+  const s = mk();
+  const bad = send(s, 'ai_codex', 'POST', 'tasks/t3/records', { kind: 'func', outcome: 'pass', body: 'x', proof: { test_passed: 6, test_total: 7 } }, 'a');
+  assert.equal(bad.status, 422);
+  const okr = send(s, 'ai_codex', 'POST', 'tasks/t3/records', { kind: 'func', outcome: 'pass', body: 'x', proof: { commit: 'ABC1234', test_passed: 7, test_total: 7 } }, 'b');
+  assert.equal(okr.body.task.stages[1].current.evidence_level, 'checkable');
+  assert.equal(get(s, 'u_me', 'tasks/t4').body.task.records.find((r) => r.id === 'c7').evidence_level, 'stated');
+});
+
+test('마지막 확인 뒤 바뀐 것은 확인하면 비워지고, 볼 수 없는 업무의 변경은 섞이지 않는다', () => {
+  const s = mk();
+  const h = get(s, 'u_me', 'home').body;
+  assert.ok(h.since.total > 0);
+  assert.ok(h.since.changes.every((c) => c.task_id !== 't11'));
+  assert.equal(send(s, 'u_me', 'POST', 'home/seen', {}, 'k').body.since.total, 0);
+});
+
+test('AI 연결 시연 기능도 볼 수 있는 사람만 쓴다', () => {
+  assert.equal(send(mk(), 'u_new', 'POST', 'demo/agent-link', { id: 'ai_codex', reachable: true }, 'k').status, 404);
+});

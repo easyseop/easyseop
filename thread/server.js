@@ -37,10 +37,16 @@ const server = http.createServer(async (req, res) => {
       return res.end(JSON.stringify({ error: '요청 형식이 올바르지 않습니다.' }));
     }
     // Node는 요청을 하나씩 처리하므로 handle() 한 번이 곧 하나의 저장 단위다.
-    const out = core.handle(state, {
-      method: req.method, path: url.pathname.slice(5), query: Object.fromEntries(url.searchParams),
-      userId: req.headers['x-thread-user'], idemKey: req.headers['idempotency-key'], body,
-    });
+    let out;
+    try {
+      out = core.handle(state, {
+        method: req.method, path: url.pathname.slice(5), query: Object.fromEntries(url.searchParams),
+        userId: req.headers['x-thread-user'], idemKey: req.headers['idempotency-key'], body,
+      });
+    } catch (e) {
+      console.error(e);
+      out = { status: 500, body: { error: '요청을 처리하지 못했습니다.' } };
+    }
     if (req.method !== 'GET') persist();
     // 시연용: 저장은 끝냈지만 응답이 끊긴 상황을 만든다.
     if (req.method !== 'GET' && req.headers['x-demo-drop-response'] === '1') return req.socket.destroy();
